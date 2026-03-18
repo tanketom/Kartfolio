@@ -1,0 +1,297 @@
+/**
+ * Ghost Screen (Vertical) - Edge-to-Edge Signage Edition
+ * Optimized for 2048 x 2560 px (Vertical Displays/Digital Signage)
+ */
+
+/* 1. VIEWPORT & BODY RESET */
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 2048px;
+    height: 2560px;
+    overflow: hidden;
+    background-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* 2. SIGNAGE CONTAINER */
+.signage-container {
+    display: flex;
+    flex-direction: column;
+    width: 2048px;
+    height: 2560px;
+}
+
+/* 3. HEADER SECTION */
+.signage-header {
+    background: #e60012;
+    color: white;
+    height: 240px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 80px;
+    width: 100%;
+    box-sizing: border-box;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+}
+
+.header-title {
+    font-size: 4.5rem;
+    font-weight: 900;
+    font-style: italic;
+    text-transform: uppercase;
+}
+
+.header-season {
+    font-size: 5rem;
+    font-weight: 400;
+    opacity: 0.9;
+}
+
+/* 4. MAIN CONTENT AREA */
+.signage-main {
+    flex: 1;
+    padding: 40px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* 5. RACER CARDS - VERTICAL DISPLAY VARIANT */
+.signage-container .racer-card {
+    width: 100%;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    padding: 0 60px;
+    margin-bottom: 0;
+    border-radius: 30px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+    box-sizing: border-box;
+    background: white;
+    border: none;
+    overflow: hidden;
+}
+
+.signage-container .racer-card.gold {
+    border-left: 50px solid var(--gold);
+    background: linear-gradient(90deg, #fff9e6, #fff);
+}
+
+.signage-container .racer-card.silver {
+    border-left: 50px solid var(--silver);
+}
+
+.signage-container .racer-card.bronze {
+    border-left: 50px solid var(--bronze);
+}
+
+/* Card Element Scaling */
+.signage-container .rank-number {
+    font-size: 5rem;
+    width: 160px;
+}
+
+.signage-container .racer-portrait {
+    width: 140px;
+    height: 140px;
+    margin-right: 40px;
+}
+
+.signage-container .racer-portrait img {
+    height: 130px;
+}
+
+.signage-container .racer-name {
+    font-size: 4.5rem;
+}
+
+.signage-container .racer-stat-label {
+    font-size: 1.8rem;
+    margin-top: 10px;
+}
+
+.signage-container .racer-score {
+    font-size: 6rem;
+    min-width: 350px;
+}
+
+/* Badge Icons */
+.signage-container .badge-container {
+    margin-left: 30px;
+}
+
+.signage-container .badge-icon {
+    font-size: 2.5rem;
+    margin-right: 10px;
+}
+
+/* 6. FOOTER TICKER */
+.signage-footer {
+    height: 160px;
+    background: #000;
+    display: flex;
+    align-items: center;
+}
+
+.signage-footer .news-ticker-wrap {
+    width: 100%;
+    border-radius: 0;
+    margin-bottom: 0;
+}
+
+.signage-footer .ticker-label {
+    font-size: 2.5rem;
+    height: 100%;
+    padding: 0 60px;
+}
+
+.signage-footer .ticker-move {
+    font-size: 3rem;
+}
+
+.signage-footer .ticker-item {
+    margin-right: 200px;
+}
+
+/* 7. INELIGIBLE STATE */
+.signage-container .racer-ineligible {
+    opacity: 0.7;
+}
+
+/* Legacy Class Support (v-prefix) */
+.v-container {
+    display: flex;
+    flex-direction: column;
+    width: 2048px;
+    height: 2560px;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.v-header {
+    background: var(--nintendo-red);
+    color: white;
+    height: 200px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 80px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.v-logo {
+    font-size: 5rem;
+    font-weight: 900;
+    font-style: italic;
+    text-transform: uppercase;
+}
+
+.v-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.v-card {
+    display: flex;
+    align-items: center;
+    height: calc((2560px - 350px) / 10);
+    width: 100%;
+    background: white;
+    margin: 0;
+    padding: 0 60px;
+    box-sizing: border-box;
+    border-bottom: 2px solid #eee;
+    border-radius: 0;
+}
+
+.v-rank {
+    font-size: 6rem;
+    font-weight: 900;
+    font-style: italic;
+    width: 220px;
+    color: #ccc;
+}
+
+.v-portrait-wrap {
+    width: 160px;
+    height: 160px;
+    margin-right: 50px;
+}
+
+.v-portrait-wrap img {
+    width: 100%;
+    filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.1));
+}
+
+.v-name-box {
+    flex: 1;
+}
+
+.v-name {
+    font-size: 5rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.v-score {
+    font-size: 6rem;
+    font-weight: 900;
+    color: var(--nintendo-red);
+    text-align: right;
+    min-width: 350px;
+}
+
+.v-footer-ticker {
+    height: 150px;
+    background: #000;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.v-card.gold {
+    background: linear-gradient(90deg, #fff, #fff9e6);
+}
+
+.v-card.gold .v-rank {
+    color: #FFD700;
+}
+
+.v-card.silver .v-rank {
+    color: #C0C0C0;
+}
+
+.v-card.bronze .v-rank {
+    color: #CD7F32;
+}
+
+.v-ineligible {
+    opacity: 0.5;
+    background: #f9f9f9;
+}
+
+/* Rank change indicators */
+.rank-up { color: #2EBD59; font-size: 0.75em; margin-left: 8px; }
+.rank-down { color: #e60012; font-size: 0.75em; margin-left: 8px; }
+.rank-same { color: #009BE0; font-size: 0.75em; margin-left: 8px; }
+.rank-number .rank-up,
+.rank-number .rank-down,
+.rank-number .rank-same { font-size: 0.85em; }
+
+/* Auto-vertical broadcast slides */
+.slide { display: none; opacity: 0; position: absolute; top: 80px; left: 80px; right: 80px; bottom: 250px; transition: opacity 1s ease-in-out; }
+.slide.active { display: flex; flex-direction: column; opacity: 1; }
+.v-main-large { flex: 1; display: flex; flex-direction: column; gap: 40px; justify-content: center; }
+.full-center { align-items: center; justify-content: center; text-align: center; height: 100%; }
+.huge-name { font-size: 10rem; font-weight: 900; font-style: italic; color: #fff; text-transform: uppercase; margin: 0; }
+.vs-label { font-size: 6rem; color: var(--nintendo-red); font-weight: 900; margin: 50px 0; }
+.recap-box { background: white; padding: 80px; border-radius: 40px; border-left: 30px solid var(--nintendo-red); }
+.recap-h { font-size: 6rem; font-weight: 900; line-height: 1.1; margin-bottom: 40px; color: #111; }
+.recap-q { font-size: 3.5rem; color: #666; font-style: italic; line-height: 1.4; }
+.v-nemesis-tagline { font-size: 2.5rem; color: #888; margin-top: 60px; font-weight: 800; }

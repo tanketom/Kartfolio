@@ -1,0 +1,39 @@
+# Database files (use schema.sql to bootstrap)
+*.db
+*.db-journal
+*.db-wal
+
+# Config with secrets (use config.example.php as template)
+private/config/config.php
+
+# Nintendo character images (copyrighted - download separately)
+public_html/assets/img/*.png
+!public_html/assets/img/program_*.png
+!public_html/assets/img/omk*.png
+public_html/assets/img/snes/
+public_html/mksnes/
+
+# macOS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# TODO planning files
+TODO_*.md
+*_TODO.md
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Environment
+.env
+.env.local
+
+# Logs and temp
+*.log
+*.tmp
+*.bak

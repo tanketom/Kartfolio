@@ -1,0 +1,205 @@
+# ======================================================================
+# CDN Mario Kart League - Enhanced .htaccess Configuration
+# ======================================================================
+
+# ----------------------------------------------------------------------
+# 1. SECURITY: BLOCK DIRECTORY LISTING
+# ----------------------------------------------------------------------
+Options -Indexes -MultiViews
+
+# ----------------------------------------------------------------------
+# 2. SECURITY: PROTECT PRIVATE FOLDER & SENSITIVE FILES
+# ----------------------------------------------------------------------
+RewriteEngine On
+
+# Block access to private/ directory (contains config, DB credentials)
+RewriteRule ^private/.*$ - [F,L]
+
+# Protect sensitive file types
+<FilesMatch "\.(db|sqlite|ini|config|log|md|env)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect hidden files (.git, .gitignore, etc.)
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ----------------------------------------------------------------------
+# 3. UTF-8 ENCODING (Fixes GPScore™ symbol display)
+# ----------------------------------------------------------------------
+AddDefaultCharset UTF-8
+
+# ----------------------------------------------------------------------
+# 4. CLEAN URL REWRITING
+# ----------------------------------------------------------------------
+
+# IMPORTANT: Order matters! Specific routes first, then generic rules.
+
+# Skip rewriting for actual files and directories
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Standardize underscore URLs to hyphens (301 permanent redirect)
+RewriteRule ^add_result(.*)$ /add-result$1 [R=301,L]
+RewriteRule ^view_recap(.*)$ /view-recap$1 [R=301,L]
+RewriteRule ^cup_stats(.*)$ /cup-stats$1 [R=301,L]
+RewriteRule ^all_time(.*)$ /all-time$1 [R=301,L]
+RewriteRule ^season_archives(.*)$ /season-archives$1 [R=301,L]
+RewriteRule ^view_season_report(.*)$ /view-season-report$1 [R=301,L]
+RewriteRule ^pick_cup(.*)$ /pick-cup$1 [R=301,L]
+
+# Pretty URLs with ID parameters (must come before general rewrites)
+RewriteRule ^view-recap/([0-9]+)$ view_recap.php?id=$1 [L,QSA]
+RewriteRule ^edit-recap/([0-9]+)$ admin/edit_recap.php?id=$1 [L,QSA]
+
+# Map hyphenated URLs to underscore files (internal, no redirect)
+RewriteRule ^add-result$ add_result.php [L,QSA]
+RewriteRule ^view-recap$ view_recap.php [L,QSA]
+RewriteRule ^cup-stats$ cup_stats.php [L,QSA]
+RewriteRule ^all-time$ all_time.php [L,QSA]
+RewriteRule ^season-archives$ season_archives.php [L,QSA]
+RewriteRule ^view-season-report$ view_season_report.php [L,QSA]
+RewriteRule ^pick-cup$ pick_cup.php [L,QSA]
+RewriteRule ^rivalries$ rivalries.php [L,QSA]
+RewriteRule ^archive$ archive.php [L,QSA]
+RewriteRule ^stats$ stats.php [L,QSA]
+RewriteRule ^about$ about.php [L,QSA]
+RewriteRule ^badges-overview$ badges_overview.php [L,QSA]
+RewriteRule ^elo-trends$ elo_trends.php [L,QSA]
+RewriteRule ^timeline$ timeline.php [L,QSA]
+RewriteRule ^cards$ cards.php [L,QSA]
+RewriteRule ^rank-graphic$ rank_graphic.php [L,QSA]
+RewriteRule ^animate-season$ animate_season.php [L,QSA]
+
+# New feature pages
+RewriteRule ^predictions$ predictions.php [L,QSA]
+RewriteRule ^power-rankings$ power_rankings.php [L,QSA]
+RewriteRule ^fantasy$ fantasy.php [L,QSA]
+RewriteRule ^records$ records.php [L,QSA]
+RewriteRule ^scoring$ scoring.php [L,QSA]
+
+# Underground betting den (Waluigi's)
+RewriteRule ^underground$ underground.php [L,QSA]
+
+# Tournament pages
+RewriteRule ^tournaments-hall-of-fame$ tournaments_hall_of_fame.php [L,QSA]
+RewriteRule ^view-tournament-report/([0-9]+)$ view_tournament_report.php?id=$1 [L,QSA]
+RewriteRule ^view-tournament-report$ view_tournament_report.php [L,QSA]
+
+# Head-to-head comparison (redirects to Nemesis Index)
+RewriteRule ^compare/([0-9]+)/([0-9]+)$ /rivalries?a=$1&b=$2 [R=301,L]
+RewriteRule ^compare$ /rivalries [R=301,L]
+
+# Racer profile pages (e.g., /racer/1)
+RewriteRule ^racer/([0-9]+)$ racer.php?id=$1 [L,QSA]
+
+# Season-specific routes (e.g., /season/s4)
+RewriteRule ^season/([a-zA-Z0-9]+)$ index.php?season=$1 [L,QSA]
+
+# Display routes - semantic naming
+RewriteRule ^display/vertical$ vertical.php [L]
+RewriteRule ^display/horizontal$ horizontal.php [L]
+RewriteRule ^display/auto-vertical$ auto-vertical.php [L]
+
+# API routes - RESTful style
+RewriteRule ^api/ocr$ api/ocr_gemini.php [L]
+RewriteRule ^api/recap$ api/gemini_recap.php [L]
+RewriteRule ^api/season-report$ api/generate_season_report.php [L]
+RewriteRule ^api/gemini-power-rankings$ api/gemini_power_rankings.php [L]
+
+# Admin routes - cleaner admin URLs
+RewriteRule ^admin/racers$ admin/racers.php [L]
+RewriteRule ^admin/seasons$ admin/seasons.php [L]
+RewriteRule ^admin/results$ admin/results_manage.php [L]
+RewriteRule ^admin/edit-recap$ admin/edit_recap.php [L,QSA]
+RewriteRule ^admin/settings$ admin/settings.php [L,QSA]
+RewriteRule ^admin/export-database$ admin/export-database.php [L]
+RewriteRule ^admin/import-database$ admin/import-database.php [L]
+RewriteRule ^admin/tournaments$ admin/tournaments.php [L]
+RewriteRule ^admin/tournament-create$ admin/tournament_create.php [L,QSA]
+RewriteRule ^admin/tournament-setup$ admin/tournament_setup.php [L,QSA]
+RewriteRule ^admin/tournament-bracket/([0-9]+)$ admin/tournament_bracket.php?id=$1 [L,QSA]
+RewriteRule ^admin/tournament-bracket$ admin/tournament_bracket.php [L,QSA]
+
+# Remove trailing slash (optional, for cleaner URLs)
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} (.+)/$
+RewriteRule ^ %1 [R=301,L]
+
+# ----------------------------------------------------------------------
+# 5. CACHING & PERFORMANCE
+# ----------------------------------------------------------------------
+
+# Cache static assets (CSS, JS, Images)
+<IfModule mod_expires.c>
+    ExpiresActive On
+
+    # Images
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+
+    # CSS & JavaScript
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+
+    # Fonts
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+# Compress text-based files
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# ----------------------------------------------------------------------
+# 6. ERROR HANDLING
+# ----------------------------------------------------------------------
+
+# Redirect 404 errors to homepage
+ErrorDocument 404 /index.php
+
+# Optional: Custom error pages
+# ErrorDocument 403 /error/403.html
+# ErrorDocument 500 /error/500.html
+
+# ----------------------------------------------------------------------
+# 7. SECURITY HEADERS (Optional but recommended)
+# ----------------------------------------------------------------------
+
+<IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+
+    # XSS Protection
+    Header set X-XSS-Protection "1; mode=block"
+
+    # Prevent MIME sniffing
+    Header set X-Content-Type-Options "nosniff"
+
+    # Referrer Policy
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ----------------------------------------------------------------------
+# 8. PHP SETTINGS (if allowed by host)
+# ----------------------------------------------------------------------
+
+<IfModule mod_php.c>
+    # Hide PHP version in headers
+    php_flag expose_php off
+
+    # Increase upload limit for OCR images
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+
+    # Session security
+    php_value session.cookie_httponly 1
+    php_value session.cookie_samesite Lax
+</IfModule>

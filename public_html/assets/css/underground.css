@@ -1,0 +1,414 @@
+/*
+ * WALUIGI'S UNDERGROUND BETTING DEN
+ * Dark Web Aesthetic - Not OMK Sanctioned
+ */
+
+body.underground {
+    background: #0a0a0a;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    background-image:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 255, 0, 0.03) 2px,
+            rgba(0, 255, 0, 0.03) 4px
+        );
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+.underground-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+/* Neon Header */
+.underground-header {
+    border: 2px solid #9d4edd;
+    background: rgba(157, 78, 221, 0.05);
+    padding: 30px;
+    margin-bottom: 40px;
+    box-shadow:
+        0 0 20px rgba(157, 78, 221, 0.3),
+        inset 0 0 20px rgba(157, 78, 221, 0.1);
+    position: relative;
+    text-align: center;
+}
+
+.underground-header::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #9d4edd, #00ff00, #ff006e);
+    z-index: -1;
+    filter: blur(10px);
+    opacity: 0.5;
+}
+
+.ascii-art {
+    font-size: 0.6rem;
+    line-height: 1;
+    color: #9d4edd;
+    opacity: 0.6;
+    white-space: pre;
+    font-family: monospace;
+}
+
+.glitch-text {
+    font-size: 2.5rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #00ff00;
+    text-shadow:
+        2px 2px 0 #ff006e,
+        -2px -2px 0 #00b4d8;
+    animation: glitch 3s infinite;
+    margin: 15px 0;
+}
+
+@keyframes glitch {
+    0%, 100% {
+        text-shadow: 2px 2px 0 #ff006e, -2px -2px 0 #00b4d8;
+    }
+    25% {
+        text-shadow: -2px 2px 0 #ff006e, 2px -2px 0 #00b4d8;
+    }
+    50% {
+        text-shadow: 2px -2px 0 #ff006e, -2px 2px 0 #00b4d8;
+    }
+    75% {
+        text-shadow: -2px -2px 0 #ff006e, 2px 2px 0 #00b4d8;
+    }
+}
+
+.header-meta {
+    color: #9d4edd;
+    font-size: 0.9rem;
+    margin-top: 15px;
+}
+
+.header-meta span {
+    margin: 0 10px;
+}
+
+/* Warning Banner */
+.warning-banner {
+    background: rgba(255, 0, 110, 0.1);
+    border: 1px dashed #ff006e;
+    padding: 15px;
+    margin-bottom: 30px;
+    color: #ff006e;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+/* Wallet Display */
+.wallet-display {
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #00ff00;
+    padding: 15px 25px;
+    display: inline-block;
+    font-size: 1.5rem;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+    margin-bottom: 40px;
+}
+
+.wallet-display .balance {
+    color: #00ff00;
+    font-weight: bold;
+}
+
+/* Section Headers */
+.bet-section-header {
+    color: #ff006e;
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    margin-top: 60px;
+}
+
+.bet-section-header.live {
+    color: #00ff00;
+}
+
+.bet-section-header small {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.live-indicator {
+    color: #ff006e;
+    animation: flicker 1.5s infinite;
+    font-weight: bold;
+}
+
+@keyframes flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Betting Cards */
+.bet-card {
+    background: rgba(20, 20, 20, 0.9);
+    border: 1px solid #9d4edd;
+    padding: 25px;
+    margin-bottom: 20px;
+    position: relative;
+    box-shadow: 0 0 15px rgba(157, 78, 221, 0.2);
+}
+
+.bet-card::before {
+    content: '▓▓▓';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: #9d4edd;
+    opacity: 0.3;
+    font-size: 0.8rem;
+}
+
+.bet-card-header {
+    color: #ff006e;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+}
+
+.bet-card-description {
+    color: #999;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+}
+
+/* Racer Bet Options */
+.racer-bet-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin: 8px 0;
+    background: rgba(157, 78, 221, 0.05);
+    border-left: 3px solid #9d4edd;
+    transition: all 0.3s;
+    gap: 15px;
+}
+
+.racer-bet-option:hover {
+    background: rgba(157, 78, 221, 0.15);
+    border-left-color: #00ff00;
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+}
+
+.racer-name {
+    flex: 1;
+    color: #00ff00;
+}
+
+.odds-display {
+    display: inline-block;
+    background: rgba(0, 255, 0, 0.1);
+    border: 1px solid #00ff00;
+    padding: 5px 15px;
+    color: #00ff00;
+    font-weight: bold;
+    font-size: 1.3rem;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+    min-width: 70px;
+    text-align: center;
+}
+
+.bet-button {
+    background: linear-gradient(135deg, #9d4edd 0%, #ff006e 100%);
+    border: none;
+    color: white;
+    padding: 8px 20px;
+    text-transform: uppercase;
+    font-weight: bold;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 0 15px rgba(157, 78, 221, 0.5);
+    transition: all 0.3s;
+}
+
+.bet-button:hover {
+    box-shadow: 0 0 25px rgba(157, 78, 221, 0.8);
+    transform: scale(1.05);
+}
+
+.bet-button:active {
+    transform: scale(0.98);
+}
+
+/* Footer */
+.underground-footer {
+    text-align: center;
+    margin-top: 60px;
+    padding-top: 40px;
+    border-top: 1px solid #333;
+}
+
+.footer-ascii {
+    color: #9d4edd;
+    opacity: 0.7;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    white-space: pre;
+    margin: 0;
+    font-family: monospace;
+}
+
+.info-box {
+    color: #666;
+    font-size: 0.6rem;
+    line-height: 1.2;
+    white-space: pre;
+    margin: 10px 0;
+    font-family: monospace;
+}
+
+.return-link {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.8rem;
+    transition: color 0.3s;
+}
+
+.return-link:hover {
+    color: #9d4edd;
+}
+
+/* Responsive */
+/* NFT Card Styling */
+.nft-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.nft-card {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid #9d4edd;
+    padding: 15px;
+    text-align: center;
+    transition: all 0.3s;
+}
+
+.nft-card:hover {
+    border-color: #00ff00;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+    transform: translateY(-5px);
+}
+
+.nft-card img {
+    width: 100%;
+    border: 2px solid #00ff00;
+    margin-bottom: 10px;
+}
+
+.nft-name {
+    color: #ff006e;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.nft-trait {
+    color: #999;
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+}
+
+.nft-price {
+    color: #00ff00;
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+@media (max-width: 768px) {
+    .glitch-text {
+        font-size: 1.8rem;
+    }
+
+    .bet-section-header {
+        font-size: 1.4rem;
+    }
+
+    .wallet-display {
+        font-size: 1.2rem;
+        padding: 12px 20px;
+    }
+
+    .racer-bet-option {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .odds-display {
+        font-size: 1.1rem;
+    }
+
+    .header-meta span {
+        display: block;
+        margin: 5px 0;
+    }
+
+    .nft-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .underground-container {
+        padding: 20px 15px;
+    }
+
+    .ascii-art {
+        font-size: 0.5rem;
+    }
+
+    .glitch-text {
+        font-size: 1.5rem;
+    }
+
+    .bet-card {
+        padding: 15px;
+    }
+}
+
+/* Header ASCII art override */
+.ascii-art--header { color: #ff006e; opacity: 1; font-size: 0.45rem; line-height: 0.9; }
+
+/* Section spacers */
+.ug-section-gap { margin-bottom: 30px; }
+.ug-section-gap-sm { margin-bottom: 20px; }
+.ug-section-gap-lg { margin: 60px 0 40px 0; }
+
+/* Info box variants */
+.info-box--danger { color: #ff006e; margin: 0; }
+
+/* NFT grid */
+.ug-nft-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
+
+/* NFT card */
+.ug-nft-card { background: rgba(0, 0, 0, 0.5); border: 1px solid #9d4edd; padding: 15px; text-align: center; transition: all 0.3s; }
+.ug-nft-img { width: 100%; border: 2px solid #00ff00; margin-bottom: 10px; }
+.ug-nft-name { color: #ff006e; font-weight: bold; margin-bottom: 5px; }
+.ug-nft-trait { color: #999; font-size: 0.8rem; margin-bottom: 10px; }
+.ug-nft-price { color: #00ff00; font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; }
+.bet-button--full { width: 100%; }
+
+/* NFT disclaimer */
+.ug-nft-disclaimer { margin-top: 20px; padding: 15px; background: rgba(255, 0, 110, 0.1); border: 1px dashed #ff006e; }
+
+/* Footer return link wrapper */
+.ug-footer-return { margin-top: 20px; }

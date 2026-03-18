@@ -1,0 +1,94 @@
+<?php
+/**
+ * Global Header Template - Responsive & Refined
+ * Path: /cdnmk/private/templates/header.php
+ */
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/../includes/gp_logic.php';
+require_once __DIR__ . '/../includes/settings.php';
+
+// Get settings
+global $pdo;
+initializeSettings($pdo);
+$leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
+$primaryColor = getSetting($pdo, 'primary_color', '#E60012');
+$currentSeasonTag = strtoupper(getCurrentSeasonNumber());
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= htmlspecialchars($leagueName) ?> League <?= $currentSeasonTag ?></title>
+    <link rel="stylesheet" href="/assets/css/global.css">
+    <?php
+    // Load admin CSS files if we're on an admin page
+    $isAdminPage = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false;
+    if ($isAdminPage):
+    ?>
+    <link rel="stylesheet" href="/assets/css/forms.css">
+    <link rel="stylesheet" href="/assets/css/admin.css">
+    <?php endif; ?>
+    <?php if (!empty($extraCss)) echo $extraCss; ?>
+    <style>
+        /* Dynamic primary colour (set by admin settings) */
+        :root {
+            --nintendo-red: <?= htmlspecialchars($primaryColor) ?>;
+            --nintendo-red-dark: <?= htmlspecialchars($primaryColor) ?>dd;
+        }
+    </style>
+</head>
+<body>
+
+<header class="main-header">
+    <div class="container header-flex">
+        <div class="logo-group">
+            <a href="/">
+                <span class="logo-text"><?= htmlspecialchars($leagueName) ?> League</span>
+                <span class="logo-season"><?= $currentSeasonTag ?></span>
+            </a>
+        </div>
+
+        <nav class="main-nav">
+            <a href="/add-result">Add GP scores</a>
+            <a href="#" id="cup-picker-btn">🎲 What cup?</a>
+            <a href="/archive">News</a>
+
+            <div class="dropdown">
+                <span class="dropbtn">Statistics ▾</span>
+                <div class="dropdown-content">
+                    <a href="/stats">Trends</a>
+                    <a href="/all-time">All-Time</a>
+                    <a href="/cup-stats">Cups</a>
+                    <a href="/timeline">Timeline</a>
+                    <a href="/rivalries">Nemesis Index</a>
+                    <a href="/records">Record Book</a>
+                    
+                    
+                </div>
+            </div>
+
+            <a href="/season-archives">Hall of Fame</a>
+
+            <?php if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true): ?>
+                <div class="admin-pill">
+                    <div class="dropdown">
+                        <span class="dropbtn" style="color: #ffcc00 !important;">Admin ▾</span>
+                        <div class="dropdown-content">
+                            <a href="/admin/seasons">Seasons</a>
+                            <a href="/admin/racers">Racers</a>
+                            <a href="/admin/results">Results</a>
+                            <a href="/admin/settings">⚙️ Settings</a>
+                        </div>
+                    </div>
+                    <a href="/admin/tournaments">Tournaments</a>
+                    <a href="/logout" class="logout-link">Exit</a>
+                </div>
+            <?php endif; ?>
+        </nav>
+    </div>
+</header>
+
+<div class="container main-content">

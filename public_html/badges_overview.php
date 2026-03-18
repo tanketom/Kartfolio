@@ -1,0 +1,553 @@
+<?php
+/**
+ * Badges Overview - All Badges, Holders, and Progress
+ * Path: /cdnmk/public_html/badges_overview.php
+ */
+require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/gp_logic.php';
+require_once __DIR__ . '/../private/includes/badges.php';
+
+$currentSeason = $_GET['season'] ?? getCurrentSeasonNumber();
+$isAllTime = ($currentSeason === 'all');
+$pageTitle = "Badges Overview - Kartfolio";
+$extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';
+include __DIR__ . '/../private/templates/header.php';
+
+// 0. Fetch Available Seasons
+$seasonsStmt = $pdo->query("SELECT season_id, status FROM season_meta ORDER BY season_id DESC");
+$availableSeasons = $seasonsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 1. Fetch all racers
+$racersStmt = $pdo->query("SELECT id, name FROM racers ORDER BY name");
+$racers = $racersStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 2. Define all possible badges with their criteria
+$allBadgeDefinitions = [
+    'performance' => [
+        ['icon' => '👑', 'title' => 'Podium Royalty', 'desc' => 'Finishes in the Top 3 over 60% of the time', 'key' => 'podium_royalty'],
+        ['icon' => '🤖', 'title' => 'Max Output', 'desc' => 'Achieved a perfect 60-point Grand Prix', 'key' => 'max_output'],
+        ['icon' => '🥈', 'title' => 'The Bridesmaid', 'desc' => 'Finishes 2nd place >25% of the time', 'key' => 'bridesmaid'],
+        ['icon' => '💀', 'title' => 'The Fourth Wall', 'desc' => 'Stuck in 4th place >25% of the time', 'key' => 'fourth_wall'],
+        ['icon' => '🔥', 'title' => 'Hot Hand', 'desc' => 'Won back-to-back Grand Prix events', 'key' => 'hot_hand'],
+        ['icon' => '🧱', 'title' => 'The Wall', 'desc' => 'Consistently holds the midfield (avg rank 4-7)', 'key' => 'the_wall'],
+        ['icon' => '⚓', 'title' => 'The Anchor', 'desc' => 'Average rank ≥10', 'key' => 'the_anchor'],
+    ],
+    'playstyle' => [
+        ['icon' => '🎠', 'title' => 'One-Trick Pony', 'desc' => 'Never changed character (5+ races)', 'key' => 'one_trick'],
+        ['icon' => '🎭', 'title' => 'Identity Crisis', 'desc' => 'Played 5+ different characters', 'key' => 'identity_crisis'],
+        ['icon' => '🃏', 'title' => 'Jack of All Trades', 'desc' => 'Won a GP with 3 different characters', 'key' => 'jack_of_trades'],
+        ['icon' => '🍼', 'title' => 'Baby Driver', 'desc' => 'Mains Baby characters >50% of the time', 'key' => 'baby_driver'],
+        ['icon' => '🦖', 'title' => 'Kaiju Protocol', 'desc' => 'Mains heavyweights >50% of the time', 'key' => 'kaiju'],
+        ['icon' => '🔰', 'title' => 'The Purist', 'desc' => 'Uses Standard setups >50% of the time', 'key' => 'purist'],
+        ['icon' => '👻', 'title' => 'Ghost Rider', 'desc' => 'Mains spooky characters >50% of the time', 'key' => 'ghost_rider'],
+        ['icon' => '🌟', 'title' => 'Star Power', 'desc' => 'Mains original stars >60% of the time', 'key' => 'star_power'],
+        ['icon' => '🏍️', 'title' => 'Bike Brigade', 'desc' => 'Uses bikes >60% of the time', 'key' => 'bike_brigade'],
+    ],
+    'volatility' => [
+        ['icon' => '🍌', 'title' => 'Slippery Slope', 'desc' => 'Triggered LOL obstruction 3+ times', 'key' => 'slippery'],
+        ['icon' => '🎢', 'title' => 'Chaos Agent', 'desc' => 'Highly inconsistent rank results', 'key' => 'chaos'],
+        ['icon' => '🎰', 'title' => 'High Roller', 'desc' => 'Extreme swings in point totals', 'key' => 'high_roller'],
+        ['icon' => '🎯', 'title' => 'Laser Focus', 'desc' => 'Within 5pts of average in 70%+ races', 'key' => 'laser_focus'],
+        ['icon' => '🔄', 'title' => 'Groundhog Day', 'desc' => 'Same rank 4+ races in a row', 'key' => 'groundhog'],
+    ],
+    'progression' => [
+        ['icon' => '📈', 'title' => 'Vertical Limit', 'desc' => 'Latest GP ≥15pts above season average', 'key' => 'vertical_limit'],
+        ['icon' => '💤', 'title' => 'Sandbagger', 'desc' => 'Second half avg >12pts higher than first half', 'key' => 'sandbagger'],
+        ['icon' => '🏔️', 'title' => 'Everest', 'desc' => 'Personal best 20+ pts above average', 'key' => 'everest'],
+        ['icon' => '🎪', 'title' => 'Comeback Kid', 'desc' => 'Won GP after finishing last', 'key' => 'comeback_kid'],
+        ['icon' => '🐢', 'title' => 'The Tortoise', 'desc' => 'Average finish rank ≥8 but still won a GP', 'key' => 'tortoise'],
+    ],
+    'special' => [
+        ['icon' => '🎲', 'title' => 'Lucky 7', 'desc' => 'Finished 7th place in 3+ races', 'key' => 'lucky_7'],
+        ['icon' => '🦅', 'title' => 'Perfect Landing', 'desc' => 'Every race on the podium (100% rate)', 'key' => 'perfect_landing'],
+        ['icon' => '🐓', 'title' => 'Early Bird', 'desc' => 'Participated in the very first GP of this season', 'key' => 'early_bird'],
+        ['icon' => '🥊', 'title' => 'Giant Killer', 'desc' => 'Finished ahead of the season leader in a GP', 'key' => 'giant_killer'],
+        ['icon' => '⬛', 'title' => 'Black Box', 'desc' => 'The algorithm thinks you should be in the lead', 'key' => 'black_box'],
+    ],
+    'attendance' => [
+        ['icon' => '🗓️', 'title' => 'Longevity', 'desc' => 'Highest attendance in the league', 'key' => 'longevity'],
+        ['icon' => '🎖️', 'title' => 'Old Guard', 'desc' => 'Raced in the pre-season and returned', 'key' => 'old_guard'],
+    ],
+    'cups' => [
+        ['icon' => '🏛️', 'title' => 'Base 12', 'desc' => 'Won all 12 Base Game cups', 'key' => 'base_12'],
+        ['icon' => '🚀', 'title' => 'Booster\'s Dozen', 'desc' => 'Won all 12 Booster Course Pass cups', 'key' => 'boosters_dozen'],
+        ['icon' => '🏅', 'title' => 'Cup Collector', 'desc' => 'Raced in all 24 MK8D cups (career)', 'key' => 'cup_collector'],
+        ['icon' => '💎', 'title' => 'Perfectionist', 'desc' => 'Perfect 60 in 3+ different cups (career)', 'key' => 'perfectionist'],
+    ],
+    'characters' => [
+        ['icon' => '🌸', 'title' => 'Princess Protocol', 'desc' => 'Mains Peach, Daisy, or Rosalina ≥50% of races', 'key' => 'princess_protocol'],
+        ['icon' => '🏰', 'title' => 'Mushroom Kingdom', 'desc' => 'Raced as every core Mario-universe character (career)', 'key' => 'mushroom_kingdom'],
+        ['icon' => '🗡️', 'title' => 'Link Main', 'desc' => 'Raced as Link in 5+ GPs this season', 'key' => 'link_main'],
+        ['icon' => '🍄', 'title' => 'What a Fun Guy!', 'desc' => 'Mains Toad, Toadette, or Peachette ≥50% of races', 'key' => 'fun_guy'],
+        ['icon' => '🧑', 'title' => 'That\'s Just a Person?', 'desc' => 'Mains Mii, Inklings, or Villager ≥50% of races', 'key' => 'just_a_person'],
+        ['icon' => '🐱', 'title' => 'Furcurious!', 'desc' => 'Mains Tanooki Mario or Cat Peach ≥50% of races', 'key' => 'furcurious'],
+        ['icon' => '😈', 'title' => 'Koopa Klan', 'desc' => 'Mains Bowser and his evil crew ≥50% of races', 'key' => 'koopa_klan'],
+    ],
+];
+
+// 3. Calculate badges and progress for all racers
+$badgeData = [];
+foreach ($racers as $racer) {
+    $badges = getRacerBadges($pdo, $racer['id'], $currentSeason);
+    $progress = calculateBadgeProgress($pdo, $racer['id'], $currentSeason);
+
+    $badgeData[$racer['id']] = [
+        'name' => $racer['name'],
+        'badges' => $badges,
+        'progress' => $progress
+    ];
+}
+
+// Helper function to calculate progress towards each badge
+function calculateBadgeProgress($pdo, $racer_id, $season_id) {
+    $progress = [];
+
+    // Fetch data
+    $stmt = $pdo->prepare("SELECT * FROM results WHERE racer_id = ? AND gpid LIKE ? ORDER BY race_date ASC, id ASC");
+    $stmt->execute([$racer_id, $season_id . "%"]);
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalRaces = count($results);
+    if ($totalRaces < 3) {
+        return ['insufficient_data' => true, 'races_needed' => 3 - $totalRaces];
+    }
+
+    // Calculate stats
+    $lols = 0;
+    $podiums = 0;
+    $wins = 0;
+    $seconds = 0;
+    $fourths = 0;
+    $perfect_games = 0;
+    $total_gp_points = 0;
+    $chars = [];
+    $ranks = [];
+    $gp_scores_by_date = [];
+    $won_cups = [];
+    $current_win_streak = 0;
+    $max_win_streak = 0;
+    $winning_chars = [];
+    $standard_kart_count = 0;
+
+    $babies = ['Baby Mario', 'Baby Luigi', 'Baby Peach', 'Baby Daisy', 'Baby Rosalina'];
+    $heavies = ['Bowser', 'Dry Bowser', 'Morton', 'Wario', 'Donkey Kong', 'Funky Kong'];
+    $spooky = ['Boo', 'Dry Bones', 'King Boo'];
+    $og_stars = ['Mario', 'Luigi', 'Peach', 'Daisy'];
+    $baby_count = 0;
+    $heavy_count = 0;
+    $spooky_count = 0;
+    $og_stars_count = 0;
+    $bike_count = 0;
+    $sevenths = 0;
+
+    foreach ($results as $r) {
+        $total_gp_points += $r['gp_points'];
+        $gp_scores_by_date[] = $r['gp_points'];
+
+        if ($r['is_lol']) $lols++;
+        if ($r['rank'] <= 3) $podiums++;
+        if ($r['rank'] == 1) {
+            $wins++;
+            $current_win_streak++;
+            $winning_chars[] = $r['character_used'];
+            $won_cups[] = $r['cup_name'];
+        } else {
+            $current_win_streak = 0;
+        }
+        if ($current_win_streak > $max_win_streak) $max_win_streak = $current_win_streak;
+
+        if ($r['rank'] == 2) $seconds++;
+        if ($r['rank'] == 4) $fourths++;
+        if ($r['rank'] == 7) $sevenths++;
+        if ($r['gp_points'] == 60) $perfect_games++;
+
+        $chars[] = $r['character_used'];
+        $ranks[] = $r['rank'];
+
+        if (in_array($r['character_used'], $babies)) $baby_count++;
+        if (in_array($r['character_used'], $heavies)) $heavy_count++;
+        if (in_array($r['character_used'], $spooky)) $spooky_count++;
+        if (in_array($r['character_used'], $og_stars)) $og_stars_count++;
+        if (stripos($r['kart_setup'] ?? '', 'Standard') !== false) $standard_kart_count++;
+        if (stripos($r['kart_setup'] ?? '', 'Bike') !== false) $bike_count++;
+    }
+
+    $uniqueChars = count(array_unique($chars));
+    $avgRank = array_sum($ranks) / $totalRaces;
+    $seasonAvgPoints = $total_gp_points / $totalRaces;
+    $won_cups_unique = array_unique($won_cups);
+
+    // Calculate variance
+    $variance = 0;
+    foreach ($ranks as $r) {
+        $variance += pow(($r - $avgRank), 2);
+    }
+    $stdDev = sqrt($variance / $totalRaces);
+
+    $pointVariance = 0;
+    foreach ($gp_scores_by_date as $pts) {
+        $pointVariance += pow(($pts - $seasonAvgPoints), 2);
+    }
+    $pointStdDev = sqrt($pointVariance / $totalRaces);
+
+    // Attendance check
+    $maxAttStmt = $pdo->prepare("SELECT COUNT(*) as c FROM results WHERE gpid LIKE ? GROUP BY racer_id ORDER BY c DESC LIMIT 1");
+    $maxAttStmt->execute([$season_id . "%"]);
+    $highestAttendance = $maxAttStmt->fetchColumn();
+
+    // Cup progress
+    $baseCupsList = ['Mushroom', 'Flower', 'Star', 'Special', 'Shell', 'Banana', 'Leaf', 'Lightning', 'Egg', 'Triforce', 'Crossing', 'Bell'];
+    $boosterCupsList = ['Golden Dash', 'Lucky Cat', 'Turnip', 'Propeller', 'Rock', 'Moon', 'Fruit', 'Boomerang', 'Feather', 'Cherry', 'Acorn', 'Spiny'];
+
+    // Build progress array
+    $progress['slippery'] = ['current' => $lols, 'target' => 3, 'percent' => min(100, round(($lols / 3) * 100))];
+    $progress['one_trick'] = ['current' => $uniqueChars, 'target' => 1, 'races' => $totalRaces, 'min_races' => 5, 'percent' => ($uniqueChars === 1 && $totalRaces >= 5) ? 100 : 0];
+    $progress['identity_crisis'] = ['current' => $uniqueChars, 'target' => 5, 'percent' => min(100, round(($uniqueChars / 5) * 100))];
+    $progress['podium_royalty'] = ['current' => round(($podiums / $totalRaces) * 100, 1), 'target' => 60, 'percent' => min(100, round((($podiums / $totalRaces) / 0.60) * 100))];
+    $progress['the_wall'] = ['current' => round($avgRank, 2), 'target' => '4-7', 'percent' => ($avgRank >= 4 && $avgRank <= 7) ? 100 : 0];
+    $progress['max_output'] = ['current' => $perfect_games, 'target' => 1, 'percent' => min(100, $perfect_games * 100)];
+    $progress['bridesmaid'] = ['current' => round(($seconds / $totalRaces) * 100, 1), 'target' => 25, 'percent' => min(100, round((($seconds / $totalRaces) / 0.25) * 100))];
+    $progress['fourth_wall'] = ['current' => round(($fourths / $totalRaces) * 100, 1), 'target' => 25, 'percent' => min(100, round((($fourths / $totalRaces) / 0.25) * 100))];
+    $progress['hot_hand'] = ['current' => $max_win_streak, 'target' => 2, 'percent' => min(100, round(($max_win_streak / 2) * 100))];
+    $progress['baby_driver'] = ['current' => round(($baby_count / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($baby_count / $totalRaces) / 0.50) * 100))];
+    $progress['kaiju'] = ['current' => round(($heavy_count / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($heavy_count / $totalRaces) / 0.50) * 100))];
+    $progress['the_anchor'] = ['current' => round($avgRank, 2), 'target' => '≥10', 'percent' => ($avgRank >= 10) ? 100 : min(100, round(($avgRank / 10) * 100))];
+    $progress['jack_of_trades'] = ['current' => count(array_unique($winning_chars)), 'target' => 3, 'percent' => min(100, round((count(array_unique($winning_chars)) / 3) * 100))];
+    $progress['purist'] = ['current' => round(($standard_kart_count / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($standard_kart_count / $totalRaces) / 0.50) * 100))];
+    $progress['chaos'] = ['current' => round($stdDev, 2), 'target' => '>3.5', 'percent' => ($stdDev > 3.5) ? 100 : min(100, round(($stdDev / 3.5) * 100))];
+    $progress['high_roller'] = ['current' => round($pointStdDev, 2), 'target' => '>15', 'percent' => ($pointStdDev > 15) ? 100 : min(100, round(($pointStdDev / 15) * 100))];
+
+    // Vertical Limit
+    $lastScore = end($gp_scores_by_date);
+    $verticalDiff = $lastScore - $seasonAvgPoints;
+    $progress['vertical_limit'] = ['current' => round($verticalDiff, 1), 'target' => '≥15', 'races' => $totalRaces, 'min_races' => 4, 'percent' => ($totalRaces >= 4 && $verticalDiff >= 15) ? 100 : min(100, max(0, round(($verticalDiff / 15) * 100)))];
+
+    // Sandbagger
+    if ($totalRaces >= 6) {
+        $firstHalf = array_slice($gp_scores_by_date, 0, floor($totalRaces / 2));
+        $secondHalf = array_slice($gp_scores_by_date, -floor($totalRaces / 2));
+        $improvementDiff = (array_sum($secondHalf) / count($secondHalf)) - (array_sum($firstHalf) / count($firstHalf));
+        $progress['sandbagger'] = ['current' => round($improvementDiff, 1), 'target' => '>12', 'races' => $totalRaces, 'min_races' => 6, 'percent' => ($improvementDiff > 12) ? 100 : min(100, max(0, round(($improvementDiff / 12) * 100)))];
+    } else {
+        $progress['sandbagger'] = ['current' => 0, 'target' => '>12', 'races' => $totalRaces, 'min_races' => 6, 'percent' => 0];
+    }
+
+    $progress['longevity'] = ['current' => $totalRaces, 'target' => $highestAttendance, 'percent' => ($totalRaces >= $highestAttendance && $highestAttendance > 0) ? 100 : ($highestAttendance > 0 ? round(($totalRaces / $highestAttendance) * 100) : 0)];
+
+    // Cup badges
+    $baseCupsWon = array_intersect($baseCupsList, $won_cups_unique);
+    $boosterCupsWon = array_intersect($boosterCupsList, $won_cups_unique);
+    $progress['base_12'] = ['current' => count($baseCupsWon), 'target' => 12, 'percent' => min(100, round((count($baseCupsWon) / 12) * 100)), 'missing' => array_diff($baseCupsList, $won_cups_unique)];
+    $progress['boosters_dozen'] = ['current' => count($boosterCupsWon), 'target' => 12, 'percent' => min(100, round((count($boosterCupsWon) / 12) * 100)), 'missing' => array_diff($boosterCupsList, $won_cups_unique)];
+
+    // NEW BADGES PROGRESS
+
+    // Ghost Rider
+    $progress['ghost_rider'] = ['current' => round(($spooky_count / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($spooky_count / $totalRaces) / 0.50) * 100))];
+
+    // Star Power
+    $progress['star_power'] = ['current' => round(($og_stars_count / $totalRaces) * 100, 1), 'target' => 60, 'percent' => min(100, round((($og_stars_count / $totalRaces) / 0.60) * 100))];
+
+    // Bike Brigade
+    $progress['bike_brigade'] = ['current' => round(($bike_count / $totalRaces) * 100, 1), 'target' => 60, 'percent' => min(100, round((($bike_count / $totalRaces) / 0.60) * 100))];
+
+    // Laser Focus
+    $withinFiveCount = 0;
+    foreach ($gp_scores_by_date as $pts) {
+        if (abs($pts - $seasonAvgPoints) <= 5) {
+            $withinFiveCount++;
+        }
+    }
+    $laserPercent = round(($withinFiveCount / $totalRaces) * 100, 1);
+    $progress['laser_focus'] = ['current' => $laserPercent, 'target' => '70% + Low Variance', 'percent' => min(100, round(($laserPercent / 70) * 100))];
+
+    // Everest
+    $peakDiff = max($gp_scores_by_date) - $seasonAvgPoints;
+    $progress['everest'] = ['current' => round($peakDiff, 1), 'target' => '≥20', 'percent' => min(100, max(0, round(($peakDiff / 20) * 100)))];
+
+    // Comeback Kid (binary - either happened or not)
+    $comebackDetected = false;
+    for ($i = 1; $i < count($results); $i++) {
+        if ($results[$i]['rank'] == 1 && $results[$i-1]['rank'] >= 10) {
+            $comebackDetected = true;
+            break;
+        }
+    }
+    $progress['comeback_kid'] = ['current' => $comebackDetected ? 'Yes' : 'No', 'target' => 'Yes', 'percent' => $comebackDetected ? 100 : 0];
+
+    // Groundhog Day
+    $maxIdenticalStreak = 1;
+    $currentIdenticalStreak = 1;
+    for ($i = 1; $i < count($ranks); $i++) {
+        if ($ranks[$i] === $ranks[$i-1]) {
+            $currentIdenticalStreak++;
+            if ($currentIdenticalStreak > $maxIdenticalStreak) {
+                $maxIdenticalStreak = $currentIdenticalStreak;
+            }
+        } else {
+            $currentIdenticalStreak = 1;
+        }
+    }
+    $progress['groundhog'] = ['current' => $maxIdenticalStreak, 'target' => 4, 'percent' => min(100, round(($maxIdenticalStreak / 4) * 100))];
+
+    // Lucky 7
+    $progress['lucky_7'] = ['current' => $sevenths, 'target' => 3, 'percent' => min(100, round(($sevenths / 3) * 100))];
+
+    // Perfect Landing
+    $podiumRate = round(($podiums / $totalRaces) * 100, 1);
+    $progress['perfect_landing'] = ['current' => $podiumRate . '%', 'target' => '100%', 'races' => $totalRaces, 'min_races' => 5, 'percent' => ($totalRaces >= 5 && $podiumRate == 100) ? 100 : min(100, round($podiumRate))];
+
+    // The Tortoise
+    $progress['tortoise'] = ['current' => round($avgRank, 2) . ' avg rank, ' . $wins . ' win(s)', 'target' => 'Avg ≥8 + 1 win', 'percent' => ($avgRank >= 8.0 && $wins >= 1) ? 100 : 0];
+
+    // Early Bird — participated in the first GP of this season
+    $firstGpStmt = $pdo->prepare("SELECT gpid FROM results WHERE gpid LIKE ? ORDER BY race_date ASC, id ASC LIMIT 1");
+    $firstGpStmt->execute([$season_id . '%']);
+    $firstGpId = $firstGpStmt->fetchColumn();
+    $inFirstGp = false;
+    if ($firstGpId) {
+        $inFirstGpStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid = ?");
+        $inFirstGpStmt->execute([$racer_id, $firstGpId]);
+        $inFirstGp = (int)$inFirstGpStmt->fetchColumn() > 0;
+    }
+    $progress['early_bird'] = ['current' => $inFirstGp ? 'Yes' : 'No', 'target' => 'Yes', 'percent' => $inFirstGp ? 100 : 0];
+
+    // Giant Killer (binary)
+    $leaderStmt = $pdo->prepare("SELECT racer_id FROM (SELECT racer_id, COUNT(*) as gp_count FROM results WHERE gpid LIKE ? GROUP BY racer_id HAVING gp_count >= 3) qualified ORDER BY (SELECT SUM(gp_points) FROM results WHERE racer_id = qualified.racer_id AND gpid LIKE ?) DESC LIMIT 1");
+    $leaderStmt->execute([$season_id . '%', $season_id . '%']);
+    $leaderId = (int)$leaderStmt->fetchColumn();
+    $giantKiller = false;
+    if ($leaderId && $leaderId !== (int)$racer_id) {
+        $killedStmt = $pdo->prepare("SELECT COUNT(*) FROM results a JOIN results b ON a.gpid = b.gpid WHERE a.racer_id = ? AND b.racer_id = ? AND a.gpid LIKE ? AND a.rank < b.rank");
+        $killedStmt->execute([$racer_id, $leaderId, $season_id . '%']);
+        $giantKiller = (int)$killedStmt->fetchColumn() > 0;
+    }
+    $progress['giant_killer'] = ['current' => $giantKiller ? 'Yes' : 'No', 'target' => 'Yes', 'percent' => $giantKiller ? 100 : 0];
+
+    // Black Box — leader of the Black Box scoring system
+    static $bbScoresCache = null;
+    if ($bbScoresCache === null) {
+        require_once __DIR__ . '/../private/includes/gp_logic.php';
+        $bbAllStmt = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid LIKE ? AND gpid LIKE 's%'");
+        $bbAllStmt->execute([$season_id . '%']);
+        $bbAllRacers = $bbAllStmt->fetchAll(PDO::FETCH_COLUMN);
+        $bbScoresCache = [];
+        foreach ($bbAllRacers as $rid) {
+            $score = calculateBlackBoxScore($pdo, $rid, $season_id, []);
+            if ($score > 0) $bbScoresCache[$rid] = $score;
+        }
+        arsort($bbScoresCache);
+    }
+    $bbLeaderId = !empty($bbScoresCache) ? array_key_first($bbScoresCache) : null;
+    $isBlackBoxLeader = ($bbLeaderId !== null && (int)$bbLeaderId === (int)$racer_id);
+    $myBBScore = $bbScoresCache[$racer_id] ?? 0;
+    $topBBScore = !empty($bbScoresCache) ? reset($bbScoresCache) : 0;
+    $bbPercent = ($topBBScore > 0 && $myBBScore > 0) ? min(100, round(($myBBScore / $topBBScore) * 100)) : 0;
+    $progress['black_box'] = ['current' => $isBlackBoxLeader ? 'Leader' : round($myBBScore, 1), 'target' => 'Lead', 'percent' => $isBlackBoxLeader ? 100 : $bbPercent];
+
+    // Old Guard
+    $prevSeasonStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE 's00%'");
+    $prevSeasonStmt->execute([$racer_id]);
+    $hasPreseason = (int)$prevSeasonStmt->fetchColumn() > 0;
+    $progress['old_guard'] = ['current' => $hasPreseason ? 'Pre-season ✓' : 'No pre-season races', 'target' => 'Pre-season + active', 'percent' => ($hasPreseason && $season_id !== 's00') ? 100 : ($hasPreseason ? 50 : 0)];
+
+    // Cup Collector (career — all 24 cups raced)
+    $allCupsList = ['Mushroom','Flower','Star','Special','Shell','Banana','Leaf','Lightning','Egg','Triforce','Crossing','Bell','Golden Dash','Lucky Cat','Turnip','Propeller','Rock','Moon','Fruit','Boomerang','Feather','Cherry','Acorn','Spiny'];
+    $careerCupsStmt = $pdo->prepare("SELECT DISTINCT cup_name FROM results WHERE racer_id = ?");
+    $careerCupsStmt->execute([$racer_id]);
+    $careerCupsRaced = $careerCupsStmt->fetchAll(PDO::FETCH_COLUMN);
+    $cupsRacedCount = count(array_intersect($allCupsList, $careerCupsRaced));
+    $progress['cup_collector'] = ['current' => $cupsRacedCount, 'target' => 24, 'percent' => min(100, round(($cupsRacedCount / 24) * 100)), 'missing' => array_diff($allCupsList, $careerCupsRaced)];
+
+    // Perfectionist (career — perfect 60 in 3+ distinct cups)
+    $careerPerfectStmt = $pdo->prepare("SELECT DISTINCT cup_name FROM results WHERE racer_id = ? AND gp_points = 60");
+    $careerPerfectStmt->execute([$racer_id]);
+    $careerPerfectCups = $careerPerfectStmt->fetchAll(PDO::FETCH_COLUMN);
+    $progress['perfectionist'] = ['current' => count($careerPerfectCups), 'target' => 3, 'percent' => min(100, round((count($careerPerfectCups) / 3) * 100))];
+
+    // Princess Protocol
+    $royalsList = ['Peach', 'Daisy', 'Rosalina'];
+    $royalCount = 0;
+    foreach ($results as $r) { if (in_array($r['character_used'], $royalsList)) $royalCount++; }
+    $progress['princess_protocol'] = ['current' => round(($royalCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($royalCount / $totalRaces) / 0.50) * 100))];
+
+    // Mushroom Kingdom (career — all 19 core chars)
+    $marioUniverse = ['Mario','Luigi','Peach','Daisy','Rosalina','Toad','Toadette','Yoshi','Birdo','Wario','Waluigi','Donkey Kong','Bowser','Bowser Jr.','Baby Mario','Baby Luigi','Baby Peach','Baby Daisy','Baby Rosalina'];
+    $careerCharsStmt = $pdo->prepare("SELECT DISTINCT character_used FROM results WHERE racer_id = ?");
+    $careerCharsStmt->execute([$racer_id]);
+    $careerChars = $careerCharsStmt->fetchAll(PDO::FETCH_COLUMN);
+    $charsFound = count(array_intersect($marioUniverse, $careerChars));
+    $progress['mushroom_kingdom'] = ['current' => $charsFound, 'target' => count($marioUniverse), 'percent' => min(100, round(($charsFound / count($marioUniverse)) * 100)), 'missing' => array_diff($marioUniverse, $careerChars)];
+
+    // Link Main
+    $linkCount = 0;
+    foreach ($results as $r) { if ($r['character_used'] === 'Link') $linkCount++; }
+    $progress['link_main'] = ['current' => $linkCount, 'target' => 5, 'percent' => min(100, round(($linkCount / 5) * 100))];
+
+    // What a Fun Guy! (Toad, Toadette, Peachette)
+    $fungiList = ['Toad', 'Toadette', 'Peachette'];
+    $fungiCount = 0;
+    foreach ($results as $r) { if (in_array($r['character_used'], $fungiList)) $fungiCount++; }
+    $progress['fun_guy'] = ['current' => round(($fungiCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($fungiCount / $totalRaces) / 0.50) * 100))];
+
+    // That's Just a Person? (Mii, Inklings, Villager)
+    $humanList = ['Mii', 'Inkling Boy', 'Inkling Girl', 'Villager', 'Villager (M)', 'Villager (F)'];
+    $humanCount = 0;
+    foreach ($results as $r) { if (in_array($r['character_used'], $humanList)) $humanCount++; }
+    $progress['just_a_person'] = ['current' => round(($humanCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($humanCount / $totalRaces) / 0.50) * 100))];
+
+    // Furcurious! (Tanooki Mario, Cat Peach)
+    $furryList = ['Tanooki Mario', 'Cat Peach'];
+    $furryCount = 0;
+    foreach ($results as $r) { if (in_array($r['character_used'], $furryList)) $furryCount++; }
+    $progress['furcurious'] = ['current' => round(($furryCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($furryCount / $totalRaces) / 0.50) * 100))];
+
+    // Koopa Klan (Bowser, Dry Bowser, Bowser Jr., Koopa Troopa, Lakitu, Koopalings)
+    $koopaList = ['Bowser', 'Dry Bowser', 'Bowser Jr.', 'Koopa Troopa', 'Lakitu', 'Larry', 'Roy', 'Wendy', 'Ludwig', 'Iggy', 'Morton', 'Lemmy', 'Kamek', 'Dry Bones'];
+    $koopaCount = 0;
+    foreach ($results as $r) { if (in_array($r['character_used'], $koopaList)) $koopaCount++; }
+    $progress['koopa_klan'] = ['current' => round(($koopaCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($koopaCount / $totalRaces) / 0.50) * 100))];
+
+    return $progress;
+}
+
+// Helper to check if racer has badge
+function hasBadge($badges, $title) {
+    foreach ($badges as $badge) {
+        if ($badge['title'] === $title) return true;
+    }
+    return false;
+}
+?>
+
+
+<div class="badge-overview-container">
+    <div class="badge-overview-header">
+        <h1 class="badge-overview-title">🏅 Badge Encyclopedia</h1>
+        <div class="season-selector">
+            <form method="GET" action="/badges_overview" class="season-selector-form">
+                <label for="seasonSelect" class="season-selector-label">Season:</label>
+                <select name="season" id="seasonSelect" onchange="this.form.submit()" class="season-selector-select">
+                    <?php foreach ($availableSeasons as $season):
+                        $label = 'Season ' . strtoupper($season['season_id']) . ($season['status'] === 'archived' ? ' (Archived)' : '');
+                    ?>
+                        <option value="<?= htmlspecialchars($season['season_id']) ?>" <?= ($season['season_id'] === $currentSeason) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($label) ?>
+                        </option>
+                    <?php endforeach; ?>
+                    <option value="all" <?= $isAllTime ? 'selected' : '' ?>>All-Time</option>
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <!-- Unique Awards Section -->
+    <?php
+    // Check if any racer has unique badges
+    $hasUniqueAwards = false;
+    $uniqueAwardHolders = [];
+    foreach ($racers as $racer) {
+        $uniqueBadges = getUniqueBadges($pdo, $racer['id'], $currentSeason);
+        if (!empty($uniqueBadges)) {
+            $hasUniqueAwards = true;
+            $uniqueAwardHolders[$racer['id']] = [
+                'name' => $racer['name'],
+                'badges' => $uniqueBadges
+            ];
+        }
+    }
+
+    if ($hasUniqueAwards):
+    ?>
+    <div class="badge-category">
+        <h2>🌟 Unique Awards</h2>
+        <div class="badge-card">
+            <div class="badge-header">
+                <div class="badge-info">
+                    <h3>Special Recognition Awards</h3>
+                    <p>One-of-a-kind honors bestowed upon exceptional individuals</p>
+                </div>
+            </div>
+
+            <div class="badge-holders">
+                <?php foreach ($uniqueAwardHolders as $racerId => $holder): ?>
+                    <?php foreach ($holder['badges'] as $badge): ?>
+                        <div class="holder-card earned holder-card-centered">
+                            <img src="<?= htmlspecialchars($badge['img']) ?>" alt="<?= htmlspecialchars($badge['title']) ?>" class="unique-badge-img">
+                            <div class="holder-name"><?= htmlspecialchars($holder['name']) ?></div>
+                            <div class="unique-badge-title">
+                                <?= htmlspecialchars($badge['title']) ?>
+                            </div>
+                            <div class="holder-status">
+                                <?= htmlspecialchars($badge['desc']) ?>
+                            </div>
+                            <div class="unique-badge-awarded">
+                                ✅ <strong>Awarded!</strong>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php foreach ($allBadgeDefinitions as $categoryName => $badges): ?>
+        <div class="badge-category">
+            <h2><?= ucfirst($categoryName) ?> Badges</h2>
+
+            <?php foreach ($badges as $badgeDef): ?>
+                <div class="badge-card">
+                    <div class="badge-header">
+                        <div class="badge-icon"><?= $badgeDef['icon'] ?></div>
+                        <div class="badge-info">
+                            <h3><?= htmlspecialchars($badgeDef['title']) ?></h3>
+                            <p><?= htmlspecialchars($badgeDef['desc']) ?></p>
+                        </div>
+                    </div>
+
+                    <div class="badge-holders">
+                        <?php
+                        $hasHolders = false;
+                        foreach ($badgeData as $racerId => $data):
+                            $earned = hasBadge($data['badges'], $badgeDef['title']);
+                            $prog = $data['progress'][$badgeDef['key']] ?? null;
+
+                            // Skip if no progress data and not earned
+                            if (!$earned && (!$prog || (isset($prog['percent']) && $prog['percent'] < 5))) continue;
+
+                            $hasHolders = true;
+                        ?>
+                            <div class="holder-card <?= $earned ? 'earned' : 'in-progress' ?>">
+                                <div class="holder-name"><?= htmlspecialchars($data['name']) ?></div>
+                                <div class="holder-status">
+                                    <?php if ($earned): ?>
+                                        ✅ <strong>Earned!</strong>
+                                    <?php elseif (isset($prog['insufficient_data'])): ?>
+                                        Need <?= $prog['races_needed'] ?> more race<?= $prog['races_needed'] > 1 ? 's' : '' ?>
+                                    <?php elseif (isset($prog['min_races']) && $prog['races'] < $prog['min_races']): ?>
+                                        Need <?= $prog['min_races'] - $prog['races'] ?> more race<?= ($prog['min_races'] - $prog['races']) > 1 ? 's' : '' ?>
+                                    <?php else: ?>
+                                        <?= $prog['current'] ?? '?' ?> / <?= $prog['target'] ?? '?' ?>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if (!$earned && $prog): ?>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill <?= $prog['percent'] >= 100 ? 'earned' : '' ?>" style="width: <?= min(100, $prog['percent']) ?>%;"></div>
+                                    </div>
+                                    <div class="progress-text"><?= round($prog['percent']) ?>% complete</div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+
+                        <?php if (!$hasHolders): ?>
+                            <div class="no-holders">No one has earned this badge yet, and no one is close to earning it.</div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endforeach; ?>
+</div>
+
+<?php include __DIR__ . '/../private/templates/footer.php'; ?>

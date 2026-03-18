@@ -1,0 +1,130 @@
+/* /cdnmk/public_html/assets/css/forms.css */
+
+/* Form Metadata Container */
+.gp-meta {
+    display: flex;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-lg);
+    background: white;
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+}
+
+.meta-item {
+    flex: 1;
+}
+
+/* Entry Table - Result Entry Form */
+.entry-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+}
+
+.entry-table th {
+    background: var(--gray-50);
+    padding: 12px 15px;
+    text-align: left;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    border-bottom: 2px solid var(--gray-200);
+}
+
+.entry-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.entry-table input[type="number"],
+.entry-table input[type="text"],
+.entry-table select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--gray-400);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 16px;
+    transition: border-color var(--transition-fast);
+}
+
+.entry-table input:focus,
+.entry-table select:focus {
+    outline: none;
+    border-color: var(--nintendo-red);
+}
+
+/* Responsive Table for Mobile */
+@media (max-width: 600px) {
+    .entry-table thead {
+        display: none;
+    }
+
+    .entry-table tr {
+        display: block;
+        margin-bottom: var(--space-lg);
+        border: 1px solid var(--nintendo-red);
+        padding: var(--space-sm);
+        border-radius: var(--radius-md);
+    }
+
+    .entry-table td {
+        display: block;
+        text-align: right;
+        padding: 5px 0;
+        border-bottom: none;
+    }
+
+    .entry-table td::before {
+        content: attr(data-label);
+        float: left;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: var(--text-sm);
+    }
+
+    .gp-meta {
+        flex-direction: column;
+    }
+}
+
+/* iPhone Mini & Small Devices */
+@media (max-width: 390px) {
+    .gp-meta {
+        padding: 10px;
+        gap: 10px;
+    }
+
+    .meta-item label {
+        font-size: 0.7rem;
+    }
+
+    .meta-item input,
+    .meta-item select {
+        padding: 8px;
+        font-size: 16px; /* Prevent iOS zoom */
+    }
+
+    .entry-table tr {
+        padding: 10px;
+        margin-bottom: 12px;
+    }
+
+    .entry-table td {
+        padding: 4px 0;
+    }
+
+    .entry-table td::before {
+        font-size: 0.7rem;
+    }
+
+    .entry-table input[type="number"],
+    .entry-table input[type="text"],
+    .entry-table select {
+        padding: 6px;
+        font-size: 16px; /* Prevent iOS zoom */
+    }
+}

@@ -1,0 +1,191 @@
+/**
+ * Lounge Screen Styles (1920x1080)
+ * Vertical Ranking Flow (Left 1-3, Right 4-10)
+ * Optimized for 16:9 TV/Display
+ */
+
+/* Body & Container Setup */
+.lounge-body {
+    background: #f0f2f5;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 1080px;
+    width: 1920px;
+}
+
+.h-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 50px 70px;
+    box-sizing: border-box;
+}
+
+/* Header */
+.h-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 40px;
+}
+
+.h-logo {
+    font-size: 3rem;
+    font-weight: 900;
+    font-style: italic;
+    text-transform: uppercase;
+    color: #1a1a1a;
+}
+
+.h-season {
+    font-size: 1.5rem;
+    color: var(--nintendo-red);
+    margin-left: 15px;
+    letter-spacing: 3px;
+}
+
+.h-telemetry {
+    font-weight: 800;
+    color: var(--nintendo-red);
+    font-size: 1.2rem;
+}
+
+/* Main Ranking Grid */
+.h-main-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 50px;
+    align-items: start;
+}
+
+.h-col-podium,
+.h-col-field {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.h-col-field {
+    gap: 12px;
+}
+
+/* Podium Sizing (Larger Cards for Top 3) */
+.podium-card {
+    padding: 30px 40px;
+    min-height: 180px;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+    margin-bottom: 0;
+}
+
+.podium-card .rank-number {
+    font-size: 3.5rem;
+    width: 100px;
+}
+
+.podium-card .racer-portrait {
+    width: 120px;
+    height: 120px;
+}
+
+.podium-card .racer-name {
+    font-size: 2.8rem;
+}
+
+.podium-card .racer-score {
+    font-size: 4rem;
+}
+
+/* Field Sizing (Smaller Cards for 4-10) */
+.field-card {
+    padding: 12px 25px;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+    margin-bottom: 0;
+}
+
+.field-card .rank-number {
+    font-size: 1.8rem;
+    width: 60px;
+}
+
+.field-card .racer-portrait {
+    width: 60px;
+    height: 60px;
+}
+
+.field-card .racer-name {
+    font-size: 1.8rem;
+}
+
+.field-card .racer-score {
+    font-size: 2.2rem;
+    min-width: 100px;
+}
+
+.field-card .racer-stat-label {
+    font-size: 0.85rem;
+}
+
+/* Ineligible State */
+.h-ineligible {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
+/* Footer Section */
+.h-footer {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    margin-top: 40px;
+    height: 160px;
+}
+
+/* Ticker Adjustments for Horizontal */
+.h-ticker {
+    flex: 1;
+    margin: 0;
+    border-radius: 20px;
+    height: 100px;
+}
+
+.h-ticker .ticker-label {
+    font-size: 2rem;
+    padding: 0 40px;
+}
+
+.h-ticker .ticker-item {
+    font-size: 1.8rem;
+}
+
+/* QR Code Box */
+.h-qr-box {
+    background: white;
+    padding: 20px;
+    border-radius: 25px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 3px solid #eee;
+}
+
+.h-qr-text {
+    font-size: 1rem;
+    font-weight: 900;
+    margin-bottom: 10px;
+    color: #1a1a1a;
+}
+
+.h-qr-img {
+    width: 110px;
+    height: 110px;
+}
+
+/* Rank change indicators */
+.rank-up { color: #2EBD59; font-size: 0.75em; margin-left: 6px; }
+.rank-down { color: #e60012; font-size: 0.75em; margin-left: 6px; }
+.rank-same { color: #009BE0; font-size: 0.75em; margin-left: 6px; }
