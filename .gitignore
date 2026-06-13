@@ -2,6 +2,9 @@
 *.db
 *.db-journal
 *.db-wal
+# Timestamped DB backups (league.db.bak-YYYYMMDD-HHMMSS) — these end in the
+# date, so neither *.db nor *.bak catches them
+*.db.bak-*
 
 # Config with secrets (use config.example.php as template)
 private/config/config.php
@@ -10,8 +13,11 @@ private/config/config.php
 public_html/assets/img/*.png
 !public_html/assets/img/program_*.png
 !public_html/assets/img/omk*.png
+!public_html/assets/img/kartificial.png
 public_html/assets/img/snes/
 public_html/mksnes/
+# Track screenshots — populate locally via bin/fetch_track_images.php
+public_html/assets/img/tracks/
 
 # macOS
 .DS_Store

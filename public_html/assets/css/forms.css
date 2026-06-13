@@ -5,7 +5,7 @@
     display: flex;
     gap: var(--space-lg);
     margin-bottom: var(--space-lg);
-    background: white;
+    background: var(--gray-50);
     padding: var(--space-md);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-card);
@@ -19,7 +19,7 @@
 .entry-table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: var(--shadow-card);

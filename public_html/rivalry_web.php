@@ -129,7 +129,7 @@ include __DIR__ . '/../private/templates/header.php';
 <script>
 (function() {
     const colorPalette = [
-        '#E60012', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
+        'var(--nintendo-red)', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
         '#EC4899', '#14B8A6', '#F59E0B', '#6366F1', '#EF4444',
         '#10B981', '#3B82F6', '#F97316', '#A855F7', '#06B6D4',
         '#D946EF', '#84CC16', '#FB923C'
@@ -373,7 +373,7 @@ include __DIR__ . '/../private/templates/header.php';
                     losses = l.p1_wins;
                 }
                 const rate = l.matchups > 0 ? Math.round((wins / l.matchups) * 100) : 0;
-                const barColor = rate >= 50 ? '#2EBD59' : '#E60012';
+                const barColor = rate >= 50 ? '#2EBD59' : 'var(--nintendo-red)';
 
                 html += '<tr>' +
                     '<td>' + opponent + '</td>' +
@@ -561,7 +561,7 @@ include __DIR__ . '/../private/templates/header.php';
                             opp = l.p1_name; w = l.p2_wins; lo = l.p1_wins;
                         }
                         const rt = l.matchups > 0 ? Math.round((w / l.matchups) * 100) : 0;
-                        const bc = rt >= 50 ? '#2EBD59' : '#E60012';
+                        const bc = rt >= 50 ? '#2EBD59' : 'var(--nintendo-red)';
                         html += '<tr><td>' + opp + '</td><td>' + l.matchups + '</td><td>' + w + '</td><td>' + lo + '</td>' +
                             '<td><span class="rweb-winrate-bar" style="width:' + Math.max(4, rt * 0.8) + 'px;background:' + bc + ';"></span>' + rt + '%</td></tr>';
                     });

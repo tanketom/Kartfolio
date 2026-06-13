@@ -28,6 +28,7 @@ $successMessage = isset($_GET['success']) && $_GET['success'] === 'match_recorde
 
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    verify_csrf();
     if ($_POST['action'] === 'advance_round') {
         // Generate next round matches
         advanceToNextRound($pdo, $tournamentId, $tournament['format']);
@@ -94,6 +95,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ");
             $stmt->execute([$tournamentId, $winningTeam]);
             $finalWinner = $stmt->fetchColumn();
+        } elseif ($tournament['format'] === 'team_scramble') {
+            // Winner = a representative of the team with the highest combined points.
+            require_once __DIR__ . '/../../private/includes/scramble_tournament.php';
+            $finalWinner = scrambleWinnerId($pdo, (int)$tournamentId);
+        } elseif ($tournament['format'] === 'world_cup') {
+            // Winner of the knockout final.
+            require_once __DIR__ . '/../../private/includes/worldcup_tournament.php';
+            $finalWinner = worldCupWinnerId($pdo, (int)$tournamentId);
         } else {
             // Standard brackets - get winner with is_winner=1 from last completed match
             $stmt = $pdo->prepare("
@@ -236,6 +245,20 @@ if ($tournament['format'] === 'gauntlet') {
         }
     }
     $tournamentComplete = $allRelayComplete;
+} elseif ($tournament['format'] === 'survivor') {
+    // Survivor is complete when the tournament row itself is closed
+    // (advanceSurvivor() sets status='completed' once one racer remains).
+    $tournamentComplete = ($tournament['status'] === 'completed');
+} elseif ($tournament['format'] === 'team_scramble') {
+    // One mega-match — done as soon as it's recorded.
+    $tournamentComplete = true;
+    foreach ($allMatches as $match) {
+        if ($match['status'] !== 'completed') { $tournamentComplete = false; break; }
+    }
+} elseif ($tournament['format'] === 'world_cup') {
+    // Done when the knockout final has a recorded winner.
+    require_once __DIR__ . '/../../private/includes/worldcup_tournament.php';
+    $tournamentComplete = (worldCupWinnerId($pdo, (int)$tournamentId) !== null);
 } else {
     // Standard brackets - tournament is complete when all matches are done AND exactly 1 champion remains
 
@@ -292,11 +315,15 @@ function formatRoundName($round, $bracket) {
     if ($bracket === 'team_relay') {
         return 'Team Relay Matches';
     }
+    if ($bracket === 'wc_group') {
+        return '🌍 Group Matchday ' . substr($round, 1);
+    }
 
     $names = [
         'R1' => 'Round 1',
         'R2' => 'Round 2',
         'R3' => 'Round 3',
+        'R16' => 'Round of 16',
         'QF' => 'Quarter Finals',
         'SF' => 'Semi Finals',
         'F' => 'Finals',
@@ -314,6 +341,22 @@ function advanceToNextRound($pdo, $tournamentId, $format) {
 
     if ($format === 'team_relay') {
         return; // No advancement
+    }
+
+    if ($format === 'team_scramble') {
+        return; // Single mega-match — no rounds to advance.
+    }
+
+    if ($format === 'world_cup') {
+        require_once __DIR__ . '/../../private/includes/worldcup_tournament.php';
+        advanceWorldCup($pdo, (int)$tournamentId);
+        return;
+    }
+
+    if ($format === 'survivor') {
+        require_once __DIR__ . '/../../private/includes/survivor_tournament.php';
+        advanceSurvivor($pdo, (int)$tournamentId);
+        return;
     }
 
     // Get all winners from completed matches in the most recent round
@@ -562,10 +605,13 @@ include __DIR__ . '/../../private/templates/header.php';
                         <strong class="bracket-meta-value">
                             <?php
                             $formatLabels = [
-                                'single_elim' => 'Single Elimination',
-                                'double_elim' => 'Double Elimination',
-                                'gauntlet' => 'Gauntlet',
-                                'team_relay' => 'Team Relay'
+                                'single_elim'   => 'Single Elimination',
+                                'double_elim'   => 'Double Elimination',
+                                'gauntlet'      => 'Gauntlet',
+                                'team_relay'    => 'Team Relay',
+                                'survivor'      => 'Survivor',
+                                'team_scramble' => 'Team Scramble',
+                                'world_cup'     => 'World Cup',
                             ];
                             echo $formatLabels[$tournament['format']] ?? $tournament['format'];
                             ?>
@@ -586,18 +632,21 @@ include __DIR__ . '/../../private/templates/header.php';
             <div class="bracket-actions">
                 <?php if ($tournament['status'] === 'setup'): ?>
                     <form method="POST" class="bracket-form-inline">
+                        <?= csrf_field() ?>
                         <input type="hidden" name="action" value="start_tournament">
                         <button type="submit" class="btn btn-primary">Start Tournament</button>
                     </form>
                 <?php elseif ($tournament['status'] === 'in_progress'): ?>
                     <?php if ($currentRoundComplete && !$tournamentComplete): ?>
                         <form method="POST" class="bracket-form-inline">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="action" value="advance_round">
                             <button type="submit" class="btn btn-primary">Next Round! →</button>
                         </form>
                     <?php endif; ?>
                     <?php if ($tournamentComplete): ?>
                         <form method="POST" class="bracket-form-inline">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="action" value="complete_tournament">
                             <button type="submit" class="btn btn-success">🏆 Complete Tournament</button>
                         </form>
@@ -610,6 +659,197 @@ include __DIR__ . '/../../private/templates/header.php';
             </div>
         </div>
     </div>
+
+    <?php if ($tournament['format'] === 'survivor'):
+        require_once __DIR__ . '/../../private/includes/survivor_tournament.php';
+        $roster      = survivorRoster($pdo, (int)$tournamentId);
+        $aliveCount  = count(array_filter($roster, fn($r) => $r['status'] === 'alive'));
+        $elimPerRnd  = (int)($tournament['eliminations_per_round'] ?? 1);
+    ?>
+    <div class="racer-card survivor-deathboard">
+        <header class="survivor-header">
+            <h2>💀 Deathboard</h2>
+            <div class="survivor-counters">
+                <span><strong><?= $aliveCount ?></strong> alive</span>
+                <span>·</span>
+                <span><strong><?= count($roster) - $aliveCount ?></strong> eliminated</span>
+                <?php if ($elimPerRnd > 1): ?>
+                <span>·</span>
+                <span><strong><?= $elimPerRnd ?></strong> out per round</span>
+                <?php endif; ?>
+            </div>
+        </header>
+
+        <div class="survivor-grid">
+            <div class="survivor-col">
+                <h3 class="survivor-col-title">⚔️ Alive</h3>
+                <?php $aliveOnly = array_filter($roster, fn($r) => $r['status'] === 'alive'); ?>
+                <?php foreach ($aliveOnly as $r): ?>
+                <div class="survivor-card survivor-card--alive">
+                    <span class="survivor-seed">#<?= $r['seed'] ?></span>
+                    <span class="survivor-name"><?= htmlspecialchars($r['name']) ?></span>
+                    <?php if (!empty($r['elo_at_registration'])): ?>
+                        <span class="survivor-elo"><?= (int)$r['elo_at_registration'] ?> ELO</span>
+                    <?php endif; ?>
+                </div>
+                <?php endforeach; ?>
+                <?php if ($aliveCount === 1): ?>
+                    <div class="survivor-champion-note">🏆 Last one standing wins!</div>
+                <?php endif; ?>
+            </div>
+            <div class="survivor-col">
+                <h3 class="survivor-col-title">🪦 Eliminated</h3>
+                <?php
+                    // Order eliminated by elimination round (most recent first).
+                    $elimOnly = array_filter($roster, fn($r) => $r['status'] === 'eliminated');
+                    usort($elimOnly, fn($a, $b) => ($b['final_placement'] ?? 999) <=> ($a['final_placement'] ?? 999));
+                ?>
+                <?php if (empty($elimOnly)): ?>
+                    <div class="survivor-empty">Nobody out yet.</div>
+                <?php else: ?>
+                    <?php foreach ($elimOnly as $r): ?>
+                    <div class="survivor-card survivor-card--out">
+                        <span class="survivor-seed">#<?= $r['seed'] ?></span>
+                        <span class="survivor-name"><?= htmlspecialchars($r['name']) ?></span>
+                        <span class="survivor-placement">Out in <?= htmlspecialchars($r['elimination_round'] ?? '?') ?> · finished <?= (int)$r['final_placement'] ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <style>
+    .survivor-deathboard { padding: 20px 24px; }
+    .survivor-header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .survivor-header h2 { margin:0; font-size:1.4rem; }
+    .survivor-counters { color:var(--gray-600); font-size:0.95rem; display:flex; gap:6px; align-items:baseline; }
+    .survivor-counters strong { color:var(--gray-900); }
+    .survivor-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .survivor-col-title { font-size:0.95rem; text-transform:uppercase; letter-spacing:1px; margin:0 0 8px; color:var(--gray-700); }
+    .survivor-card { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:6px; margin-bottom:6px; font-size:0.92rem; }
+    .survivor-card--alive { background:#e6f6ec; border-left:4px solid #2EBD59; }
+    .survivor-card--out   { background:#f4eeee; border-left:4px solid #999; color:var(--gray-700); text-decoration:line-through; text-decoration-thickness:1px; }
+    .survivor-seed { font-weight:700; color:#999; min-width:32px; }
+    .survivor-name { flex:1; font-weight:700; }
+    .survivor-elo, .survivor-placement { font-size:0.78rem; color:#777; }
+    .survivor-empty { color:#999; font-style:italic; padding:8px 0; }
+    .survivor-champion-note { margin-top:8px; padding:10px; background:#FFD700; border-radius:6px; font-weight:800; text-align:center; color:#5a3a00; }
+    @media (max-width:600px) { .survivor-grid { grid-template-columns:1fr; } }
+    </style>
+    <?php endif; ?>
+
+    <?php if ($tournament['format'] === 'team_scramble'):
+        require_once __DIR__ . '/../../private/includes/scramble_tournament.php';
+        $scramble = scrambleStandings($pdo, (int)$tournamentId);
+        $recorded = !empty($scramble) && $scramble[0]['total'] > 0;
+    ?>
+    <div class="racer-card scramble-board">
+        <header class="scramble-header">
+            <h2>🤝 Team Scramble</h2>
+            <span class="scramble-sub"><?= count($scramble) ?> teams · highest combined points wins<?= $recorded ? '' : ' · race the GP and record it below' ?></span>
+        </header>
+        <div class="scramble-grid">
+            <?php foreach ($scramble as $rank => $t):
+                $medal = $recorded ? (['🥇','🥈','🥉'][$rank] ?? ('#' . ($rank + 1))) : '';
+            ?>
+            <div class="scramble-team" style="border-top-color: <?= htmlspecialchars($t['color']) ?>;">
+                <div class="scramble-team-head">
+                    <span class="scramble-dot" style="background: <?= htmlspecialchars($t['color']) ?>;"></span>
+                    <span class="scramble-team-name"><?= htmlspecialchars($t['name']) ?></span>
+                    <span class="scramble-team-total"><?= $recorded ? (int)$t['total'] . ' pts ' . $medal : '—' ?></span>
+                </div>
+                <ul class="scramble-members">
+                    <?php foreach ($t['members'] as $m): ?>
+                        <li><span><?= htmlspecialchars($m['name']) ?></span><span class="scramble-mpts"><?= $recorded ? (int)$m['points'] : '' ?></span></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <style>
+    .scramble-board { padding: 20px 24px; }
+    .scramble-header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .scramble-header h2 { margin:0; font-size:1.4rem; }
+    .scramble-sub { color:var(--gray-600); font-size:0.9rem; }
+    .scramble-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
+    .scramble-team { background:var(--gray-100); border:1px solid var(--gray-200); border-top:4px solid #888; border-radius:8px; padding:12px 14px; }
+    .scramble-team-head { display:flex; align-items:center; gap:8px; }
+    .scramble-dot { width:14px; height:14px; border-radius:50%; }
+    .scramble-team-name { font-weight:800; text-transform:uppercase; flex:1; }
+    .scramble-team-total { font-weight:900; color:var(--gray-900); }
+    .scramble-members { list-style:none; margin:10px 0 0; padding:0; }
+    .scramble-members li { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--gray-200); font-size:0.9rem; }
+    .scramble-mpts { color:#888; font-weight:700; }
+    </style>
+    <?php endif; ?>
+
+    <?php if ($tournament['format'] === 'world_cup'):
+        require_once __DIR__ . '/../../private/includes/worldcup_tournament.php';
+        $wcTables = worldCupGroupTables($pdo, (int)$tournamentId);
+        $wcDeath  = worldCupGroupOfDeath($pdo, (int)$tournamentId);
+        $wcLetters = range('A', 'Z');
+    ?>
+    <div class="racer-card wc-board">
+        <header class="wc-header">
+            <img src="/assets/img/kartificial.png" class="wc-mascot" alt="Kartificial"
+                 onerror="this.style.display='none'">
+            <div>
+                <h2>🌍 World Cup — Group Stage</h2>
+                <div class="wc-sub">
+                    Top 2 per group + best third-placers advance to the knockout.
+                    Hosted by <strong>Kartificial</strong>, the official mascot.
+                    · <a href="/wc-pickem/<?= (int)$tournamentId ?>" target="_blank">Bracket Pick'em →</a>
+                </div>
+            </div>
+        </header>
+        <div class="wc-groups">
+            <?php foreach ($wcTables as $gNum => $rows):
+                $letter = $wcLetters[$gNum - 1] ?? $gNum;
+                $isDeath = $wcDeath && $wcDeath[0] === $gNum;
+            ?>
+            <div class="wc-group <?= $isDeath ? 'wc-group--death' : '' ?>">
+                <h3>Group <?= $letter ?><?= $isDeath ? ' 💀' : '' ?>
+                    <?php if ($isDeath): ?><span class="wc-death-tag">Group of Death · avg Elo <?= $wcDeath[1] ?></span><?php endif; ?>
+                </h3>
+                <table class="wc-table">
+                    <thead><tr><th>#</th><th>Racer</th><th>P</th><th>Pts</th><th>GP pts</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($rows as $row): ?>
+                        <tr class="<?= $row['rank'] <= 2 ? 'wc-qualify' : ($row['rank'] === 3 ? 'wc-bubble' : '') ?>">
+                            <td><?= $row['rank'] ?></td>
+                            <td><?= htmlspecialchars($row['name']) ?></td>
+                            <td><?= $row['played'] ?></td>
+                            <td><strong><?= $row['table_pts'] ?></strong></td>
+                            <td><?= $row['gp_pts'] ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <p class="wc-legend">Green rows qualify · amber third-placers fight for the best-thirds spots · Pts = matchday placement points (3/2/1/0).</p>
+    </div>
+    <style>
+    .wc-board { padding: 20px 24px; }
+    .wc-header { display:flex; align-items:center; gap:16px; margin-bottom:14px; }
+    .wc-mascot { width:84px; height:84px; object-fit:contain; }
+    .wc-header h2 { margin:0; font-size:1.4rem; }
+    .wc-sub { color:var(--gray-600); font-size:0.9rem; margin-top:4px; }
+    .wc-groups { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; }
+    .wc-group { background:var(--gray-100); border:1px solid var(--gray-200); border-radius:8px; padding:12px 14px; }
+    .wc-group--death { border-color:#c0392b; background:#fdecec; }
+    .wc-group h3 { margin:0 0 8px; font-size:1rem; }
+    .wc-death-tag { font-size:0.7rem; color:#c0392b; font-weight:700; margin-left:6px; }
+    .wc-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+    .wc-table th { text-align:left; color:#999; font-size:0.72rem; text-transform:uppercase; padding:2px 6px; }
+    .wc-table td { padding:4px 6px; border-top:1px solid var(--gray-200); }
+    .wc-qualify td { background:#e6f6ec; }
+    .wc-bubble  td { background:#fdf8ec; }
+    .wc-legend { color:#888; font-size:0.78rem; margin:12px 0 0; }
+    </style>
+    <?php endif; ?>
 
     <!-- Bracket Display -->
     <?php if (empty($allMatches)): ?>
@@ -647,7 +887,7 @@ include __DIR__ . '/../../private/templates/header.php';
                                     <?php endif; ?>
                                     <div class="bracket-participant-list">
                                         <?php foreach ($match['participants'] as $participant): ?>
-                                            <div style="padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; <?= $participant['is_winner'] ? 'background: #d4edda; border: 2px solid #2EBD59;' : 'background: #f8f9fa;' ?>">
+                                            <div style="padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; <?= $participant['is_winner'] ? 'background: #d4edda; border: 2px solid #2EBD59;' : 'background: var(--gray-100);' ?>">
                                                 <div class="bracket-participant-info">
                                                     <strong><?= htmlspecialchars($participant['name']) ?></strong>
                                                     <?php if ($match['bracket'] === 'gauntlet' && $match['player1_id'] == $participant['racer_id']): ?>
@@ -807,14 +1047,12 @@ include __DIR__ . '/../../private/templates/header.php';
                     <div class="broadcast-input-group">
                         <label>Select Program</label>
                         <select name="program" class="broadcast-select" required>
-                            <option value="core_team">Kart Core Team</option>
-                            <option value="reef_dispatch">Reef's Dispatch</option>
-                            <option value="meta_report">The Meta Report</option>
-                            <option value="the_rant">The Rant</option>
-                            <option value="ghost_racer">The Ghost Racer's Ascent</option>
-                            <option value="situated_spectator">The Situated Spectator</option>
-                            <option value="viberacing">Viberacing</option>
-                            <option value="random">🎲 Surprise Me</option>
+                            <?php
+                                require_once __DIR__ . '/../../private/includes/programs.php';
+                                foreach (getAIProgramsCatalog() as $key => $info):
+                            ?>
+                                <option value="<?= htmlspecialchars($key) ?>"><?= htmlspecialchars($info['label']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 

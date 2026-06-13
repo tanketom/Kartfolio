@@ -6,7 +6,7 @@
 
 /* Body & Container Setup */
 .lounge-body {
-    background: #f0f2f5;
+    background: var(--gray-100);
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -31,10 +31,11 @@
 }
 
 .h-logo {
+    font-family: var(--font-display);
     font-size: 3rem;
-    font-weight: 900;
-    font-style: italic;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: -0.01em;
     color: #1a1a1a;
 }
 
@@ -75,8 +76,9 @@
 .podium-card {
     padding: 30px 40px;
     min-height: 180px;
+    border: 4px solid var(--ink);
     border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+    box-shadow: 7px 7px 0 var(--ink);
     margin-bottom: 0;
 }
 
@@ -101,8 +103,9 @@
 /* Field Sizing (Smaller Cards for 4-10) */
 .field-card {
     padding: 12px 25px;
-    border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    box-shadow: 5px 5px 0 var(--ink);
     margin-bottom: 0;
 }
 
@@ -163,19 +166,20 @@
 
 /* QR Code Box */
 .h-qr-box {
-    background: white;
+    background: var(--gray-50);
     padding: 20px;
-    border-radius: 25px;
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+    border-radius: 18px;
+    box-shadow: 5px 5px 0 var(--ink);
     display: flex;
     flex-direction: column;
     align-items: center;
-    border: 3px solid #eee;
+    border: 3px solid var(--ink);
 }
 
 .h-qr-text {
+    font-family: var(--font-display);
     font-size: 1rem;
-    font-weight: 900;
+    font-weight: 700;
     margin-bottom: 10px;
     color: #1a1a1a;
 }
@@ -186,6 +190,33 @@
 }
 
 /* Rank change indicators */
-.rank-up { color: #2EBD59; font-size: 0.75em; margin-left: 6px; }
-.rank-down { color: #e60012; font-size: 0.75em; margin-left: 6px; }
-.rank-same { color: #009BE0; font-size: 0.75em; margin-left: 6px; }
+.rank-up { color: var(--luigi); font-size: 0.75em; margin-left: 6px; }
+.rank-down { color: var(--nintendo-red); font-size: 0.75em; margin-left: 6px; }
+.rank-same { color: var(--boost); font-size: 0.75em; margin-left: 6px; }
+
+/* ==========================================================================
+   KART POP conformance — ink-outlined ticker + checkered header rule.
+   ========================================================================== */
+.h-ticker {
+    border: 3px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--ink);
+    overflow: hidden;
+}
+.h-header {
+    position: relative;
+    padding-bottom: 22px;
+}
+.h-header::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 10px;
+    background-color: var(--gray-50);
+    background-image:
+        linear-gradient(45deg, var(--ink) 25%, transparent 25%, transparent 75%, var(--ink) 75%),
+        linear-gradient(45deg, var(--ink) 25%, transparent 25%, transparent 75%, var(--ink) 75%);
+    background-size: 14px 14px;
+    background-position: 0 0, 7px 7px;
+    border: 1.5px solid var(--ink);
+    border-radius: 3px;
+}

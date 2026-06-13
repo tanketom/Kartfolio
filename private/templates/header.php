@@ -22,6 +22,13 @@ $currentSeasonTag = strtoupper(getCurrentSeasonNumber());
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($leagueName) ?> League <?= $currentSeasonTag ?></title>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="/assets/img/program_press_office.png">
+    <link rel="apple-touch-icon" href="/assets/img/program_press_office.png">
+    <!-- KART POP type system: Fredoka (display) · Inter (body/UI) · DM Mono (numerals) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap">
     <link rel="stylesheet" href="/assets/css/global.css">
     <?php
     // Load admin CSS files if we're on an admin page
@@ -65,8 +72,12 @@ $currentSeasonTag = strtoupper(getCurrentSeasonNumber());
                     <a href="/timeline">Timeline</a>
                     <a href="/rivalries">Nemesis Index</a>
                     <a href="/records">Record Book</a>
-                    
-                    
+                    <a href="/cup-mastery">Cup Mastery Grid</a>
+                    <a href="/track-favourites">🏁 Track Favourites</a>
+                    <a href="/mh-dashboard">MONSTER HUNT</a>
+                    <a href="/mikkoliiga">🌟 Mikkoliiga</a>
+                    <a href="/teams">🤝 Teams</a>
+
                 </div>
             </div>
 
@@ -78,8 +89,10 @@ $currentSeasonTag = strtoupper(getCurrentSeasonNumber());
                         <span class="dropbtn" style="color: #ffcc00 !important;">Admin ▾</span>
                         <div class="dropdown-content">
                             <a href="/admin/seasons">Seasons</a>
+                            <a href="/admin/close-season">🏁 Close Season</a>
                             <a href="/admin/racers">Racers</a>
                             <a href="/admin/results">Results</a>
+                            <a href="/admin/commissioner-desk">🗒️ Commissioner's Desk</a>
                             <a href="/admin/settings">⚙️ Settings</a>
                         </div>
                     </div>

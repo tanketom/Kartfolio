@@ -27,18 +27,20 @@ if (isset($_GET['delete'])) {
 // 2. Handle Save/Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    $id     = $_POST['racer_id'] ?? '';
-    $name   = trim($_POST['name']);
-    $nick   = trim($_POST['nickname']);
-    $phrase = trim($_POST['catchphrase']);
+    $id        = $_POST['racer_id'] ?? '';
+    $name      = trim($_POST['name']);
+    $nick      = trim($_POST['nickname']);
+    $phrase    = trim($_POST['catchphrase']);
+    $mikko     = isset($_POST['in_mikkoliiga']) ? 1 : 0;
+    $retired   = isset($_POST['is_retired']) ? 1 : 0;
 
     if (!empty($id)) {
-        $stmt = $pdo->prepare("UPDATE racers SET name = ?, nickname = ?, catchphrase = ? WHERE id = ?");
-        $stmt->execute([$name, $nick, $phrase, $id]);
+        $stmt = $pdo->prepare("UPDATE racers SET name = ?, nickname = ?, catchphrase = ?, in_mikkoliiga = ?, is_retired = ? WHERE id = ?");
+        $stmt->execute([$name, $nick, $phrase, $mikko, $retired, $id]);
         $message = "Updated " . htmlspecialchars($name) . " successfully.";
     } else {
-        $stmt = $pdo->prepare("INSERT INTO racers (name, nickname, catchphrase) VALUES (?, ?, ?)");
-        $stmt->execute([$name, $nick, $phrase]);
+        $stmt = $pdo->prepare("INSERT INTO racers (name, nickname, catchphrase, in_mikkoliiga, is_retired) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$name, $nick, $phrase, $mikko, $retired]);
         $message = "Welcome to the league, $name!";
     }
 }
@@ -97,6 +99,20 @@ include __DIR__ . '/../../private/templates/header.php';
                     <label class="form-label">CATCHPHRASE</label>
                     <input type="text" name="catchphrase" id="f_catchphrase" class="form-input" placeholder="e.g. It's-a me!">
                 </div>
+                <div class="input-group">
+                    <label class="form-label">MIKKOLIIGA</label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; padding:0.6rem 0;">
+                        <input type="checkbox" name="in_mikkoliiga" id="f_mikkoliiga" value="1" class="mikko-admin-checkbox">
+                        <span style="font-size:0.9rem; color:var(--gray-600);">Member?</span>
+                    </label>
+                </div>
+                <div class="input-group">
+                    <label class="form-label">RETIRED</label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; padding:0.6rem 0;">
+                        <input type="checkbox" name="is_retired" id="f_retired" value="1" class="mikko-admin-checkbox">
+                        <span style="font-size:0.9rem; color:var(--gray-600);">No longer racing?</span>
+                    </label>
+                </div>
             </div>
             <div class="flex gap-sm mt-md">
                 <button type="submit" class="btn btn-primary" id="submit-btn">Save Racer Profile</button>
@@ -130,7 +146,15 @@ include __DIR__ . '/../../private/templates/header.php';
             </div>
 
             <div class="racer-card-body">
-                <h3 class="racer-card-name"><?= htmlspecialchars($r['name']) ?></h3>
+                <h3 class="racer-card-name">
+                    <?= htmlspecialchars($r['name']) ?>
+                    <?php if (!empty($r['in_mikkoliiga'])): ?>
+                        <span title="Mikkoliiga member" class="mikko-roster-tag">MIKKOLIIGA</span>
+                    <?php endif; ?>
+                    <?php if (!empty($r['is_retired'])): ?>
+                        <span title="Retired racer" class="retired-roster-tag">RETIRED</span>
+                    <?php endif; ?>
+                </h3>
 
                 <?php if (!empty($r['nickname'])): ?>
                     <div class="racer-card-nickname">
@@ -192,6 +216,8 @@ function editRacer(data) {
     document.getElementById('f_name').value = data.name || '';
     document.getElementById('f_nickname').value = data.nickname || '';
     document.getElementById('f_catchphrase').value = data.catchphrase || '';
+    document.getElementById('f_mikkoliiga').checked = !!(parseInt(data.in_mikkoliiga, 10) || 0);
+    document.getElementById('f_retired').checked = !!(parseInt(data.is_retired, 10) || 0);
 
     document.getElementById('submit-btn').innerText = "Update Profile";
     document.getElementById('cancel-btn').classList.remove('hidden');
@@ -205,6 +231,8 @@ function resetForm() {
     document.getElementById('form-title').innerText = "Add New Racer";
     document.getElementById('f_id').value = "";
     document.getElementById('racer-form').reset();
+    document.getElementById('f_mikkoliiga').checked = false;
+    document.getElementById('f_retired').checked = false;
     document.getElementById('submit-btn').innerText = "Save Racer Profile";
     document.getElementById('cancel-btn').classList.add('hidden');
 }

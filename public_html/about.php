@@ -25,16 +25,22 @@ include __DIR__ . '/../private/templates/header.php';
                 The <strong><?= htmlspecialchars($leagueName) ?> League</strong> is a competitive Mario Kart 8 Deluxe racing league that transforms casual gameplay into a sophisticated data ecosystem. What began as colleagues racing evolved into a comprehensive performance tracking platform that captures every drift, every item hit, and every triumph across the Mushroom Kingdom's circuits.
             </p>
             <p>
-                At its core, the league uses a custom-built <strong>GPScore™ algorithm</strong> to evaluate racer performance. Unlike simple placement-based scoring, GPScore uses average cup scores (to account for not everyone being able to race all the time), but adds points for attendance to incentivise playing.
+                At the core of every season sits a configurable <strong>scoring system</strong>. The original <strong>GPScore™</strong> blends average cup scores with attendance bonuses, but the platform now ships with eleven alternatives — from Best-N-GPs and Drop-Worst formats to the cup-collecting <strong>Top 12 Unique</strong>, the chaotic <strong>Random Cup Draw</strong>, the statistical <strong>Black Box</strong>, the RPG-flavoured <strong>MONSTER HUNT</strong> (where racers farm XP against Elo-driven monsters), the field-policing <strong>Bounty Hunter</strong> (every above-median Elo racer carries a bounty equal to their Elo gap), and the zero-sum <strong>Pari-Mutuel</strong> betting model. Every season picks its own rules, grace periods, and finals weeks.
             </p>
             <p>
-                But numbers alone don't tell the full story. That's where the league's <strong>media ecology</strong> comes alive. Every week, the system's "Generate New Broadcast" feature synthesizes recent race data, current form rankings, and emerging rivalries into AI-generated commentary through various personas—from the analytical "Kart Core Team" to the philosophical musings of "The Situated Spectator." These broadcasts transform raw statistics into narrative arcs, tracking the rise of underdogs, the fall of favorites, and the bitter feuds that develop when racers meet too many times on Rainbow Road.
+                For the slightly less avid players, <strong>Mikkoliiga</strong> runs as a parallel casual sub-league inside the same Grand Prix nights. Members race alongside everyone else but score on their own internal scale — the canonical Mario Kart 12-position points awarded among Mikkoliiga members only, with the best <?= MIKKOLIIGA_BEST_X ?> GPs counted. Membership is snapshotted at season close so the standings can't shift retroactively.
             </p>
             <p>
-                The platform tracks lots of data: your signature character and kart combo, your personal best scores, your head-to-head records against specific rivals, even the dreaded <strong>Ludwig Obstruction</strong> moments when NPCs derail an otherwise perfect run. Historical power rankings chart each racer's trajectory across time, while the <strong>Nemesis Index</strong> identifies the tightest rivalries—those 50/50 matchups where neither racer can claim dominance.
+                Numbers alone don't tell the full story. That's where the league's <strong>media ecology</strong> comes alive. The broadcast feature synthesizes recent race data, current form rankings, and emerging rivalries into AI-generated commentary through eight distinct personas — from the analytical Kart Core Team to the philosophical musings of The Situated Spectator. When the news demands sober copy instead of vibes, the <strong>OMK Press Office</strong> provides a hand-written publishing path that bypasses AI entirely. Dedicated pipelines also produce weekly power rankings, MONSTER HUNT Chronicles (medieval-bard post-GP stories), tournament recaps, end-of-season reports with personalized awards, and per-racer <strong>coaching reports</strong> that surface specific cups, characters, and rivalries to focus on.
             </p>
             <p>
-                This isn't just a leaderboard. It is an archive trying to capture the drama, the statistics, and the stories that emerge when competitive racing meets serious data infrastructure. Every Grand Prix contributes to an expanding narrative universe where performance metrics and media commentary intertwine, creating a rich tapestry of racing history. The <?= htmlspecialchars($leagueName) ?> League proves that even a party game can become the foundation for compelling storytelling, and genuine competitive depth – one blue shell at a time.
+                The platform tracks everything that matters: signature character and kart combos, personal bests, head-to-head records against specific rivals, even the dreaded <strong>Ludwig Obstruction</strong> moments when NPCs derail an otherwise perfect run. <strong>Elo ratings</strong> chart each racer's trajectory in real numbers, the <strong>Nemesis Index</strong> surfaces the tightest rivalries, a <strong>badge system</strong> marks milestones as they happen, and a <strong>fantasy layer</strong> lets the audience pick weekly MVPs, head-to-head matchups, and prop bets — now with a <strong>confidence picker</strong> that multiplies both hits and misses.
+            </p>
+            <p>
+                Beyond the web UI, the league runs on real hardware. Dedicated <strong>signage displays</strong> broadcast live standings to lounge screens in both vertical (2048×2560) and horizontal (1920×1080) formats, with an auto-rotating variant for longer attention spans, and an <strong>OBS overlay</strong> with seven hotkey-switchable views for streaming. Tournaments support five formats including the attrition-driven <strong>Survivor</strong> mode (one big multi-player race per round, last finisher out, deathboard view). Season winners get immortalized in the <strong>Hall of Fame</strong>, and any standing can be exported as a shareable graphic for Discord.
+            </p>
+            <p>
+                This isn't just a leaderboard. It is an archive that captures the drama, the statistics, and the stories that emerge when competitive racing meets serious data infrastructure. Every Grand Prix contributes to an expanding narrative universe where performance metrics and media commentary intertwine. The <?= htmlspecialchars($leagueName) ?> League proves that even a party game can become the foundation for compelling storytelling and genuine competitive depth — one blue shell at a time.
             </p>
         </section>
 
@@ -43,44 +49,92 @@ include __DIR__ . '/../private/templates/header.php';
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">📊</div>
-                    <h3>GPScore™ Algorithm</h3>
-                    <p>Sophisticated performance scoring that accounts for field strength, attendance bonuses, and competitive context – not just finishing position.</p>
+                    <h3>Twelve Scoring Systems</h3>
+                    <p>From classic GPScore™ (average + attendance) to Best-N, Drop-Worst, Top 12 Unique Cups, Random Cup Draw, Black Box, Perfect Hunt, Preseason, the XP-driven MONSTER HUNT, the Elo-tracking Bounty Hunter, and the zero-sum Pari-Mutuel. Each season picks its own rules.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🌟</div>
+                    <h3>Mikkoliiga Sub-League</h3>
+                    <p>An opt-in casual league for less-avid players. Members race in the same GPs but score internally with the canonical Mario Kart points scale, best <?= MIKKOLIIGA_BEST_X ?> GPs counted. Membership snapshots at season close so history stays stable.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">📈</div>
-                    <h3>Historical Power Rankings</h3>
-                    <p>Track each racer's evolution across the season with dynamic charts showing form trends and performance trajectories.</p>
+                    <h3>Elo Ratings & Power Rankings</h3>
+                    <p>Dynamic Elo ratings track each racer's real skill trajectory, while AI-generated power rankings capture form, narrative, and vibes week by week.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">⚔️</div>
-                    <h3>Nemesis Index</h3>
-                    <p>Discover your closest rivals through head-to-head analytics. The system identifies tight matchups and tracks who owns who on the track.</p>
+                    <h3>Rivalries & Nemesis Index</h3>
+                    <p>Head-to-head analytics identify the tightest 50/50 matchups, while the rivalry web visualizes the full social graph of who keeps beating whom.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">📻</div>
-                    <h3>AI-Generated Broadcasts</h3>
-                    <p>Weekly AI commentary synthesizes race results, form rankings, and rivalries into narrative-driven broadcasts through multiple media personas.</p>
+                    <h3>AI Broadcasts</h3>
+                    <p>Gemini-powered commentary in eight distinct program voices — sports desk, gonzo journalism, academic analysis, meta breakdowns — plus weekly power rankings and per-GP MONSTER HUNT Chronicles.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📰</div>
+                    <h3>OMK Press Office</h3>
+                    <p>A hand-written publishing channel that bypasses AI entirely. Type the headline, key quote, and body — what you write is what gets published, no generation, no Director's Notes.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📋</div>
+                    <h3>Coaching Reports</h3>
+                    <p>AI-generated personalized "what to work on" reports per racer, grounded in cup performance, character pairings, H2H Elo gaps, and recent form. Throttled to one per month.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🏅</div>
+                    <h3>Badges & Milestones</h3>
+                    <p>27+ career badges auto-awarded — first podium, perfect cups, rivalry flips, streaks, base/booster cup completion, character variety, and more — with unlock alerts on the racer page.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎲</div>
+                    <h3>Fantasy Predictions</h3>
+                    <p>Weekly MVP picks, head-to-head matchups, and prop bets with a confidence picker (Light ×1 / Medium ×2 / 🔒 Lock ×3) that multiplies both hits and misses. Leaderboard shows accuracy %, locks-hit ratio, and total points.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🥊</div>
+                    <h3>Tournament Brackets</h3>
+                    <p>Five formats: Single Elimination, Double Elimination, Gauntlet, Team Relay, and Survivor (one big multi-player race per round, last finisher out, deathboard view).</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">🏆</div>
                     <h3>Cup Statistics</h3>
-                    <p>Detailed breakdowns of performance by cup type – see who dominates the Mushroom Cup versus who thrives in Special Cup chaos.</p>
+                    <p>Detailed breakdowns of performance by cup — see who dominates Mushroom Cup versus who thrives in Special Cup chaos — plus the 24-cup × all-racers Cup Mastery grid.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">🎮</div>
-                    <h3>Loadout Tracking</h3>
-                    <p>Monitor character and kart preferences, discovering each racer's signature setup and meta choices.</p>
+                    <h3>Racer Profiles & Loadouts</h3>
+                    <p>Per-racer pages with career timelines, signature character and kart combos, cup mastery, record chasers, milestone alerts, and the latest coaching report.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📺</div>
+                    <h3>Lounge Displays</h3>
+                    <p>Edge-to-edge signage for physical screens — vertical (2048×2560), horizontal (1920×1080), and auto-rotating slides with news tickers.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📡</div>
+                    <h3>OBS Stream Overlay</h3>
+                    <p>Compact streaming overlay with seven view modes — standings, last GP, rivalry spotlight, fantasy leaderboard, Elo movers, cup-of-the-night, hide — switchable via hotkeys 0-6, URL params for OBS scene-switching, and optional auto-rotation.</p>
                 </div>
 
                 <div class="feature-card">
                     <div class="feature-icon">📚</div>
-                    <h3>Season Archives</h3>
-                    <p>Complete historical records preserved in the Hall of Fame, immortalizing every champion and breakthrough performance.</p>
+                    <h3>Season Archives & Awards</h3>
+                    <p>Every closed season preserved in the Hall of Fame, with auto-determined core awards and AI-generated personalized awards for each racer. Mikkoliiga standings get their own archived sidebar.</p>
                 </div>
 
                 <div class="feature-card">
@@ -93,22 +147,25 @@ include __DIR__ . '/../private/templates/header.php';
 
         <section class="about-section">
             <h2>The Technology Stack</h2>
-            <p>Built with:</p>
+            <p>Built with no frameworks and no build step — just deploy and race:</p>
             <ul class="tech-stack">
-                <li><strong>PHP & SQLite</strong> - Core backend and database architecture</li>
-                <li><strong>Chart.js</strong> - Dynamic data visualizations and power rankings</li>
-                <li><strong>Google Gemini AI</strong> - Natural language broadcast generation</li>
-                <li><strong>Custom CSS</strong> - Nintendo-inspired design system with responsive layouts</li>
-                <li><strong>Apache/Nginx</strong> - Production web server infrastructure</li>
+                <li><strong>PHP 8 & SQLite</strong> — core backend and single-file database</li>
+                <li><strong>Vanilla JavaScript & Chart.js</strong> — interactive dashboards and rating curves</li>
+                <li><strong>Google Gemini</strong> — broadcasts, power rankings, tournament recaps, season reports, personalized awards</li>
+                <li><strong>Custom CSS</strong> — Nintendo-inspired design system with responsive layouts and dedicated signage stylesheets</li>
+                <li><strong>Apache with mod_rewrite</strong> — clean URLs and route mapping via .htaccess</li>
             </ul>
         </section>
 
         <section class="about-section">
             <h2>The Media Ecology</h2>
             <p>
-                The league's broadcast system features multiple distinct personas, each offering unique perspectives on race results:
+                The league's broadcast system features multiple distinct programs, each offering a different perspective on race results. Seven AI personas write generated commentary; OMK Press Office publishes straight news without any generation.
             </p>
             <div class="personas-list">
+                <div class="persona-item">
+                    <strong>📰 OMK Press Office</strong> - Hand-written news straight from the governing body. No AI, no Director's Notes — what's written is what's published.
+                </div>
                 <div class="persona-item">
                     <strong>Kart Core Team</strong> - Analytical, data-driven commentary focusing on technical performance
                 </div>

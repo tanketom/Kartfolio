@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
+require_once __DIR__ . '/../../private/includes/survivor_tournament.php';
 require_admin();
 
 // Initialize tournament tables
@@ -17,6 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $seasonId = $_POST['season_id'] ?? null;
     $participantIds = $_POST['participants'] ?? [];
     $tiebreakerRule = $_POST['tiebreaker_rule'] ?? 'points';
+    $elimPerRound = max(1, (int)($_POST['eliminations_per_round'] ?? 1));
+    $numTeams = max(2, min(6, (int)($_POST['num_teams'] ?? 2))); // team scramble
+    $groupGps = max(1, min(6, (int)($_POST['group_gps'] ?? 3))); // world cup matchdays
 
     if (empty($tournamentName) || empty($participantIds) || count($participantIds) < 2) {
         die("Invalid tournament data. Please go back and try again.");
@@ -29,12 +33,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Column already exists, ignore
     }
 
+    // Make sure the survivor knob is migrated even on older DBs.
+    try { $pdo->exec("ALTER TABLE tournaments ADD COLUMN eliminations_per_round INTEGER DEFAULT 1"); }
+    catch (PDOException $e) {}
+
     // Create tournament
     $stmt = $pdo->prepare("
-        INSERT INTO tournaments (name, format, status, season_id, tiebreaker_rule, start_date)
-        VALUES (?, ?, 'setup', ?, ?, datetime('now'))
+        INSERT INTO tournaments (name, format, status, season_id, tiebreaker_rule, eliminations_per_round, start_date)
+        VALUES (?, ?, 'setup', ?, ?, ?, datetime('now'))
     ");
-    $stmt->execute([$tournamentName, $format, $seasonId, $tiebreakerRule]);
+    $stmt->execute([$tournamentName, $format, $seasonId, $tiebreakerRule, $elimPerRound]);
     $tournamentId = $pdo->lastInsertId();
 
     // Get ELO ratings for selected participants
@@ -145,6 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         generateGauntletBracket($pdo, $tournamentId, $participants);
     } elseif ($format === 'team_relay') {
         generateTeamRelayBracket($pdo, $tournamentId, $participants);
+    } elseif ($format === 'survivor') {
+        generateSurvivorBracket($pdo, $tournamentId, $participants, $elimPerRound);
+    } elseif ($format === 'team_scramble') {
+        require_once __DIR__ . '/../../private/includes/scramble_tournament.php';
+        generateScrambleBracket($pdo, $tournamentId, $participants, $numTeams);
+    } elseif ($format === 'world_cup') {
+        require_once __DIR__ . '/../../private/includes/worldcup_tournament.php';
+        generateWorldCupGroups($pdo, $tournamentId, $participants, $groupGps);
     }
 
     // Redirect to bracket view

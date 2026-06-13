@@ -1,0 +1,375 @@
+# CLAUDE.md
+
+Notes for Claude working in this repo. Read once at session start, then
+keep in mind. The README explains *what* the system does for users; this
+file explains *how to work on the code* without re-learning lessons.
+
+## Project at a glance
+
+Kartfolio — a self-hosted Mario Kart 8 Deluxe league. PHP 8 + SQLite +
+vanilla JS. Apache web root is `public_html/`. Code includes live in
+`private/includes/`. No frameworks, no build step. Deploy = `git pull`.
+
+Three personas use this code:
+- **The user (Tom)** runs the live `cdnmk.bgo.city` league. Mostly admin
+  features, broadcasts, season management.
+- **Other league commissioners** running their own copies — keep features
+  configurable, don't hard-code Tom's league name anywhere.
+- **Future Claude** (you, next session) — this file is for you.
+
+## Core conventions you must follow
+
+### 1. Inline migrations live in `private/includes/db.php`
+
+When you add a column or table, write the `ALTER TABLE ADD COLUMN` (or
+`CREATE TABLE IF NOT EXISTS`) inside the existing `try/catch` block in
+`db.php`. The catch silently ignores "column already exists" so it's
+idempotent. Also update `private/data/schema.sql` for fresh installs.
+
+```php
+// Inside db.php
+try { $pdo->exec("ALTER TABLE racers ADD COLUMN new_thing INTEGER DEFAULT 0"); }
+catch (PDOException $e) {}
+```
+
+Do **not** ship standalone migration files or require manual runs. The
+deploy model is "pull and hit any page; the DB catches up."
+
+### 2. Scoring systems live in a registry
+
+`private/includes/gp_logic.php::getScoringSystemRegistry()` is the single
+source of truth. Adding a new scoring system means:
+
+1. One new entry in the registry array (name, icon, description, calculate
+   fn, breakdown fn, threshold-gating flag, sort comparator).
+2. Define your `calculate*Score()` and `breakdown*()` helpers in
+   `gp_logic.php` next to the existing ones.
+3. Add an entry to `public_html/admin/seasons.php::$scoringSystems` for
+   the admin dropdown.
+4. Add a settings-fields block in `admin/seasons.php` if your system has
+   configurable knobs (use the existing MONSTER HUNT / Bounty Hunter / Pari-Mutuel blocks as templates).
+5. Add per-knob persistence to the `save_rules` handler in the same file.
+
+You should **not** edit `calculateGPScore`, `getScoringSystemInfo`,
+`getScoringBreakdown`, `racerQualifies`, `sortStandingsByScoring`, or
+`api/simulate_scoring.php` — they all dispatch through the registry.
+
+### 3. All Gemini calls go through `gemini_client.php`
+
+Use the shared client. It handles retry-on-503 (1s, 2s, 4s backoff) and
+walks a four-model fallback chain. Never write a single-shot
+`curl_exec()` to `generativelanguage.googleapis.com` — that pattern is
+fragile and we've spent multiple sessions hardening it.
+
+```php
+require_once __DIR__ . '/../../private/includes/gemini_client.php';
+$modelChain = geminiDefaultModelChain($config['model_name'] ?? 'gemini-2.5-flash');
+[$response, $httpCode, $lastError, $modelUsed] =
+    callGeminiWithRetry($modelChain, $apiKey, $payload);
+if ($response === null) { /* surface $lastError */ }
+```
+
+Shared host proxies kill long synchronous POSTs from within an HTML
+response. For any Gemini-using admin action, prefer this shape:
+
+- Render the page fast with a button.
+- Button triggers `fetch()` to a JSON endpoint under `/api/`.
+- That endpoint sets `@set_time_limit(300)` and `ignore_user_abort(true)`
+  before calling the Gemini client.
+- JS shows a status div with progress / cumulative error.
+
+`/api/generate_season_awards.php`, `/api/generate_coaching_report.php`,
+and `/api/generate_gp_story.php` are templates.
+
+### 4. Gemini 2.5 thinking tokens eat the response budget
+
+If you're calling `gemini-2.5-flash` for a structured prose task (where
+no internal reasoning helps), set:
+
+```php
+'generationConfig' => [
+    'maxOutputTokens' => 4000,                  // generous ceiling
+    'thinkingConfig'  => ['thinkingBudget' => 0],  // disable thinking
+],
+```
+
+We hit this on coaching reports — the visible response was cut off
+mid-sentence because thinking tokens consumed most of the 1200-token
+budget. `thinkingBudget: 0` plus a higher cap is the fix.
+
+### 5. Default model is `gemini-2.5-flash`. Never `gemini-1.5-flash`
+
+`gemini-1.5-flash` is retired from the v1beta endpoint. Old defaults
+returned 404. If you find any `?? 'gemini-1.5-flash'` in the codebase,
+swap it for `?? 'gemini-2.5-flash'`. The fallback chain handles model
+overloads automatically.
+
+### 6. Static data has a single source of truth
+
+- **MK cups** (24 of them) → `mk_data.php`: `MK_BASE_CUPS`,
+  `MK_BOOSTER_CUPS`, `getMKAllCups()`, `getMKCupsByGroup()`,
+  `getMKCupEmoji()`.
+- **MK characters** (~51 of them) → `mk_data.php`: `getMKCharacters()`.
+- **News programs** (8 AI personas + OMK Press Office) →
+  `programs.php`: `getProgramsCatalog()`, `getAIProgramsCatalog()`,
+  `getProgramInfo($key)`.
+
+Do **not** re-declare these lists in pages. If you see a stale copy of
+the cup list or character list inline somewhere, that's a refactor
+opportunity — move it through the helper.
+
+### 7. CSRF is mandatory on every state-changing POST
+
+Every `<form method="POST">` includes `<?= csrf_field() ?>`. Every POST
+handler (the controller side) calls `verify_csrf()` before any state
+mutation. Same applies to `/api/` endpoints accepting POSTed CSRF tokens.
+
+When adding a new admin form, verify both halves. We've found gaps; we
+don't want to add more.
+
+### 8. Historical data must not shift retroactively
+
+If you add a feature whose calculation depends on a current racer
+attribute (flags, settings, etc.), think about archived seasons. The
+pattern we use:
+
+- **Live / upcoming season** → read current state.
+- **Archived season** → read from a snapshot table captured at
+  `status='archived'` time.
+- **No snapshot exists** → fall back to current state (for seasons
+  archived before the feature existed).
+
+Mikkoliiga (`mikkoliiga_membership` table, `snapshotMikkoliigaMembership()`)
+is the reference implementation. The admin `seasons.php` page has a
+"Re-snapshot" button so admins can correct historical snapshots if
+membership changes need to retroactively land.
+
+### 9. Hot pages read through per-request caches — never per-row query loops
+
+Leaderboard-style pages must not run a query per racer / per GP / per cup.
+A page that loops `getActiveRacers()` and queries inside the loop will be a
+few hundred queries before you notice. Reuse these patterns:
+
+- **Season-results cache** — `getSeasonResultsByRacer()` /
+  `getRacerSeasonRows()` in `gp_logic.php` fetch a season's `results` rows
+  **once per request** (static cache, `SELECT *`, ordered
+  `gp_points ASC, id ASC`) and serve per-racer slices. Scoring fns,
+  breakdowns, `getRaceCount`, `getMostUsedCharacter`, `getCupProgress`,
+  `getBestScorePerCup`, `calculatePreviousStandings`, and badges all read
+  from it. New leaderboard consumers read from it too.
+- **Signature-keyed memoization** — heavy pure-of-DB computations
+  (`calculateAllELORatings`, `trackRankings`) cache on a cheap table
+  signature (`COUNT || ':' || MAX(id)`), so they recompute only when rows
+  actually change — safe even if a write lands mid-request.
+- **Batched context** — season/career-wide badge inputs live in
+  `badgeSeasonContext()`, built once per season per request. Don't add
+  per-racer queries to `getRacerBadges`.
+- **Batch, don't loop** — replace "one query per cup/GP" with one query +
+  PHP grouping (see `cup_stats.php`, `timeline.php`, `cup_detail.php`).
+- The `results` table is indexed on `gpid`, `(racer_id, gpid)`, and
+  `(cup_name, gpid)`. Keep new hot filters covered by an index.
+
+### 10. Deterministic ordering, not query-plan-dependent
+
+When you move a sort between SQL and PHP, or drop an `ORDER BY` with no
+tiebreak, equal-key rows previously had an arbitrary order that silently
+changed when indexes were added. Always pick an explicit, stable tiebreak
+(`id ASC`, `name ASC`). We hit this on podium ties, cup "best GP" links,
+most-used character, and previous-standings ranks.
+
+### 11. Auth, throttling, and no stray admin pages
+
+- The admin password in `config.php` is a **bcrypt hash**; `auth.php` keeps
+  a legacy plaintext fallback compared with `hash_equals`. Login calls
+  `session_regenerate_id(true)` and is throttled via the `auth_throttle`
+  table (8 fails / 15 min / IP). The `add_result` wall code is throttled the
+  same way (10 / 10 min) and compared with `hash_equals`.
+- Season editing is admin-only via `/admin/seasons.php`. The old
+  unauthenticated `admin_season.php` was deleted — do not reintroduce a
+  public season editor. Every new state-changing page lives under `/admin/`
+  with `require_admin()` + `verify_csrf()`.
+
+## Naming / style rules
+
+### MONSTER HUNT is always all-caps
+
+The mode name is `MONSTER HUNT` in every user-facing string. The player
+*title* (the rank/role of someone in a Monster Hunt season) is
+`Monster Hunter` — keep that as-is. The DB key is `monster_hunt`
+(snake_case as with all internal scoring system keys).
+
+If you `sed` over the codebase, use a word-boundary regex
+(`\bMonster Hunt\b`) to avoid mangling "Monster Hunter" into
+"MONSTER HUNTer".
+
+### GPScore™ has a trademark glyph
+
+The original scoring system in user-facing copy is `GPScore™` — keep
+the ™. Internal key is `average_attendance` (legacy naming).
+
+### Mikkoliiga, not Mikkoligan / Mikko Liiga / etc.
+
+One word, one casing. It's the casual sub-league. Members are
+"Mikkoliigans" or "Mikkoliiga members."
+
+### Routing conventions
+
+- Clean URLs use **kebab-case**: `/add-result`, `/coaching-report`,
+  `/press-release`, `/mh-dashboard`.
+- Underlying PHP files use **snake_case**: `add_result.php`,
+  `generate_coaching_report.php`, `publish_press_release.php`,
+  `mh_dashboard.php`.
+- The `.htaccess` rewrite map handles the mapping.
+- API endpoints live under `/api/`.
+- Admin pages live under `/admin/`.
+- Physical signage lives under `/display/`.
+
+### GPID format
+
+`s{NN}gp{NN}` (e.g. `s03gp14`). The first three characters are the
+season ID. Tournament match results use `t...` prefixes to keep them out
+of season standings — the `WHERE gpid LIKE 's%'` filter in queries is
+deliberate and load-bearing.
+
+## Key files you'll touch most
+
+| File | Purpose |
+|---|---|
+| `private/includes/db.php` | DB connection + inline migrations. Add new column/table migrations here. |
+| `private/includes/gp_logic.php` | Scoring engine, system registry, Elo, Mikkoliiga, Bounty Hunter, Pari-Mutuel. |
+| `private/includes/elo_engine.php` | All-time Elo computation. Returns `ratings` map, `history`, `gp_changelog`. Heavy — cache results when possible. |
+| `private/includes/gemini_client.php` | **Use for every Gemini call.** `callGeminiWithRetry()` + `geminiDefaultModelChain()`. |
+| `private/includes/programs.php` | News program catalog (AI personas + OMK Press Office). |
+| `private/includes/mk_data.php` | Cups and characters. |
+| `private/includes/badges.php` | Badge unlock logic (~27 badges). |
+| `private/includes/survivor_tournament.php` | Survivor tournament engine. |
+| `private/includes/coaching_stats.php` | Per-racer stats payload for coaching reports + prompt builder. |
+| `private/includes/season_awards_logic.php` | Season awards generation pipeline. |
+| `public_html/admin/seasons.php` | Season config UI — scoring system per season, per-knob fields, Mikkoliiga re-snapshot button. |
+| `public_html/admin/tournament_setup.php` | Tournament bracket generation (5 formats). |
+| `public_html/admin/tournament_bracket.php` | Tournament viewer + match recording. |
+| `public_html/racer.php` | Per-racer profile (coaching report sits at the bottom). |
+| `public_html/index.php` | Homepage standings + Mikkoliiga top-3 panel. |
+| `public_html/archive.php` | News feed + Generate Broadcast + OMK Press Office forms. |
+| `public_html/overlay.php` | OBS overlay (7 view modes, hotkeys, URL params, auto-rotate). |
+| `public_html/fantasy.php` | Fantasy predictions with confidence picker. |
+
+## Test-before-shipping checklist
+
+We have no test suite. The closest things we have are:
+
+1. **`php -l` syntax check** on any file you edit. Always.
+2. **Inline smoke tests** via `php -r '...'` — pull a real racer from the
+   DB, run your new helper, eyeball the output. This caught the Mikkoliiga
+   snapshot edge cases and the scoring registry equivalence.
+3. **Render every URL state for changed pages.** For multi-view things
+   (overlay views, scoring systems, tournament formats), loop through
+   each variant.
+4. **Prove perf refactors with an equivalence harness.** When you swap a
+   query path for a cached/batched one, run the old and new code against
+   real DB data and diff the output (byte-identical, or field-by-field
+   across every racer/season/cup). To prove the query-count win, wrap
+   `$pdo` in a `CountingPDO extends PDO` that increments on
+   `prepare`/`query`. Both techniques carried the index/timeline/cup_stats/
+   badges performance pass — the diff is the proof the behaviour didn't move.
+
+When refactoring a switch-style dispatcher into a registry: write a tiny
+regression script that runs both the new and old code paths against real
+DB data and compares. The scoring registry refactor used this pattern
+and it caught zero bugs *because of the test*. The test is the proof.
+
+## Behavioral cues from the user
+
+The user prefers:
+- **Iterative scoping** — start with a short directional prompt, refine
+  in follow-ups. Don't ask for a full spec up front; offer 2-3 design
+  sketches and let them pick.
+- **Concrete examples in proposals** — when proposing a feature, show
+  one worked example (e.g. the Bounty Hunter explanation includes a
+  worked GP). They react to specifics, not abstractions.
+- **Visual confirmation** — they keep the Claude Preview MCP open and
+  often verify changes by reload + screenshot. CSS changes especially
+  warrant a preview check.
+- **Decisive language** — "Do 3." or "Both." is their working style.
+  When you propose multiple options, number them so they can answer
+  tersely.
+- **Concise responses** — they don't need long preambles after a fix.
+  "Done. Here's what landed. Try X." is the right shape.
+
+## Things the user has explicitly named "scrapped"
+
+These were proposed and rejected — don't re-suggest them as standalone
+features:
+- Streak Stack scoring (attendance-streak multiplier)
+- Pace / Personal Best scoring
+- Glicko-2 / TrueSkill replacement for Elo
+- Salary Cap draft scoring
+- Daily Double mechanic
+- Trifecta picks
+- Mood log
+- Replay link attachments
+- RSVP / calendar
+- Roster timeline
+- Character meta tracker
+- Futures market
+- Discord bot (existing "copy to Discord" button stays; full bot
+  integration was scrapped earlier)
+- Audio TTS broadcasts
+- Voice/Whisper result entry
+- Pace projection
+- Achievement gallery with progress bars
+- Rivalry vault page
+
+If they ask "what could we add" again, propose new ideas — don't recycle
+this list.
+
+## Things that have been done (per-conversation accomplishments)
+
+Cross-reference if you find half-implemented work:
+
+- Mikkoliiga sub-league with snapshotting
+- MONSTER HUNT (highest-Elo participant is the Monster; alphabetical tiebreak; `is_monster` admin override on result row)
+- Bounty Hunter scoring (`bh_multiplier`, `bh_carrying_cost`)
+- Pari-Mutuel scoring (`pm_ante`, `pm_payout_preset`)
+- Survivor tournament format
+- Coaching reports (`coaching_reports` table)
+- Confidence picks in fantasy (`fantasy_bets.confidence`)
+- OBS overlay with 7 hotkey views
+- OMK Press Office (hand-written news, no AI)
+- Saga/Chronicles AI fallbacks (now uses shared client)
+- Scoring registry refactor
+- All 5 Gemini callers retrofitted through `gemini_client.php`
+- CSRF audit (no gaps remaining as of last sweep)
+- Constants pass — MK data in `mk_data.php`, programs in `programs.php`
+- Inline-style audit (Mikkoliiga and admin styles moved to `admin.css` /
+  `pages.css`)
+- **Performance pass** — `results` indexes; season-results cache; Elo +
+  track-ranking signature memoization; `badgeSeasonContext` batching;
+  N+1 elimination on `index.php`, `timeline.php`, `cup_stats.php`,
+  `cup_detail.php` (homepage went ~450 → under 40 queries)
+- **Security pass** — bcrypt admin password + login/wall-code throttle
+  (`auth_throttle`) + `session_regenerate_id`; deleted the unauthenticated
+  `admin_season.php`; JS-context escaping fix in `view_recap.php`;
+  `*.db.bak-*` gitignored; `session.cookie_secure`
+- **New public pages** — `/scoring-systems`, `/cup/<slug>` (per-track "Mac's
+  Mushroom Musings"), `/timeline/<gpid>`, `/lexicon`, `/vault`,
+  `/season-chart`
+- **New tables** — `track_musings`, `lexicon_terms`, `auth_throttle`. Musings
+  + lexicon ship as handwritten `INSERT OR IGNORE` seed files in
+  `private/data/` — load on the server with
+  `sqlite3 league.db < seed.sql` (the DB is gitignored, so seeded content
+  does NOT ride along with `git pull` — only schema migrations in `db.php`
+  auto-apply)
+- **Coaching reports removed** from `racer.php` (the table + API endpoint
+  were left on disk, unused)
+- **Favicon** — OMK crest SVG (white-on-red) wired in `header.php`
+- **Mikkoliiga** best-20 → best-10 (`MIKKOLIIGA_BEST_X`)
+
+## When in doubt
+
+- Read the `README.md` for what the system does.
+- Read this file (`CLAUDE.md`) for how to work on it.
+- Grep `gp_logic.php` if you're touching anything scoring-related.
+- Use `php -l` and inline smoke tests before claiming a feature works.
+- If the user says "do X," do X concisely — don't ask for clarification
+  unless you genuinely cannot proceed.

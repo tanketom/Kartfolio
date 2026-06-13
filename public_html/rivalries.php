@@ -309,7 +309,7 @@ document.addEventListener('keydown', function(e) {
 <script>
 (function() {
     const colorPalette = [
-        '#E60012', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
+        'var(--nintendo-red)', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
         '#EC4899', '#14B8A6', '#F59E0B', '#6366F1', '#EF4444',
         '#10B981', '#3B82F6', '#F97316', '#A855F7', '#06B6D4',
         '#D946EF', '#84CC16', '#FB923C'
@@ -429,7 +429,7 @@ document.addEventListener('keydown', function(e) {
                 let opp, w, lo;
                 if (l.source.id === d.id) { opp = l.p2_name; w = l.p1_wins; lo = l.p2_wins; } else { opp = l.p1_name; w = l.p2_wins; lo = l.p1_wins; }
                 const rt = l.matchups > 0 ? Math.round((w / l.matchups) * 100) : 0;
-                html += '<tr><td>' + opp + '</td><td>' + l.matchups + '</td><td>' + w + '</td><td>' + lo + '</td><td><span class="rweb-winrate-bar" style="width:' + Math.max(4, rt * 0.8) + 'px;background:' + (rt >= 50 ? '#2EBD59' : '#E60012') + ';"></span>' + rt + '%</td></tr>';
+                html += '<tr><td>' + opp + '</td><td>' + l.matchups + '</td><td>' + w + '</td><td>' + lo + '</td><td><span class="rweb-winrate-bar" style="width:' + Math.max(4, rt * 0.8) + 'px;background:' + (rt >= 50 ? '#2EBD59' : 'var(--nintendo-red)') + ';"></span>' + rt + '%</td></tr>';
             });
             html += '</tbody></table>';
             detailContent.innerHTML = html;
@@ -491,7 +491,7 @@ document.addEventListener('keydown', function(e) {
                 if (cl.length === 0) { detailContent.innerHTML = '<p style="color:#888;">No matchups.</p>'; } else {
                     cl.sort((a, b) => b.matchups - a.matchups);
                     let h = '<table class="rweb-detail-table"><thead><tr><th>Opponent</th><th>Matchups</th><th>Wins</th><th>Losses</th><th>Win Rate</th></tr></thead><tbody>';
-                    cl.forEach(l => { let o,w,lo; if(l.source.id===d.id){o=l.p2_name;w=l.p1_wins;lo=l.p2_wins;}else{o=l.p1_name;w=l.p2_wins;lo=l.p1_wins;} const r=l.matchups>0?Math.round((w/l.matchups)*100):0; h+='<tr><td>'+o+'</td><td>'+l.matchups+'</td><td>'+w+'</td><td>'+lo+'</td><td><span class="rweb-winrate-bar" style="width:'+Math.max(4,r*0.8)+'px;background:'+(r>=50?'#2EBD59':'#E60012')+';"></span>'+r+'%</td></tr>'; });
+                    cl.forEach(l => { let o,w,lo; if(l.source.id===d.id){o=l.p2_name;w=l.p1_wins;lo=l.p2_wins;}else{o=l.p1_name;w=l.p2_wins;lo=l.p1_wins;} const r=l.matchups>0?Math.round((w/l.matchups)*100):0; h+='<tr><td>'+o+'</td><td>'+l.matchups+'</td><td>'+w+'</td><td>'+lo+'</td><td><span class="rweb-winrate-bar" style="width:'+Math.max(4,r*0.8)+'px;background:'+(r>=50?'#2EBD59':'var(--nintendo-red)')+';"></span>'+r+'%</td></tr>'; });
                     h += '</tbody></table>'; detailContent.innerHTML = h;
                 }
                 detailPanel.style.display = 'flex'; detailPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

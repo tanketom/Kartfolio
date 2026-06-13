@@ -66,7 +66,10 @@ $formatLabels = [
     'single_elim' => 'Single Elimination',
     'double_elim' => 'Double Elimination',
     'gauntlet' => 'Gauntlet',
-    'team_relay' => 'Team Relay'
+    'team_relay' => 'Team Relay',
+    'survivor' => 'Survivor',
+    'team_scramble' => 'Team Scramble',
+    'world_cup' => 'World Cup'
 ];
 $formatLabel = $formatLabels[$tournament['format']] ?? $tournament['format'];
 
@@ -159,7 +162,7 @@ include __DIR__ . '/../private/templates/header.php';
             </h3>
             <div class="tourney-matches-grid">
                 <?php foreach ($matches as $match): ?>
-                <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; border-left: 4px solid <?= $match['status'] === 'completed' ? '#2EBD59' : '#ccc' ?>;">
+                <div style="background: var(--gray-100); border-radius: 8px; padding: 20px; border-left: 4px solid <?= $match['status'] === 'completed' ? '#2EBD59' : 'var(--gray-400)' ?>;">
                     <div class="tourney-match-num">
                         Match #<?= $match['match_number'] ?>
                     </div>
@@ -207,7 +210,7 @@ include __DIR__ . '/../private/templates/header.php';
 
         <div class="tourney-participants-grid">
             <?php foreach ($participants as $p): ?>
-            <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; <?= $p['racer_id'] == $tournament['winner_id'] ? 'border: 2px solid var(--nintendo-red); background: #fff9f9;' : '' ?>">
+            <div style="padding: 15px; background: var(--gray-100); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; <?= $p['racer_id'] == $tournament['winner_id'] ? 'border: 2px solid var(--nintendo-red); background: #fdecec;' : '' ?>">
                 <div>
                     <div class="tourney-participant-name">
                         <?= htmlspecialchars($p['name']) ?>

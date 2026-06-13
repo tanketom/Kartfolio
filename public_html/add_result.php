@@ -1,13 +1,18 @@
 <?php
 /**
  * Add Result - The Complete Edition
- * Features: AI OCR, Split Cup List, Auto-GPID, Smart Auto-Fill
+ * Features: Split Cup List, Auto-GPID, Smart Auto-Fill
  * Path: /cdnmk/public_html/add_result.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/settings.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
+require_once __DIR__ . '/../private/includes/mk_data.php';
+
+// 0. Inline migration — add is_monster column if it doesn't exist yet
+try { $pdo->exec("ALTER TABLE results ADD COLUMN is_monster BOOLEAN DEFAULT 0"); }
+catch (PDOException $e) {}
 
 // 1. Fetch Racers (with favorites for auto-fill)
 $racerQuery = $pdo->query("
@@ -17,47 +22,27 @@ $racerQuery = $pdo->query("
     FROM racers r ORDER BY r.name ASC
 ")->fetchAll();
 
-// 2. Organized Cup List (Base vs Booster)
-$baseCups = [
-    "Banana"    => "🍌 Banana",
-    "Bell"      => "🔔 Bell",
-    "Crossing"  => "🍃 Crossing",
-    "Egg"       => "🥚 Egg",
-    "Flower"    => "🌺 Flower",
-    "Leaf"      => "🍃 Leaf",
-    "Lightning" => "⚡ Lightning",
-    "Mushroom"  => "🍄 Mushroom",
-    "Shell"     => "🐢 Shell",
-    "Special"   => "👑 Special",
-    "Star"      => "⭐ Star",
-    "Triforce"  => "▲ Triforce"
-];
+// 2. Cups grouped by source for the dropdown, with emoji prefixes.
+$mk8Cups = [];
+foreach (getMKCupsByGroup() as $group => $cups) {
+    $labelled = [];
+    foreach ($cups as $cup) {
+        $labelled[$cup] = getMKCupEmoji($cup) . ' ' . $cup;
+    }
+    ksort($labelled);
+    $mk8Cups[$group] = $labelled;
+}
 
-$boosterCups = [
-    "Acorn"       => "🌰 Acorn",
-    "Boomerang"   => "🪃 Boomerang",
-    "Cherry"      => "🍒 Cherry",
-    "Feather"     => "🪶 Feather",
-    "Fruit"       => "🍓 Fruit",
-    "Golden Dash" => "🍄 Golden Dash",
-    "Lucky Cat"   => "🐱 Lucky Cat",
-    "Moon"        => "🌙 Moon",
-    "Propeller"   => "🔴 Propeller",
-    "Rock"        => "🪨 Rock",
-    "Spiny"       => "🔵 Spiny",
-    "Turnip"      => "🌱 Turnip"
-];
+$mk8Characters = getMKCharacters();
 
-ksort($baseCups);
-ksort($boosterCups);
-
-$mk8Cups = [
-    "Base Game" => $baseCups,
-    "Booster Course Pass" => $boosterCups
-];
-
-$mk8Characters = ["Mario", "Luigi", "Peach", "Daisy", "Rosalina", "Tanooki Mario", "Cat Peach", "Yoshi", "Toad", "Toadette", "Koopa Troopa", "Lakitu", "Shy Guy", "Baby Mario", "Baby Luigi", "Baby Peach", "Baby Daisy", "Baby Rosalina", "Metal Mario", "Pink Gold Peach", "Wario", "Waluigi", "Donkey Kong", "Bowser", "Dry Bones", "Bowser Jr.", "Dry Bowser", "King Boo", "Lemmy", "Larry", "Wendy", "Ludwig", "Iggy", "Roy", "Morton", "Inkling Girl", "Inkling Boy", "Link", "Villager", "Isabelle", "Mii", "Birdo", "Petey Piranha", "Wiggler", "Kamek", "Diddy Kong", "Funky Kong", "Pauline", "Peachette"];
-sort($mk8Characters);
+// Pre-fill from the What Cup? modal: ?cup=X&r1=ID&r2=ID&r3=ID&r4=ID&monster=ID
+$prefillCup = trim($_GET['cup'] ?? '');
+$prefillRacers = [];
+for ($i = 1; $i <= 4; $i++) {
+    $val = (int)($_GET["r$i"] ?? 0);
+    $prefillRacers[$i] = $val > 0 ? $val : null;
+}
+$prefillMonsterId = (int)($_GET['monster'] ?? 0) ?: null;
 
 // 3. Auto-Increment GPID Logic (sXXgpXX)
 $currentSeason = getCurrentSeasonNumber();
@@ -77,32 +62,61 @@ $message = "";
 // 4. Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    // Verify wall code
+    // Verify wall code — throttled to 10 wrong codes per IP per 10 minutes
+    // so the 4-digit space can't be brute-forced by a script.
     $expectedCode = getSetting($pdo, 'wall_code', '1234');
     $submittedCode = trim($_POST['wall_code'] ?? '');
-    if ($submittedCode !== $expectedCode) {
+    $submitterIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+    $wcCount = $pdo->prepare("
+        SELECT COUNT(*) FROM auth_throttle
+        WHERE ip = ? AND action = 'wall_code' AND attempted_at > datetime('now', '-10 minutes')
+    ");
+    $wcCount->execute([$submitterIp]);
+    $wallCodeLocked = (int)$wcCount->fetchColumn() >= 10;
+    $wallCodeOk = !$wallCodeLocked && hash_equals($expectedCode, $submittedCode);
+
+    // Count how many racer slots are actually filled in. A GP needs at
+    // least 3 racers — anything less isn't really a Grand Prix.
+    $filledRacers = 0;
+    for ($i = 1; $i <= 4; $i++) {
+        if (!empty($_POST["racer_$i"])) $filledRacers++;
+    }
+
+    if ($wallCodeLocked) {
+        $message = "Too many wrong codes. Wait 10 minutes and try again.";
+    } elseif (!$wallCodeOk) {
+        $pdo->prepare("INSERT INTO auth_throttle (ip, action) VALUES (?, 'wall_code')")->execute([$submitterIp]);
         $message = "Wrong wall code. Check the Gameslab wall and try again.";
+    } elseif ($filledRacers < 3) {
+        $message = "A Grand Prix needs at least 3 racers. You filled in $filledRacers.";
     } else {
     $pdo->beginTransaction();
     try {
+        $packRacers = [];
         for ($i = 1; $i <= 4; $i++) {
             if (!empty($_POST["racer_$i"])) {
-                $stmt = $pdo->prepare("INSERT INTO results (gpid, racer_id, gp_points, rank, character_used, kart_setup, cup_name, is_lol, race_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt = $pdo->prepare("INSERT INTO results (gpid, racer_id, gp_points, rank, character_used, kart_setup, cup_name, is_lol, is_monster, race_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([
-                    $_POST['gpid'], 
-                    $_POST["racer_$i"], 
-                    $_POST["points_$i"], 
-                    $_POST["rank_$i"], 
-                    $_POST["char_$i"], 
-                    $_POST["kart_$i"], 
-                    $_POST['cup_name'], 
-                    isset($_POST["lol_$i"]) ? 1 : 0, 
+                    $_POST['gpid'],
+                    $_POST["racer_$i"],
+                    $_POST["points_$i"],
+                    $_POST["rank_$i"],
+                    $_POST["char_$i"],
+                    $_POST["kart_$i"],
+                    $_POST['cup_name'],
+                    isset($_POST["lol_$i"])     ? 1 : 0,
+                    isset($_POST["monster_$i"]) ? 1 : 0,
                     $_POST['race_date']
                 ]);
+                $packRacers[] = (int)$_POST["racer_$i"];
             }
         }
+        // Sticker packs: one per racer per GP (no-op before the stickers epoch).
+        require_once __DIR__ . '/../private/includes/stickers.php';
+        grantGpPacks($pdo, $_POST['gpid'], $packRacers);
         $pdo->commit();
-        header("Location: index.php?success=1"); 
+        header("Location: index.php?success=1");
         exit;
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -136,7 +150,7 @@ include __DIR__ . '/../private/templates/header.php';
                     <?php foreach($mk8Cups as $group => $cups): ?>
                         <optgroup label="<?= $group ?>">
                             <?php foreach($cups as $val => $label): ?>
-                                <option value="<?= $val ?>"><?= $label ?> Cup</option>
+                                <option value="<?= $val ?>" <?= $prefillCup === $val ? 'selected' : '' ?>><?= $label ?> Cup</option>
                             <?php endforeach; ?>
                         </optgroup>
                     <?php endforeach; ?>
@@ -159,11 +173,15 @@ include __DIR__ . '/../private/templates/header.php';
                         <th style="width: 25%;">Character</th>
                         <th>Kart Setup</th>
                         <th width="50">LOL</th>
+                        <th width="60">👹 Monster</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php for($i=1;$i<=4;$i++): ?>
-                    <tr id="row_<?= $i ?>" class="input-row inactive-row">
+                    <?php for($i=1;$i<=4;$i++):
+                        $prefRid = $prefillRacers[$i] ?? null;
+                        $rowClass = $prefRid ? 'active-row' : 'inactive-row';
+                    ?>
+                    <tr id="row_<?= $i ?>" class="input-row <?= $rowClass ?>">
                         <td data-label="Racer">
                             <select name="racer_<?= $i ?>" id="r_<?= $i ?>" onchange="activateRow(<?= $i ?>); autoFill(<?= $i ?>)" class="racer-select">
                                 <option value="">- Empty Slot -</option>
@@ -172,7 +190,8 @@ include __DIR__ . '/../private/templates/header.php';
                                             data-name="<?= htmlspecialchars($r['name']) ?>"
                                             data-nick="<?= htmlspecialchars($r['nickname']) ?>"
                                             data-char="<?= htmlspecialchars($r['fav_char']) ?>"
-                                            data-kart="<?= htmlspecialchars($r['fav_kart']) ?>">
+                                            data-kart="<?= htmlspecialchars($r['fav_kart']) ?>"
+                                            <?= ($prefRid !== null && (int)$r['id'] === $prefRid) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($r['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -199,22 +218,11 @@ include __DIR__ . '/../private/templates/header.php';
                         </td>
                         <td data-label="Kart Setup"><input type="text" name="kart_<?= $i ?>" id="k_<?= $i ?>" placeholder="Kart Setup"></td>
                         <td data-label="Ludwig Obstruction Law" class="add-result-lol-cell"><input type="checkbox" name="lol_<?= $i ?>" class="add-result-lol-checkbox"></td>
+                        <td data-label="Monster" class="add-result-lol-cell"><input type="checkbox" name="monster_<?= $i ?>" class="add-result-monster-checkbox" onchange="setMonster(<?= $i ?>)" <?= ($prefillMonsterId !== null && $prefRid === $prefillMonsterId) ? 'checked' : '' ?>></td>
                     </tr>
                     <?php endfor; ?>
                 </tbody>
             </table>
-        </div>
-
-        <div class="add-result-scanner-wrap">
-            <input type="file" id="ocr_file" accept="image/*" capture="environment" style="display:none;" onchange="uploadImage()">
-
-            <button type="button" id="scan_btn" onclick="document.getElementById('ocr_file').click()" class="btn-scanner">
-                <span id="scan_icon">📸</span> <span id="scan_text">BETA functionality: Scan Scoreboard with AI</span>
-            </button>
-
-            <div id="scan_status" class="add-result-scan-status">
-                <span class="spinner">⏳</span> Analyzing image... please wait...
-            </div>
         </div>
 
         <div class="wall-code-group">
@@ -222,7 +230,10 @@ include __DIR__ . '/../private/templates/header.php';
             <input type="text" name="wall_code" inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="····" required class="wall-code-input" autocomplete="off">
         </div>
 
-        <button type="submit" class="btn-generate">🚀 Submit Race Results</button>
+        <button type="submit" class="btn-generate" id="gp-submit-btn" disabled>🚀 Submit Race Results</button>
+        <p id="gp-submit-hint" class="add-result-submit-hint" style="margin-top:8px; font-size:0.85rem; color:#888;">
+            Fill in at least 3 racers to submit.
+        </p>
     </form>
 </div>
 
@@ -240,6 +251,32 @@ function activateRow(id) {
     } else {
         row.classList.add('inactive-row');
         row.classList.remove('active-row');
+    }
+    refreshSubmitGate();
+}
+
+// Enable/disable the submit button based on how many racers are filled in.
+// A GP requires at least 3 racers — this mirrors the server-side check so
+// the user gets immediate feedback.
+function refreshSubmitGate() {
+    let filled = 0;
+    for (let i = 1; i <= 4; i++) {
+        const sel = document.getElementById('r_' + i);
+        if (sel && sel.value) filled++;
+    }
+    const btn  = document.getElementById('gp-submit-btn');
+    const hint = document.getElementById('gp-submit-hint');
+    if (!btn) return;
+    if (filled >= 3) {
+        btn.disabled = false;
+        if (hint) { hint.textContent = filled + ' racers ready. Submit when scores are in.'; hint.style.color = '#2EBD59'; }
+    } else {
+        btn.disabled = true;
+        const needed = 3 - filled;
+        if (hint) {
+            hint.textContent = 'Fill in at least ' + needed + ' more racer' + (needed !== 1 ? 's' : '') + ' to submit.';
+            hint.style.color = '#888';
+        }
     }
 }
 
@@ -259,7 +296,17 @@ function autoFill(rowId) {
     }
 }
 
-// 3. Update Portrait Image
+// 3. Monster checkbox — only one racer can be the Monster per GP
+function setMonster(rowId) {
+    for (let i = 1; i <= 4; i++) {
+        if (i !== rowId) {
+            const cb = document.querySelector('input[name="monster_' + i + '"]');
+            if (cb) cb.checked = false;
+        }
+    }
+}
+
+// 4. Update Portrait Image — swap character portrait on select
 function updatePortrait(rowId) {
     const charSelect = document.getElementById('c_' + rowId);
     const img = document.getElementById('p_' + rowId);
@@ -271,137 +318,22 @@ function updatePortrait(rowId) {
     }
 }
 
-// --- AI SCANNER LOGIC ---
-
-function uploadImage() {
-    const input = document.getElementById('ocr_file');
-    if (input.files.length === 0) return;
-
-    const file = input.files[0];
-    const formData = new FormData();
-    formData.append('image', file);
-
-    // UI State: Loading
-    document.getElementById('scan_btn').style.display = 'none';
-    document.getElementById('scan_status').style.display = 'block';
-
-    fetch('/api/ocr_gemini.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            // Check if it's an overload error
-            if (data.error.includes('overloaded') || data.error.includes('503')) {
-                alert("⏳ AI Service is busy right now.\n\nPlease wait 10-30 seconds and try again.");
-            } else {
-                alert("Scan Failed: " + data.error);
-            }
-        } else {
-            populateFormFromOCR(data);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert("Network Error during scan. Check console for details.");
-    })
-    .finally(() => {
-        // Reset UI
-        document.getElementById('scan_btn').style.display = 'flex';
-        document.getElementById('scan_status').style.display = 'none';
-        input.value = ''; // Clear for next scan
-    });
-}
-
-function populateFormFromOCR(results) {
-    // Results should already be in order (1st-4th human player) from the API
-    // No need to sort - the colored backgrounds guarantee correct order
-
-    // We only care about the top 4 rows max (since we only log 4 players)
-    const limit = Math.min(results.length, 4);
-
-    for (let i = 0; i < limit; i++) {
-        const entry = results[i];
-        const rowId = i + 1; // 1 to 4
-
-        // A. Set Points & Rank
-        document.getElementById('pts_' + rowId).value = entry.points;
-        document.getElementById('rank_' + rowId).value = entry.rank;
-
-        // B. Try to Match Name (and optionally use character as a hint)
-        const select = document.getElementById('r_' + rowId);
-        const bestMatch = findBestMatch(entry.name, entry.character, select);
-
-        if (bestMatch) {
-            select.value = bestMatch;
-            activateRow(rowId); // Highlight row
-            autoFill(rowId);    // Fill Fav Character/Kart
-        } else {
-            // If no match found, still activate the row and populate character if available
-            activateRow(rowId);
-            if (entry.character) {
-                // Try to set the character dropdown if we can
-                const charSelect = document.getElementById('char_' + rowId);
-                if (charSelect) {
-                    // Try to find matching character option
-                    const charOptions = charSelect.options;
-                    for (let j = 0; j < charOptions.length; j++) {
-                        const optText = charOptions[j].text.toLowerCase();
-                        const scannedChar = entry.character.toLowerCase();
-                        if (optText.includes(scannedChar) || scannedChar.includes(optText)) {
-                            charSelect.value = charOptions[j].value;
-                            break;
-                        }
-                    }
-                }
-            }
+// On page load: if a row was server-side pre-filled (from the What Cup?
+// shortcut), trigger the same autoFill chain that runs when a user picks
+// a racer manually. That populates character + kart from the data
+// attributes and renders the portrait.
+document.addEventListener('DOMContentLoaded', function () {
+    for (let i = 1; i <= 4; i++) {
+        const sel = document.getElementById('r_' + i);
+        if (sel && sel.value) {
+            activateRow(i);
+            autoFill(i);
         }
     }
+    // Always evaluate the gate on load — covers both prefill and empty form.
+    refreshSubmitGate();
+});
 
-    // Smooth scroll to top to check GPID/Date
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function findBestMatch(scannedName, scannedCharacter, selectElement) {
-    // Basic fuzzy matching: removes spaces/symbols and compares lowercase
-    const search = scannedName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const searchChar = scannedCharacter ? scannedCharacter.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-    let bestOption = null;
-    let highestScore = 0;
-
-    for (let i = 1; i < selectElement.options.length; i++) { // Skip "Empty Slot"
-        const opt = selectElement.options[i];
-        const dbName = opt.dataset.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const dbNick = opt.dataset.nick ? opt.dataset.nick.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-        const dbChar = opt.dataset.char ? opt.dataset.char.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-
-        // 1. Exact Match on Name
-        if (dbName === search || dbNick === search) return opt.value;
-
-        // 2. Partial Match Scoring
-        let score = 0;
-        if (dbName.includes(search)) score += 10;
-        if (search.includes(dbName)) score += 10;
-
-        // Bonus for length similarity (avoids matching "Tom" to "Tomato" too easily)
-        if (Math.abs(dbName.length - search.length) < 3) score += 5;
-
-        // 3. Character matching bonus (helps disambiguate similar names)
-        if (searchChar && dbChar) {
-            if (dbChar === searchChar) score += 8; // Strong bonus for exact character match
-            else if (dbChar.includes(searchChar) || searchChar.includes(dbChar)) score += 4;
-        }
-
-        if (score > highestScore) {
-            highestScore = score;
-            bestOption = opt.value;
-        }
-    }
-
-    // Only return if confidence is decent
-    return (highestScore >= 10) ? bestOption : null;
-}
 </script>
 
 <?php include __DIR__ . '/../private/templates/footer.php'; ?>

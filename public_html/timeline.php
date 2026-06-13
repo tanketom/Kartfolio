@@ -188,21 +188,17 @@ foreach ($resultsByGP as $gpid => $gpResults) {
 }
 
 // ── Build display data ──
+// $resultsByGP already holds every result row (built above for the activity
+// feed), so we reuse it instead of querying once per GP. The feed needs
+// chronological order; the display needs rank order, so sort a copy here.
 $gpDetails = [];
 foreach ($gps as $gp) {
-    $resultsStmt = $pdo->prepare("
-        SELECT r.name, res.gp_points, res.rank, res.character_used
-        FROM results res
-        JOIN racers r ON res.racer_id = r.id
-        WHERE res.gpid = ?
-        ORDER BY res.rank ASC
-    ");
-    $resultsStmt->execute([$gp['gpid']]);
-    $results = $resultsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $resultsByGP[$gp['gpid']] ?? [];
+    usort($rows, fn($a, $b) => $a['rank'] <=> $b['rank']);
 
     $gpDetails[$gp['gpid']] = [
-        'results' => $results,
-        'events' => $gpEventCache[$gp['gpid']] ?? []
+        'results' => $rows,
+        'events'  => $gpEventCache[$gp['gpid']] ?? []
     ];
 }
 ?>
@@ -265,9 +261,9 @@ foreach ($gps as $gp) {
                 <span class="meta-badge">
                     👥 <?= $gp['participants'] ?> racer<?= $gp['participants'] > 1 ? 's' : '' ?>
                 </span>
-                <span class="meta-badge">
-                    📅 <?= htmlspecialchars($gp['gpid']) ?>
-                </span>
+                <a class="meta-badge" href="/timeline/<?= htmlspecialchars($gp['gpid']) ?>" title="Full GP detail" style="text-decoration:none;">
+                    📅 <?= htmlspecialchars($gp['gpid']) ?> →
+                </a>
             </div>
 
             <!-- All Results -->

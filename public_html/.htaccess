@@ -68,12 +68,24 @@ RewriteRule ^rivalries$ rivalries.php [L,QSA]
 RewriteRule ^archive$ archive.php [L,QSA]
 RewriteRule ^stats$ stats.php [L,QSA]
 RewriteRule ^about$ about.php [L,QSA]
+RewriteRule ^map$ map.php [L,QSA]
+RewriteRule ^uml$ uml.php [L,QSA]
 RewriteRule ^badges-overview$ badges_overview.php [L,QSA]
 RewriteRule ^elo-trends$ elo_trends.php [L,QSA]
 RewriteRule ^timeline$ timeline.php [L,QSA]
 RewriteRule ^cards$ cards.php [L,QSA]
 RewriteRule ^rank-graphic$ rank_graphic.php [L,QSA]
 RewriteRule ^animate-season$ animate_season.php [L,QSA]
+RewriteRule ^mikkoliiga$ mikkoliiga.php [L,QSA]
+RewriteRule ^track-favourites$ track_favourites.php [L,QSA]
+RewriteRule ^track-favorites$ track_favourites.php [L,QSA]
+RewriteRule ^api/coaching-report$ api/generate_coaching_report.php [L,QSA]
+RewriteRule ^api/press-release$ api/publish_press_release.php [L,QSA]
+RewriteRule ^api/track-preference-vote$ api/vote_track_preference.php [L,QSA]
+RewriteRule ^api/generate-track-musings$ api/generate_track_musings.php [L,QSA]
+RewriteRule ^api/commish-digest$ api/generate_commish_digest.php [L,QSA]
+# Read-only public JSON API (v1)
+RewriteRule ^api/v1/([a-z_]+)$ api/data.php?resource=$1 [L,QSA]
 
 # New feature pages
 RewriteRule ^predictions$ predictions.php [L,QSA]
@@ -81,6 +93,25 @@ RewriteRule ^power-rankings$ power_rankings.php [L,QSA]
 RewriteRule ^fantasy$ fantasy.php [L,QSA]
 RewriteRule ^records$ records.php [L,QSA]
 RewriteRule ^scoring$ scoring.php [L,QSA]
+RewriteRule ^scoring-systems$ scoring_systems.php [L,QSA]
+RewriteRule ^cup/([a-z0-9-]+)$ cup_detail.php?cup=$1 [L,QSA]
+RewriteRule ^timeline/(s[0-9]+gp[0-9]+)$ timeline_gp.php?gp=$1 [L,QSA]
+RewriteRule ^lexicon$ lexicon.php [L,QSA]
+RewriteRule ^lexicon/([a-z0-9-]+)$ lexicon.php?term=$1 [L,QSA]
+RewriteRule ^vault$ vault.php [L,QSA]
+RewriteRule ^season-chart$ season_chart.php [L,QSA]
+RewriteRule ^wrapped$ wrapped.php [L,QSA]
+RewriteRule ^wrapped/([0-9]+)$ wrapped.php?racer=$1 [L,QSA]
+RewriteRule ^teams$ teams.php [L,QSA]
+RewriteRule ^wc-pickem/([0-9]+)$ wc_pickem.php?id=$1 [L,QSA]
+RewriteRule ^stickers/([0-9]+)$ stickers.php?racer=$1 [L,QSA]
+
+# Monster Hunt Chronicles & Dashboard
+RewriteRule ^stories$ stories.php [L,QSA]
+RewriteRule ^mh-dashboard$ mh_dashboard.php [L,QSA]
+
+# Cup Mastery Grid
+RewriteRule ^cup-mastery$ cup_mastery.php [L,QSA]
 
 # Underground betting den (Waluigi's)
 RewriteRule ^underground$ underground.php [L,QSA]
@@ -104,12 +135,14 @@ RewriteRule ^season/([a-zA-Z0-9]+)$ index.php?season=$1 [L,QSA]
 RewriteRule ^display/vertical$ vertical.php [L]
 RewriteRule ^display/horizontal$ horizontal.php [L]
 RewriteRule ^display/auto-vertical$ auto-vertical.php [L]
+RewriteRule ^display/overlay$ overlay.php [L,QSA]
+RewriteRule ^overlay$ overlay.php [L,QSA]
 
 # API routes - RESTful style
-RewriteRule ^api/ocr$ api/ocr_gemini.php [L]
 RewriteRule ^api/recap$ api/gemini_recap.php [L]
 RewriteRule ^api/season-report$ api/generate_season_report.php [L]
 RewriteRule ^api/gemini-power-rankings$ api/gemini_power_rankings.php [L]
+RewriteRule ^api/gp-story$ api/generate_gp_story.php [L]
 
 # Admin routes - cleaner admin URLs
 RewriteRule ^admin/racers$ admin/racers.php [L]
@@ -117,6 +150,7 @@ RewriteRule ^admin/seasons$ admin/seasons.php [L]
 RewriteRule ^admin/results$ admin/results_manage.php [L]
 RewriteRule ^admin/edit-recap$ admin/edit_recap.php [L,QSA]
 RewriteRule ^admin/settings$ admin/settings.php [L,QSA]
+RewriteRule ^admin/commissioner-desk$ admin/commissioner_desk.php [L,QSA]
 RewriteRule ^admin/export-database$ admin/export-database.php [L]
 RewriteRule ^admin/import-database$ admin/import-database.php [L]
 RewriteRule ^admin/tournaments$ admin/tournaments.php [L]
@@ -124,6 +158,7 @@ RewriteRule ^admin/tournament-create$ admin/tournament_create.php [L,QSA]
 RewriteRule ^admin/tournament-setup$ admin/tournament_setup.php [L,QSA]
 RewriteRule ^admin/tournament-bracket/([0-9]+)$ admin/tournament_bracket.php?id=$1 [L,QSA]
 RewriteRule ^admin/tournament-bracket$ admin/tournament_bracket.php [L,QSA]
+RewriteRule ^admin/close-season$ admin/close_season.php [L,QSA]
 
 # Remove trailing slash (optional, for cleaner URLs)
 RewriteCond %{REQUEST_FILENAME} !-d
@@ -195,11 +230,10 @@ ErrorDocument 404 /index.php
     # Hide PHP version in headers
     php_flag expose_php off
 
-    # Increase upload limit for OCR images
-    php_value upload_max_filesize 10M
-    php_value post_max_size 10M
-
     # Session security
     php_value session.cookie_httponly 1
     php_value session.cookie_samesite Lax
+    # Live site is HTTPS-only; this directive only applies under Apache
+    # mod_php, so local `php -S` dev over http is unaffected.
+    php_value session.cookie_secure 1
 </IfModule>

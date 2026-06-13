@@ -9,11 +9,17 @@
 
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
+require_once __DIR__ . '/../../private/includes/gemini_client.php';
 
 // auth.php calls session_start() and loads config internally
 require_admin();
 
 header('Content-Type: application/json');
+
+// Allow room for the fallback chain (up to 4 models × 3 retries with
+// exponential backoff). Strictly above the per-call cap in gemini_client.
+@set_time_limit(300);
+ignore_user_abort(true);
 
 // ============================================================
 // 1. Configuration
@@ -75,10 +81,8 @@ foreach ($rankings as $r) {
 }
 
 // ============================================================
-// 4. Call Gemini API
+// 4. Call Gemini API (shared client: retry + model fallback)
 // ============================================================
-$url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
-
 $payload = [
     "contents" => [
         [
@@ -95,35 +99,11 @@ $payload = [
     ]
 ];
 
-$jsonBody = json_encode($payload);
-if ($jsonBody === false) {
-    $jsonBody = json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE);
-    if ($jsonBody === false) {
-        echo json_encode(['error' => 'JSON encode failed: ' . json_last_error_msg()]);
-        exit;
-    }
-}
+$modelChain = geminiDefaultModelChain($model);
+[$response, $httpCode, $lastError, $modelUsed] = callGeminiWithRetry($modelChain, $apiKey, $payload);
 
-$ch = curl_init($url);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonBody);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError = curl_error($ch);
-curl_close($ch);
-
-if ($curlError) {
-    echo json_encode(['error' => 'cURL error: ' . $curlError]);
-    exit;
-}
-
-if ($httpCode !== 200) {
-    $errorDetails = json_decode($response, true);
-    $errorMsg = $errorDetails['error']['message'] ?? 'No details available';
-    echo json_encode(['error' => "API returned {$httpCode}: {$errorMsg}"]);
+if ($response === null) {
+    echo json_encode(['error' => $lastError]);
     exit;
 }
 

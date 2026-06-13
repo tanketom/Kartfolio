@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/gp_logic.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/ecology_text.php';
+require_once __DIR__ . '/../../private/includes/gemini_client.php';
 
 // 1. CONFIGURATION
 $config = require __DIR__ . '/../../private/config/config.php';
@@ -15,10 +16,14 @@ if (!isset($config['gemini_api_key']) || empty($config['gemini_api_key'])) {
     die("Error: 'gemini_api_key' missing in config.php");
 }
 $apiKey = $config['gemini_api_key'];
-$modelName = $config['model_name'] ?? 'gemini-1.5-flash';
+// gemini-1.5-flash has been retired from v1beta; default to current flash.
+$modelName = $config['model_name'] ?? 'gemini-2.5-flash';
 
 require_admin();
 verify_csrf();
+
+@set_time_limit(300);
+ignore_user_abort(true);
 
 $tournamentId = $_POST['tournament_id'] ?? null;
 if (!$tournamentId) {
@@ -179,8 +184,7 @@ $fullPrompt .= "4. Leave a blank line, then start the actual script.\n\n";
 $fullPrompt .= "TOURNAMENT DATA:\n" . $dataContext;
 $fullPrompt .= $notesInstruction;
 
-// 7. CALL GEMINI API
-$apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=" . $apiKey;
+// 7. CALL GEMINI API (shared client: retry + model fallback)
 $payload = [
     "contents" => [["parts" => [["text" => $fullPrompt]]]],
     "safetySettings" => [
@@ -191,22 +195,8 @@ $payload = [
     ]
 ];
 
-$jsonBody = json_encode($payload);
-if ($jsonBody === false) {
-    $jsonBody = json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE);
-    if ($jsonBody === false) {
-        die("Error: Failed to encode API payload as JSON — " . json_last_error_msg());
-    }
-}
-
-$ch = curl_init($apiUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonBody);
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+[$response, $httpCode, $lastError, $modelUsed] =
+    callGeminiWithRetry(geminiDefaultModelChain($modelName), $apiKey, $payload);
 
 // 8. HANDLE RESPONSE & SAVE
 if ($httpCode === 200 && $response) {
@@ -253,10 +243,7 @@ if ($httpCode === 200 && $response) {
         exit;
     }
 } else {
-    $errorDetails = json_decode($response, true);
-    $errorMsg = $errorDetails['error']['message'] ?? 'No details available';
     echo "<h1>API Connection Error ($httpCode)</h1>";
-    echo "<p><strong>Details:</strong> " . htmlspecialchars($errorMsg) . "</p>";
-    echo "<pre>" . htmlspecialchars($response) . "</pre>";
+    echo "<pre>" . htmlspecialchars($lastError) . "</pre>";
     exit;
 }

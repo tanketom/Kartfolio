@@ -32,6 +32,33 @@
     font-family: Georgia, serif;
 }
 
+/* Wrapped entry point at the top of the racer profile (December / admin). */
+.racer-wrapped-cta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #241a48;
+    border: 1px solid #3a2d70;
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 18px;
+    color: #fff;
+    font-weight: 800;
+    text-decoration: none;
+    transition: transform .15s, border-color .15s;
+}
+.racer-wrapped-cta:hover { transform: translateX(3px); border-color: #FFD700; }
+.racer-wrapped-preview {
+    font-size: .7rem;
+    background: #3a2a00;
+    color: #ffd700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.racer-wrapped-arrow { margin-left: auto; color: #FFD700; font-size: 1.2rem; }
+
 /* --- Card + Stats Layout --- */
 .racer-top-grid {
     display: grid;
@@ -72,7 +99,9 @@
 /* Generic milestone card — base styles */
 .milestone-card {
     padding: 20px;
-    border-radius: var(--radius-md);
+    border: 2px solid var(--dark-bg);
+    border-radius: 14px;
+    box-shadow: 3px 3px 0 var(--dark-bg);
     color: white;
 }
 
@@ -106,13 +135,19 @@
 }
 
 /* Milestone colour variants */
-.milestone-card--first-gp   { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.milestone-card--first-win  { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.milestone-card--first-pod  { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-.milestone-card--perfect    { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.milestone-card--best-score { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.milestone-card--win-streak { background: linear-gradient(135deg, #fa8bff 0%, #2bd2ff 90%, #2bff88 100%); }
-.milestone-card--pod-streak { background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%); }
+.milestone-card--first-gp   { background: var(--power); }
+.milestone-card--first-win  { background: #f093fb; }
+.milestone-card--first-pod  { background: #fa709a; }
+.milestone-card--perfect    { background: #4facfe; }
+.milestone-card--best-score { background: #43e97b; }
+.milestone-card--win-streak { background: #fa8bff; }
+.milestone-card--pod-streak  { background: #ff9a56; }
+.milestone-card--placement   { background: #f7971e; }
+.milestone-card--season-wins { background: #11998e; }
+.milestone-card--season-avg  { background: #4776e6; }
+.milestone-card--elo         { background: #1a1a2e; }
+.milestone-card--seasons     { background: #396afc; }
+.milestone-card--drought     { background: #544a7d; }
 
 /* --- Form Graph --- */
 .form-chart-wrapper {
@@ -398,8 +433,8 @@
     border: 2px solid;
 }
 
-.cup-cell--perfect    { border-color: #ffa500; background: #fffbf0; }
-.cup-cell--done       { border-color: #4caf50; background: #f1f8f4; }
+.cup-cell--perfect    { border-color: #ffa500; background: #fff6dc; }
+.cup-cell--done       { border-color: #4caf50; background: #e6f6ec; }
 .cup-cell--pending    { border-color: var(--gray-200); background: var(--gray-50); }
 
 .cup-cell-header {
@@ -491,7 +526,7 @@
     text-align: center;
     padding: 20px;
     margin: 15px 0 25px;
-    background: linear-gradient(135deg, #fff5f5 0%, #fff0f0 100%);
+    background: #fff5f5;
     border-radius: var(--radius-md);
     border: 2px solid var(--nintendo-red);
 }
@@ -594,7 +629,7 @@
 
 .t12-cut-line-text {
     position: relative;
-    background: white;
+    background: var(--gray-50);
     padding: 0 16px;
     font-size: 0.75rem;
     font-weight: 800;
@@ -774,3 +809,131 @@
 /* Utility */
 .racer-mt-20 { margin-top: 20px; }
 .stat-value--gold { color: var(--gold); }
+
+/* ── Mikkoliiga member badge + profile banner (racer page) ──────────────────
+   Moved out of an inline <style> that was gated behind $mikkoliigaInfo — the
+   badge must always be styled when a member's profile renders. */
+.mikko-member-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #FFD700;
+    color: #3a2c00;
+    font-weight: 900;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-top: 8px;
+    text-decoration: none;
+    letter-spacing: 1px;
+}
+.mikko-member-rank {
+    font-weight: 700;
+    color: #4a3a00;
+    font-size: 0.75rem;
+    letter-spacing: 0;
+}
+.mikko-profile-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #fff6dc;
+    border: 1px solid #f0c040;
+    border-left: 6px solid #FFD700;
+    border-radius: 10px;
+    padding: 16px 22px;
+    margin: 16px 0 24px;
+    box-shadow: 0 4px 12px rgba(255, 200, 0, 0.12);
+}
+.mikko-profile-banner-icon { font-size: 2.4rem; line-height: 1; }
+.mikko-profile-banner-content { flex: 1; }
+.mikko-profile-banner-title {
+    font-size: 0.95rem;
+    font-weight: 900;
+    color: #b8860b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.mikko-profile-banner-stats {
+    font-size: 0.95rem;
+    color: var(--gray-800);
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.mikko-profile-banner-stats strong { color: var(--nintendo-red); }
+.mikko-profile-banner-cta {
+    background: #FFD700;
+    color: #3a2c00;
+    font-weight: 900;
+    font-size: 0.85rem;
+    padding: 8px 14px;
+    border-radius: 6px;
+    text-decoration: none;
+}
+.mikko-profile-banner-cta:hover { background: #FFA500; }
+@media (max-width: 600px) {
+    .mikko-profile-banner { flex-direction: column; align-items: flex-start; text-align: left; }
+}
+
+/* ── Consistency vs Ceiling + Side Quests (racer page) ──────────────────── */
+.cc-quest-card { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+@media (max-width: 760px) { .cc-quest-card { grid-template-columns: 1fr; } }
+.cc-season { font-size: 0.8rem; color: var(--gray-500); font-weight: 700; }
+.cc-archetype {
+    border-left: 4px solid var(--cc-accent, var(--nintendo-red));
+    background: var(--gray-100, #f4f4f6);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+.cc-archetype-label { font-size: 1.3rem; font-weight: 900; color: var(--cc-accent, var(--nintendo-red)); }
+.cc-archetype-blurb { color: var(--gray-700, #444); font-size: 0.9rem; margin-top: 2px; }
+.cc-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.cc-metric { text-align: center; }
+.cc-metric-val { font-size: 1.8rem; font-weight: 900; color: var(--gray-900, #111); line-height: 1; }
+.cc-metric-lbl { font-size: 0.78rem; text-transform: uppercase; color: var(--gray-600, #666); font-weight: 700; margin-top: 4px; }
+.cc-metric-ctx { font-size: 0.72rem; color: var(--gray-500, #999); margin-top: 2px; }
+.cc-foot { font-size: 0.82rem; color: var(--gray-500, #888); margin-top: 14px; }
+.cc-foot a { color: #0066cc; text-decoration: none; }
+
+.cc-quest-sub { color: var(--gray-600, #666); font-size: 0.88rem; margin: 0 0 12px; }
+.quest-list { display: flex; flex-direction: column; gap: 10px; }
+.quest {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--gray-100, #f4f4f6);
+    border: 1px solid var(--gray-200, var(--gray-200));
+    border-left: 4px solid var(--gray-300, var(--gray-400));
+    border-radius: 8px; padding: 12px 14px;
+}
+.quest--done { border-left-color: #2EBD59; background: #e6f6ec; }
+.quest-icon { font-size: 1.6rem; }
+.quest-title { font-weight: 900; color: var(--gray-900, #111); }
+.quest-check { color: #2EBD59; font-size: 0.78rem; font-weight: 800; }
+.quest-desc { font-size: 0.85rem; color: var(--gray-600, #666); margin-top: 2px; }
+
+/* Sticker album chip on the racer profile header. */
+.stk-profile-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-300, var(--gray-400));
+    color: var(--gray-700, #444);
+    font-weight: 800;
+    font-size: 0.8rem;
+    padding: 4px 12px;
+    border-radius: 12px;
+    margin: 8px 8px 0 0;
+    text-decoration: none;
+    letter-spacing: 0.5px;
+}
+.stk-profile-chip:hover { border-color: var(--nintendo-red); color: var(--nintendo-red); }
+
+/* KART POP type consistency — large headline goes upright Fredoka. */
+.news-mention-headline,
+.mikko-profile-banner-title {
+    font-family: var(--font-display);
+    font-style: normal;
+}

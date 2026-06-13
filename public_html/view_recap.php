@@ -81,20 +81,12 @@ function formatTranscript($text) {
     return $formatted;
 }
 
-// 4. Program Definitions
-$programs = [
-    "core_team" => ["label" => "Kart Core Team", "img" => "program_core_team.png", "color" => "#e60012"],
-    "reef_dispatch" => ["label" => "Reef’s Dispatch", "img" => "program_reef_dispatch.png", "color" => "#2c3e50"],
-    "meta_report" => ["label" => "The Meta Report", "img" => "program_meta_report.png", "color" => "#27ae60"],
-    "the_rant" => ["label" => "The Rant", "img" => "program_the_rant.png", "color" => "#c0392b"],
-    "ghost_racer" => ["label" => "The Ghost Racer’s Ascent", "img" => "program_ghost_racer.png", "color" => "#8e44ad"],
-    "situated_spectator" => ["label" => "The Situated Spectator", "img" => "program_situated_spectator.png", "color" => "#f39c12"],
-    "viberacing" => ["label" => "Viberacing", "img" => "program_viberacing.png", "color" => "#ff00ff"],
-    "random" => ["label" => "Special Broadcast", "img" => "program_default.png", "color" => "#333"]
-];
+// 4. Program Definitions — shared catalog (includes OMK Press Office)
+require_once __DIR__ . '/../private/includes/programs.php';
+$programs = getProgramsCatalog();
 
-$pKey = $recap['program_key'] ?? 'core_team';
-$pInfo = $programs[$pKey] ?? $programs['core_team'];
+$pKey  = $recap['program_key'] ?? 'core_team';
+$pInfo = getProgramInfo($pKey);
 
 $h = htmlspecialchars($recap['headline'] ?? 'Untitled Broadcast');
 $q = htmlspecialchars($recap['key_quote'] ?? '');
@@ -205,7 +197,8 @@ function copyTranscript() {
     const text = document.getElementById('transcript-body').innerText;
     const btn = document.getElementById('copy-btn');
     const btnText = document.getElementById('copy-text');
-    const formattedText = "### " + "<?= $h ?>\n> " + "<?= $q ?>\n\n" + text;
+    // json_encode (not htmlspecialchars) — this is a JS string context.
+    const formattedText = "### " + <?= json_encode($recap['headline'] ?? 'Untitled Broadcast') ?> + "\n> " + <?= json_encode($recap['key_quote'] ?? '') ?> + "\n\n" + text;
     navigator.clipboard.writeText(formattedText).then(() => {
         btn.classList.add('success');
         btnText.innerText = 'Copied!';

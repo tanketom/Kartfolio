@@ -30,17 +30,15 @@ foreach ($rating_history as $racer => $history) {
     $dataPoints = [];
 
     foreach ($timeline as $date) {
-        $found = false;
+        $ratingForDate = null;
         foreach ($history as $h) {
             if ($h['date'] === $date) {
-                $dataPoints[] = round($h['rating'], 1);
-                $found = true;
-                break;
+                // Keep overwriting — last entry for this date wins
+                // (multiple GPs on same day: we want the final ELO, not the first)
+                $ratingForDate = round($h['rating'], 1);
             }
         }
-        if (!$found) {
-            $dataPoints[] = null;
-        }
+        $dataPoints[] = $ratingForDate;
     }
 
     // Only include racers with data
@@ -112,6 +110,12 @@ $csStmt = $pdo->prepare("
 ");
 $csStmt->execute([$currentSeason . '%']);
 $currentSeasonRacers = $csStmt->fetchAll(PDO::FETCH_COLUMN);
+
+// Retired racers — keyed by name for quick lookup against the ELO engine's
+// name-keyed output. Value of 1 means retired.
+$retiredRacers = $pdo->query("SELECT name FROM racers WHERE is_retired = 1")
+                     ->fetchAll(PDO::FETCH_COLUMN);
+$retiredRacers = array_flip($retiredRacers);
 ?>
 
 <div class="stats-container">
@@ -158,9 +162,13 @@ $currentSeasonRacers = $csStmt->fetchAll(PDO::FETCH_COLUMN);
                         $changeSymbol = $r['change_from_start'] > 0 ? '▲' : ($r['change_from_start'] < 0 ? '▼' : '–');
                         $changeColor = $r['change_from_start'] > 0 ? '#2EBD59' : ($r['change_from_start'] < 0 ? '#e60012' : '#888');
                     ?>
-                    <tr <?= $rank <= 3 ? 'class="top-three"' : '' ?>>
+                    <?php $isRetired = isset($retiredRacers[$r['name']]); ?>
+                    <tr class="<?= $rank <= 3 ? 'top-three ' : '' ?><?= $isRetired ? 'racer-retired' : '' ?>">
                         <td class="elo-td-rank"><?= $rank ?></td>
-                        <td><strong><?= htmlspecialchars($r['name']) ?></strong></td>
+                        <td>
+                            <strong><?= htmlspecialchars($r['name']) ?></strong>
+                            <?php if ($isRetired): ?><span class="retired-badge" title="Retired racer">RETIRED</span><?php endif; ?>
+                        </td>
                         <td class="elo-td-rating">
                             <?= round($r['rating']) ?>
                             <span class="elo-change-icon" style="color:<?= $changeColor ?>;"><?= $changeSymbol ?></span>
@@ -308,6 +316,7 @@ $currentSeasonRacers = $csStmt->fetchAll(PDO::FETCH_COLUMN);
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js" integrity="sha384-hfkuqrKeWFmnTMWN31VWyoe8xgdTADD11kgxmdpx2uyE6j5Az5uZq6u6AKYYmAOw" crossorigin="anonymous"></script>
+<script>Chart.defaults.color = "#6b6453"; Chart.defaults.borderColor = "#e8e0cc";</script>
 <script>
 (function() {
     const ctx = document.getElementById('eloChart').getContext('2d');

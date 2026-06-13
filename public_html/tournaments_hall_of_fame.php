@@ -58,14 +58,20 @@ krsort($tournamentsByYear); // Sort years descending
                             'single_elim' => 'Single Elimination',
                             'double_elim' => 'Double Elimination',
                             'gauntlet' => 'Gauntlet',
-                            'team_relay' => 'Team Relay'
+                            'team_relay' => 'Team Relay',
+                            'survivor' => 'Survivor',
+                            'team_scramble' => 'Team Scramble',
+                            'world_cup' => 'World Cup'
                         ];
                         $formatLabel = $formatLabels[$tournament['format']] ?? $tournament['format'];
                         $formatEmoji = [
                             'single_elim' => '🎯',
                             'double_elim' => '⚔️',
                             'gauntlet' => '👑',
-                            'team_relay' => '🤝'
+                            'team_relay' => '🤝',
+                            'survivor' => '💀',
+                            'team_scramble' => '🤝',
+                            'world_cup' => '🌍'
                         ];
                         $emoji = $formatEmoji[$tournament['format']] ?? '🏆';
                     ?>

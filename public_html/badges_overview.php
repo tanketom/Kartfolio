@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
+require_once __DIR__ . '/../private/includes/mk_data.php';
 
 $currentSeason = $_GET['season'] ?? getCurrentSeasonNumber();
 $isAllTime = ($currentSeason === 'all');
@@ -82,6 +83,28 @@ $allBadgeDefinitions = [
         ['icon' => '🧑', 'title' => 'That\'s Just a Person?', 'desc' => 'Mains Mii, Inklings, or Villager ≥50% of races', 'key' => 'just_a_person'],
         ['icon' => '🐱', 'title' => 'Furcurious!', 'desc' => 'Mains Tanooki Mario or Cat Peach ≥50% of races', 'key' => 'furcurious'],
         ['icon' => '😈', 'title' => 'Koopa Klan', 'desc' => 'Mains Bowser and his evil crew ≥50% of races', 'key' => 'koopa_klan'],
+        ['icon' => '🦎', 'title' => 'Cold-Blooded', 'desc' => 'Mains reptilian characters (Yoshi, Koopa Troopa, Bowser and kin) ≥50% of races', 'key' => 'cold_blooded'],
+    ],
+    'streaks' => [
+        ['icon' => '🎩', 'title' => 'Hat Trick', 'desc' => 'Won 3 Grand Prix events in a row', 'key' => 'hat_trick'],
+        ['icon' => '↗️', 'title' => 'Ascendant', 'desc' => 'Improved finishing rank in 5 consecutive GPs', 'key' => 'ascendant'],
+    ],
+    'career' => [
+        ['icon' => '🕰️', 'title' => 'The Elder', 'desc' => 'Competed across 3 or more seasons', 'key' => 'the_elder'],
+    ],
+    'elo' => [
+        ['icon' => '🧗', 'title' => 'The Climber', 'desc' => 'Gained 100+ Elo points during a single season', 'key' => 'elo_climber'],
+        ['icon' => '📉', 'title' => 'The Fall', 'desc' => 'Lost 100+ Elo points during a single season', 'key' => 'elo_fall'],
+        ['icon' => '⚡', 'title' => 'Upset King', 'desc' => 'Finished ahead of a racer with 200+ higher Elo in 3+ GPs', 'key' => 'upset_king'],
+        ['icon' => '🥶', 'title' => 'Stone Cold', 'desc' => 'Held the #1 Elo ranking for 5 consecutive GPs', 'key' => 'stone_cold'],
+    ],
+    'monster_hunt' => [
+        ['icon' => '🐉', 'title' => 'Dragon Slayer', 'desc' => 'Finished ahead of a CR 4 Dragon in at least one GP', 'key' => 'mh_dragon_slayer'],
+        ['icon' => '👹', 'title' => 'The Hunted', 'desc' => 'Designated as the Monster in 3+ GPs this season', 'key' => 'mh_hunted'],
+        ['icon' => '🎉', 'title' => 'Wipe Master', 'desc' => 'Participated in a Full Slay (every adventurer beat the Monster) in 3+ GPs', 'key' => 'mh_wipe_master'],
+        ['icon' => '💀', 'title' => 'Apex Predator', 'desc' => 'Achieved a TPK as the Monster (beat every adventurer) in 3+ GPs', 'key' => 'mh_apex'],
+        ['icon' => '🌑', 'title' => 'The Underdog', 'desc' => 'Slew the Monster while being the lowest-Elo adventurer', 'key' => 'mh_underdog'],
+        ['icon' => '🛡️', 'title' => 'Resilient', 'desc' => 'Survived without slaying the Monster in 5+ GPs', 'key' => 'mh_resilient'],
     ],
 ];
 
@@ -196,8 +219,8 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     $highestAttendance = $maxAttStmt->fetchColumn();
 
     // Cup progress
-    $baseCupsList = ['Mushroom', 'Flower', 'Star', 'Special', 'Shell', 'Banana', 'Leaf', 'Lightning', 'Egg', 'Triforce', 'Crossing', 'Bell'];
-    $boosterCupsList = ['Golden Dash', 'Lucky Cat', 'Turnip', 'Propeller', 'Rock', 'Moon', 'Fruit', 'Boomerang', 'Feather', 'Cherry', 'Acorn', 'Spiny'];
+    $baseCupsList    = MK_BASE_CUPS;
+    $boosterCupsList = MK_BOOSTER_CUPS;
 
     // Build progress array
     $progress['slippery'] = ['current' => $lols, 'target' => 3, 'percent' => min(100, round(($lols / 3) * 100))];
@@ -352,7 +375,7 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     $progress['old_guard'] = ['current' => $hasPreseason ? 'Pre-season ✓' : 'No pre-season races', 'target' => 'Pre-season + active', 'percent' => ($hasPreseason && $season_id !== 's00') ? 100 : ($hasPreseason ? 50 : 0)];
 
     // Cup Collector (career — all 24 cups raced)
-    $allCupsList = ['Mushroom','Flower','Star','Special','Shell','Banana','Leaf','Lightning','Egg','Triforce','Crossing','Bell','Golden Dash','Lucky Cat','Turnip','Propeller','Rock','Moon','Fruit','Boomerang','Feather','Cherry','Acorn','Spiny'];
+    $allCupsList = getMKAllCups();
     $careerCupsStmt = $pdo->prepare("SELECT DISTINCT cup_name FROM results WHERE racer_id = ?");
     $careerCupsStmt->execute([$racer_id]);
     $careerCupsRaced = $careerCupsStmt->fetchAll(PDO::FETCH_COLUMN);
@@ -407,6 +430,171 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     $koopaCount = 0;
     foreach ($results as $r) { if (in_array($r['character_used'], $koopaList)) $koopaCount++; }
     $progress['koopa_klan'] = ['current' => round(($koopaCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($koopaCount / $totalRaces) / 0.50) * 100))];
+
+    // Cold-Blooded (reptilian characters)
+    $reptileList = ['Yoshi', 'Birdo', 'Koopa Troopa', 'Dry Bones', 'Lakitu',
+                    'Bowser', 'Dry Bowser', 'Bowser Jr.',
+                    'Larry', 'Roy', 'Wendy', 'Ludwig', 'Iggy', 'Morton', 'Lemmy', 'Kamek'];
+    $reptileCount = 0;
+    foreach ($results as $r) { if (in_array($r['character_used'], $reptileList)) $reptileCount++; }
+    $progress['cold_blooded'] = ['current' => round(($reptileCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($reptileCount / $totalRaces) / 0.50) * 100))];
+
+    // Hat Trick (3-win streak)
+    $curWinStreak = $maxWinStreak = 0;
+    foreach ($results as $r) {
+        if ($r['rank'] == 1) { $curWinStreak++; $maxWinStreak = max($maxWinStreak, $curWinStreak); }
+        else $curWinStreak = 0;
+    }
+    $progress['hat_trick'] = ['current' => $maxWinStreak, 'target' => 3, 'percent' => min(100, round(($maxWinStreak / 3) * 100))];
+
+    // Ascendant (5 consecutive rank improvements)
+    $maxImprove = 1; $curImprove = 1;
+    for ($i = 1; $i < count($ranks); $i++) {
+        if ($ranks[$i] < $ranks[$i - 1]) { $curImprove++; $maxImprove = max($maxImprove, $curImprove); }
+        else $curImprove = 1;
+    }
+    $progress['ascendant'] = ['current' => $maxImprove, 'target' => 5, 'percent' => min(100, round(($maxImprove / 5) * 100))];
+
+    // The Elder (3+ seasons)
+    $elderStmt = $pdo->prepare("SELECT COUNT(DISTINCT SUBSTR(gpid, 1, INSTR(gpid, 'g') - 1)) FROM results WHERE racer_id = ? AND gpid LIKE 's%'");
+    $elderStmt->execute([$racer_id]);
+    $distinctSeasons = (int)$elderStmt->fetchColumn();
+    $progress['the_elder'] = ['current' => $distinctSeasons, 'target' => 3, 'percent' => min(100, round(($distinctSeasons / 3) * 100))];
+
+    // ── ELO progress ──────────────────────────────────────────────────────────
+    require_once __DIR__ . '/../private/includes/gp_logic.php';
+    if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/../private/includes/elo_engine.php';
+    $racerNameStmt2 = $pdo->prepare("SELECT name FROM racers WHERE id = ?");
+    $racerNameStmt2->execute([$racer_id]);
+    $racerName2 = $racerNameStmt2->fetchColumn();
+
+    // Defaults
+    $progress['elo_climber'] = ['current' => 0, 'target' => 100, 'percent' => 0];
+    $progress['elo_fall']    = ['current' => 0, 'target' => -100, 'percent' => 0];
+    $progress['upset_king']  = ['current' => 0, 'target' => 3, 'percent' => 0];
+    $progress['stone_cold']  = ['current' => 0, 'target' => 5, 'percent' => 0];
+    $progress['mh_dragon_slayer'] = ['current' => 'No', 'target' => 'Yes', 'percent' => 0];
+    $progress['mh_hunted']        = ['current' => 0, 'target' => 3, 'percent' => 0];
+    $progress['mh_wipe_master']   = ['current' => 0, 'target' => 3, 'percent' => 0];
+    $progress['mh_apex']          = ['current' => 0, 'target' => 3, 'percent' => 0];
+    $progress['mh_underdog']      = ['current' => 'No', 'target' => 'Yes', 'percent' => 0];
+    $progress['mh_resilient']     = ['current' => 0, 'target' => 5, 'percent' => 0];
+
+    if ($racerName2) {
+        static $changelogCache2 = null;
+        if ($changelogCache2 === null) $changelogCache2 = getMonsterHuntEloChangelog($pdo);
+        $cl = $changelogCache2;
+
+        // Season Elo delta
+        $seasonEloMap = [];
+        foreach ($cl as $gpid => $gpData) {
+            if (strpos($gpid, $season_id) !== 0) continue;
+            if (!isset($gpData[$racerName2])) continue;
+            $seasonEloMap[$gpid] = $gpData[$racerName2]['old_elo'];
+        }
+        ksort($seasonEloMap);
+        if (count($seasonEloMap) >= 2) {
+            $eloArr  = array_values($seasonEloMap);
+            $delta   = end($eloArr) - $eloArr[0];
+            $progress['elo_climber'] = ['current' => $delta, 'target' => 100, 'percent' => $delta > 0 ? min(100, round(($delta / 100) * 100)) : 0];
+            $progress['elo_fall']    = ['current' => $delta, 'target' => -100, 'percent' => $delta < 0 ? min(100, round((abs($delta) / 100) * 100)) : 0];
+        }
+
+        // Upset King
+        $upsets = 0;
+        foreach ($cl as $gpid => $gpData) {
+            if (strpos($gpid, $season_id) !== 0) continue;
+            if (!isset($gpData[$racerName2])) continue;
+            $myE = $gpData[$racerName2]['old_elo']; $myR = $gpData[$racerName2]['rank'];
+            foreach ($gpData as $on => $od) {
+                if ($on === $racerName2) continue;
+                if ($od['old_elo'] >= $myE + 200 && $myR < $od['rank']) { $upsets++; break; }
+            }
+        }
+        $progress['upset_king'] = ['current' => $upsets, 'target' => 3, 'percent' => min(100, round(($upsets / 3) * 100))];
+
+        // Stone Cold
+        $eloLeaders = [];
+        foreach ($cl as $gpid => $gpData) {
+            if (strpos($gpid, $season_id) !== 0) continue;
+            $top = PHP_INT_MIN; $topN = null;
+            foreach ($gpData as $n => $d) { if ($d['old_elo'] > $top) { $top = $d['old_elo']; $topN = $n; } }
+            $eloLeaders[$gpid] = $topN;
+        }
+        ksort($eloLeaders);
+        $scS = 0; $scM = 0;
+        foreach ($eloLeaders as $topN) {
+            if ($topN === $racerName2) { $scS++; $scM = max($scM, $scS); } else $scS = 0;
+        }
+        $progress['stone_cold'] = ['current' => $scM, 'target' => 5, 'percent' => min(100, round(($scM / 5) * 100))];
+
+        // MONSTER HUNT progress (only relevant for MH seasons)
+        static $mhMetaCache = [];
+        if (!isset($mhMetaCache[$season_id])) {
+            $mhMs = $pdo->prepare("SELECT scoring_system FROM season_meta WHERE season_id = ?");
+            $mhMs->execute([$season_id]);
+            $mhMetaCache[$season_id] = $mhMs->fetchColumn();
+        }
+        if ($mhMetaCache[$season_id] === 'monster_hunt') {
+            $mhDragon = false; $mhHunted = 0; $mhWipe = 0;
+            $mhApex = 0; $mhUnder = false; $mhSurv = 0;
+
+            foreach ($cl as $gpid => $gpData) {
+                if (strpos($gpid, $season_id) !== 0) continue;
+                if (!isset($gpData[$racerName2])) continue;
+                if (count($gpData) < 2) continue;
+
+                $monN = null; $monE = PHP_INT_MIN;
+                foreach ($gpData as $n => $d) {
+                    if ($d['old_elo'] > $monE || ($d['old_elo'] === $monE && strcmp($n, $monN) < 0)) {
+                        $monE = $d['old_elo']; $monN = $n;
+                    }
+                }
+                $monR = $gpData[$monN]['rank'];
+                $advE = [];
+                foreach ($gpData as $n => $d) { if ($n !== $monN) $advE[] = $d['old_elo']; }
+                $gap = max(0, $monE - (count($advE) ? array_sum($advE) / count($advE) : $monE));
+                $cr  = $gap < 50 ? 1 : ($gap < 150 ? 2 : ($gap < 300 ? 3 : 4));
+
+                $aW = $aL = 0;
+                foreach ($gpData as $n => $d) {
+                    if ($n === $monN) continue;
+                    if ($d['rank'] < $monR) $aW++; else $aL++;
+                }
+                $wipe = ($aL === 0 && $aW > 0);
+                $mWon = ($aW === 0);
+
+                if ($racerName2 === $monN) {
+                    $mhHunted++;
+                    if ($mWon) $mhApex++;
+                } else {
+                    $myR2 = $gpData[$racerName2]['rank'];
+                    if ($myR2 < $monR) {
+                        if ($cr === 4) $mhDragon = true;
+                        if ($wipe) $mhWipe++;
+                        if (!$mhUnder) {
+                            $myE2 = $gpData[$racerName2]['old_elo'];
+                            $low  = true;
+                            foreach ($gpData as $n => $d) {
+                                if ($n === $monN || $n === $racerName2) continue;
+                                if ($d['old_elo'] < $myE2) { $low = false; break; }
+                            }
+                            if ($low) $mhUnder = true;
+                        }
+                    } else {
+                        $mhSurv++;
+                    }
+                }
+            }
+
+            $progress['mh_dragon_slayer'] = ['current' => $mhDragon ? 'Yes' : 'No', 'target' => 'Yes', 'percent' => $mhDragon ? 100 : 0];
+            $progress['mh_hunted']        = ['current' => $mhHunted, 'target' => 3, 'percent' => min(100, round(($mhHunted / 3) * 100))];
+            $progress['mh_wipe_master']   = ['current' => $mhWipe,   'target' => 3, 'percent' => min(100, round(($mhWipe   / 3) * 100))];
+            $progress['mh_apex']          = ['current' => $mhApex,   'target' => 3, 'percent' => min(100, round(($mhApex   / 3) * 100))];
+            $progress['mh_underdog']      = ['current' => $mhUnder ? 'Yes' : 'No', 'target' => 'Yes', 'percent' => $mhUnder ? 100 : 0];
+            $progress['mh_resilient']     = ['current' => $mhSurv,   'target' => 5, 'percent' => min(100, round(($mhSurv   / 5) * 100))];
+        }
+    }
 
     return $progress;
 }

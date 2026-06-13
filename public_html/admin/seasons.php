@@ -46,6 +46,47 @@ try {
     die("Database Initialization Error: " . $e->getMessage());
 }
 
+// Add MONSTER HUNT columns for existing databases
+$mhColDefaults = [
+    'mh_slay_xp'          => 100,
+    'mh_survive_xp'       => 20,
+    'mh_party_bonus_xp'   => 50,
+    'mh_monster_win_xp'   => 80,
+    'mh_monster_partial_xp' => 30,
+    'mh_monster_loss_xp'  => -40,
+    'mh_min_gps'          => 6,
+    'mh_best_x'           => 20,
+];
+foreach ($mhColDefaults as $col => $default) {
+    try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col INTEGER DEFAULT $default"); }
+    catch (PDOException $e) {} // Column already exists
+}
+
+// Teams: how many members count toward each GP (constructor scoring).
+try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN team_best_n INTEGER DEFAULT 2"); }
+catch (PDOException $e) {}
+
+// Bounty Hunter columns
+$bhColDefaults = [
+    'bh_multiplier'    => "FLOAT DEFAULT 1.0",     // bounty point multiplier
+    'bh_carrying_cost' => "INTEGER DEFAULT 0",     // 0 = off, 1 = on (your bounty subtracts from your score)
+    'bh_weekly_reset'  => "INTEGER DEFAULT 0",     // 0 = season-long, 1 = recompute median weekly
+];
+foreach ($bhColDefaults as $col => $type) {
+    try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col $type"); }
+    catch (PDOException $e) {}
+}
+
+// Pari-Mutuel columns
+$pmColDefaults = [
+    'pm_ante'           => "INTEGER DEFAULT 100",
+    'pm_payout_preset'  => "TEXT DEFAULT 'steep'", // 'steep' | 'medium' | 'flat'
+];
+foreach ($pmColDefaults as $col => $type) {
+    try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col $type"); }
+    catch (PDOException $e) {}
+}
+
 $message = "";
 $error = "";
 
@@ -69,8 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     season_id, status, scoring_system, academic_year,
                     season_name, season_description,
                     cups_required, best_n_count, drop_worst_count, perfect_multiplier,
-                    attendance_weight, weekly_bonus_cap, min_races_threshold, drop_rate
-                ) VALUES (?, 'upcoming', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    attendance_weight, weekly_bonus_cap, min_races_threshold, drop_rate,
+                    mh_slay_xp, mh_survive_xp, mh_party_bonus_xp,
+                    mh_monster_win_xp, mh_monster_partial_xp, mh_monster_loss_xp, mh_min_gps, mh_best_x
+                ) VALUES (?, 'upcoming', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             // Set defaults based on scoring system
@@ -85,11 +128,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $minThreshold = 3;
             $dropRate = ($scoringSystem === 'average_attendance') ? 10 : 0;
 
+            // MONSTER HUNT fields
+            $mhSlayXP      = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_slay_xp']          ?? 100) : 100;
+            $mhSurviveXP   = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_survive_xp']        ?? 20)  : 20;
+            $mhPartyXP     = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_party_bonus_xp']    ?? 50)  : 50;
+            $mhMonWin      = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_monster_win_xp']    ?? 80)  : 80;
+            $mhMonPart     = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_monster_partial_xp'] ?? 30) : 30;
+            $mhMonLoss     = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_monster_loss_xp']   ?? -40) : -40;
+            $mhMinGPs      = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_min_gps']            ?? 6)  : 6;
+            $mhBestX       = $scoringSystem === 'monster_hunt' ? max(1, (int)($_POST['mh_best_x']      ?? 20)) : 20;
+
             $stmt->execute([
                 $seasonId, $scoringSystem, $academicYear,
                 $seasonName, $seasonDesc,
                 $cupsRequired, $bestNCount, $dropWorstCount, $perfectMultiplier,
-                $attWeight, $weeklyCap, $minThreshold, $dropRate
+                $attWeight, $weeklyCap, $minThreshold, $dropRate,
+                $mhSlayXP, $mhSurviveXP, $mhPartyXP,
+                $mhMonWin, $mhMonPart, $mhMonLoss, $mhMinGPs, $mhBestX
             ]);
 
             $message = "Season " . strtoupper($seasonId) . " created successfully!";
@@ -130,6 +185,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($scoringSystem === 'perfect_hunt') {
                 $updateFields['cups_required'] = $_POST['cups_required'];
                 $updateFields['perfect_multiplier'] = $_POST['perfect_multiplier'];
+            } elseif ($scoringSystem === 'monster_hunt') {
+                $updateFields['mh_slay_xp']          = (int)($_POST['mh_slay_xp']          ?? 100);
+                $updateFields['mh_survive_xp']        = (int)($_POST['mh_survive_xp']        ?? 20);
+                $updateFields['mh_party_bonus_xp']    = (int)($_POST['mh_party_bonus_xp']    ?? 50);
+                $updateFields['mh_monster_win_xp']    = (int)($_POST['mh_monster_win_xp']    ?? 80);
+                $updateFields['mh_monster_partial_xp'] = (int)($_POST['mh_monster_partial_xp'] ?? 30);
+                $updateFields['mh_monster_loss_xp']   = (int)($_POST['mh_monster_loss_xp']   ?? -40);
+                $updateFields['mh_min_gps']            = (int)($_POST['mh_min_gps']            ?? 6);
+                $updateFields['mh_best_x']             = max(1, (int)($_POST['mh_best_x']      ?? 20));
+            } elseif ($scoringSystem === 'bounty_hunter') {
+                $updateFields['bh_multiplier']    = max(0.1, (float)($_POST['bh_multiplier'] ?? 1.0));
+                $updateFields['bh_carrying_cost'] = !empty($_POST['bh_carrying_cost']) ? 1 : 0;
+                $updateFields['bh_weekly_reset']  = !empty($_POST['bh_weekly_reset'])  ? 1 : 0;
+            } elseif ($scoringSystem === 'pari_mutuel') {
+                $updateFields['pm_ante']          = max(1, (int)($_POST['pm_ante'] ?? 100));
+                $preset = $_POST['pm_payout_preset'] ?? 'steep';
+                $updateFields['pm_payout_preset'] = in_array($preset, ['steep', 'medium', 'flat'], true) ? $preset : 'steep';
             }
 
             // Build SQL
@@ -155,8 +227,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sid = $_POST['season_id'];
         $stmt = $pdo->prepare("UPDATE season_meta SET status='archived', closed_at=CURRENT_TIMESTAMP WHERE season_id = ?");
         $stmt->execute([$sid]);
+        // Freeze Mikkoliiga roster at archive time.
+        snapshotMikkoliigaMembership($pdo, $sid);
         header("Location: ../api/generate_season_report.php?season=$sid");
         exit;
+    }
+
+    if ($action === 'snapshot_mikkoliiga') {
+        $sid = $_POST['season_id'];
+        $count = snapshotMikkoliigaMembership($pdo, $sid);
+        $message = "Mikkoliiga snapshot for " . strtoupper($sid) . " refreshed — $count member(s) frozen.";
     }
 
     if ($action === 'activate') {
@@ -164,6 +244,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("UPDATE season_meta SET status='active' WHERE season_id = ?");
         $stmt->execute([$sid]);
         $message = "Season " . strtoupper($sid) . " is now ACTIVE.";
+    }
+
+    if ($action === 'delete_season') {
+        $sid = $_POST['season_id'];
+        // Guard: refuse if the season has any race results on record.
+        $check = $pdo->prepare("SELECT COUNT(*) FROM results WHERE gpid LIKE ?");
+        $check->execute([$sid . '%']);
+        if ((int)$check->fetchColumn() > 0) {
+            $error = "Cannot delete " . strtoupper($sid) . ": race results exist for this season. Archive it instead.";
+        } else {
+            $del = $pdo->prepare("DELETE FROM season_meta WHERE season_id = ?");
+            $del->execute([$sid]);
+            $message = "Season " . strtoupper($sid) . " deleted.";
+        }
+    }
+
+    // ── Teams (constructor season layer, managed per season) ──────────────
+    if ($action === 'create_team') {
+        $sid    = $_POST['season_id'];
+        $tname  = trim((string)($_POST['team_name'] ?? ''));
+        $tcolor = preg_match('/^#[0-9a-fA-F]{6}$/', $_POST['team_color'] ?? '') ? $_POST['team_color'] : '#e60012';
+        if ($tname !== '') {
+            $pdo->prepare("INSERT INTO teams (season_id, name, color) VALUES (?, ?, ?)")->execute([$sid, $tname, $tcolor]);
+            $message = "Team \"$tname\" created for " . strtoupper($sid) . ".";
+        } else {
+            $error = "Team name is required.";
+        }
+    }
+
+    if ($action === 'delete_team') {
+        $sid = $_POST['season_id'];
+        $tid = (int)($_POST['team_id'] ?? 0);
+        $pdo->prepare("DELETE FROM team_members WHERE team_id = ?")->execute([$tid]);
+        $pdo->prepare("DELETE FROM teams WHERE id = ? AND season_id = ?")->execute([$tid, $sid]);
+        $message = "Team deleted.";
+    }
+
+    if ($action === 'add_team_member') {
+        $sid = $_POST['season_id'];
+        $tid = (int)($_POST['team_id'] ?? 0);
+        $rid = (int)($_POST['racer_id'] ?? 0);
+        if ($tid && $rid) {
+            $valid = $pdo->prepare("SELECT 1 FROM teams WHERE id = ? AND season_id = ?");
+            $valid->execute([$tid, $sid]);
+            if ($valid->fetchColumn()) {
+                // One team per racer per season — replace any existing assignment.
+                $pdo->prepare("DELETE FROM team_members WHERE season_id = ? AND racer_id = ?")->execute([$sid, $rid]);
+                $pdo->prepare("INSERT INTO team_members (season_id, team_id, racer_id) VALUES (?, ?, ?)")->execute([$sid, $tid, $rid]);
+                $message = "Roster updated.";
+            }
+        }
+    }
+
+    if ($action === 'remove_team_member') {
+        $sid = $_POST['season_id'];
+        $rid = (int)($_POST['racer_id'] ?? 0);
+        $pdo->prepare("DELETE FROM team_members WHERE season_id = ? AND racer_id = ?")->execute([$sid, $rid]);
+        $message = "Member removed.";
+    }
+
+    if ($action === 'set_team_best_n') {
+        $sid = $_POST['season_id'];
+        $n   = max(1, min(12, (int)($_POST['team_best_n'] ?? 2)));
+        $pdo->prepare("UPDATE season_meta SET team_best_n = ? WHERE season_id = ?")->execute([$n, $sid]);
+        $message = "Teams now score best $n members per GP for " . strtoupper($sid) . ".";
     }
 }
 
@@ -197,54 +342,23 @@ foreach (array_keys($metaData) as $sid) {
 $nextSeasonId = 's' . str_pad($lastSeasonNum + 1, 2, '0', STR_PAD_LEFT);
 $nextPreSeasonId = 'ps' . str_pad($lastPreSeasonNum + 1, 2, '0', STR_PAD_LEFT);
 
-// Scoring system definitions
-$scoringSystems = [
-    'preseason' => [
-        'name' => 'Pre-Season (Casual)',
-        'description' => 'Simple average with 10% drop - for off-season play',
-        'icon' => '🌟'
-    ],
-    'average_attendance' => [
-        'name' => 'Average + Attendance (Legacy)',
-        'description' => 'Average GP score with attendance bonuses and drop mechanics',
-        'icon' => '📊'
-    ],
-    'cup_based' => [
-        'name' => 'Best Score on All Cups',
-        'description' => 'Sum of best scores across all required cups (12 or 24)',
-        'icon' => '🏆'
-    ],
-    'best_n_gps' => [
-        'name' => 'Best N GPs (Accumulated)',
-        'description' => 'Sum of your best N GP scores, drop all others',
-        'icon' => '⭐'
-    ],
-    'drop_worst' => [
-        'name' => 'Drop Worst Cups',
-        'description' => 'Play all cups, drop X worst scores',
-        'icon' => '🗑️'
-    ],
-    'perfect_hunt' => [
-        'name' => 'Perfect Hunt (Multipliers)',
-        'description' => 'Bonus multipliers for perfect 60 scores',
-        'icon' => '💎'
-    ],
-    'top_12_unique' => [
-        'name' => 'Top 12 Unique',
-        'description' => 'Best 12 GPs from 12 separate cups. Tiebreaker: most 60s in unique cups',
-        'icon' => '🎯'
-    ],
-    'random_cup_draw' => [
-        'name' => 'Random Cup Draw',
-        'description' => 'Each player assigned random cups to complete',
-        'icon' => '🎲'
-    ],
-    'black_box' => [
-        'name' => 'Black Box',
-        'description' => 'Opaque scoring. Players cannot see the formula. Equalizer mechanics active.',
-        'icon' => '⬛'
-    ]
-];
+// Scoring system definitions — derived from the canonical registry in
+// gp_logic.php. This keeps the admin dropdowns and the public /scoring +
+// /index labels using the *same* names and descriptions. Previously
+// each location maintained its own copy and they drifted. One source of
+// truth, no sync needed.
+$scoringSystems = [];
+foreach (getScoringSystemRegistry() as $key => $def) {
+    // Resolve dynamic name/description (some use closures keyed on $rules
+    // to inject the configured value — we pass an empty rules array to
+    // surface the default copy).
+    $scoringSystems[$key] = [
+        'name'             => is_callable($def['name'])        ? ($def['name'])([])        : $def['name'],
+        'description'      => is_callable($def['description']) ? ($def['description'])([]) : $def['description'],
+        'long_description' => $def['long_description'] ?? '',
+        'icon'             => $def['icon'],
+    ];
+}
 
 $pageTitle = "Manage Seasons";
 $extraCss = '<link rel="stylesheet" href="/assets/css/admin.css">';
@@ -337,7 +451,10 @@ include __DIR__ . '/../../private/templates/header.php';
     </div>
 
     <!-- Existing Seasons -->
-    <?php foreach ($allSeasons as $sid):
+    <?php
+    $seasonsWithResults = array_flip($resultSeasons);
+    foreach ($allSeasons as $sid):
+        $isEmpty = !isset($seasonsWithResults[$sid]);
         $meta = $metaData[$sid] ?? [
             'status' => 'active',
             'scoring_system' => 'average_attendance',
@@ -444,7 +561,7 @@ include __DIR__ . '/../../private/templates/header.php';
                     <!-- System-Specific Fields -->
                     <div id="fields-<?= $sid ?>-preseason" class="scoring-fields" style="<?= $meta['scoring_system'] === 'preseason' ? '' : 'display:none;' ?>">
                         <h4 class="subsection-title">Pre-Season Settings</h4>
-                        <p class="info-text">Pre-season uses simple average with 10% worst scores dropped. No configuration needed.</p>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['preseason']['long_description']) ?></p>
                     </div>
 
                     <div id="fields-<?= $sid ?>-average_attendance" class="scoring-fields" style="<?= $meta['scoring_system'] === 'average_attendance' ? '' : 'display:none;' ?>">
@@ -536,18 +653,111 @@ include __DIR__ . '/../../private/templates/header.php';
 
                     <div id="fields-<?= $sid ?>-top_12_unique" class="scoring-fields" style="<?= $meta['scoring_system'] === 'top_12_unique' ? '' : 'display:none;' ?>">
                         <h4 class="subsection-title">Top 12 Unique Settings</h4>
-                        <p class="info-text">Cumulative score from the best 12 GPs, each from a different cup. Tiebreaker: most perfect 60 scores in unique cups.</p>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['top_12_unique']['long_description']) ?></p>
                     </div>
 
                     <div id="fields-<?= $sid ?>-random_cup_draw" class="scoring-fields" style="<?= $meta['scoring_system'] === 'random_cup_draw' ? '' : 'display:none;' ?>">
                         <h4 class="subsection-title">Random Cup Draw Settings</h4>
-                        <p class="info-text">Each player will be assigned a random set of cups at season start.</p>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['random_cup_draw']['long_description']) ?></p>
                     </div>
 
                     <div id="fields-<?= $sid ?>-black_box" class="scoring-fields" style="<?= $meta['scoring_system'] === 'black_box' ? '' : 'display:none;' ?>">
                         <h4 class="subsection-title">⬛ Black Box Settings</h4>
                         <p class="info-text info-text--warning">ADMIN EYES ONLY. Players see "Black Box Score" — no formula, no breakdown, no explanation.</p>
-                        <p class="info-text">The formula applies diminishing returns to high scorers, momentum bonuses for improvement streaks, "chaos points" seeded from race dates, and a comeback multiplier that scales inversely with historical average. The net effect: the leaderboard will feel plausible but unpredictable, and lower-ranked players will punch above their weight.</p>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['black_box']['long_description']) ?></p>
+                    </div>
+
+                    <div id="fields-<?= $sid ?>-monster_hunt" class="scoring-fields" style="<?= $meta['scoring_system'] === 'monster_hunt' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">👹 MONSTER HUNT Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['monster_hunt']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Slay XP (base)</label>
+                                <input type="number" name="mh_slay_xp" value="<?= $meta['mh_slay_xp'] ?? 100 ?>" min="0" max="500">
+                                <small>Adventurer beats Monster (×CR mult)</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Survive XP</label>
+                                <input type="number" name="mh_survive_xp" value="<?= $meta['mh_survive_xp'] ?? 20 ?>" min="0" max="200">
+                                <small>Adventurer loses to Monster</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Party Bonus XP</label>
+                                <input type="number" name="mh_party_bonus_xp" value="<?= $meta['mh_party_bonus_xp'] ?? 50 ?>" min="0" max="200">
+                                <small>All adventurers beat Monster</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Best X Hunts</label>
+                                <input type="number" name="mh_best_x" value="<?= $meta['mh_best_x'] ?? 20 ?>" min="1" max="200">
+                                <small>Sum of top X GP XP results</small>
+                            </div>
+                        </div>
+                        <h4 class="subsection-title" style="margin-top:1rem;">Monster Payouts</h4>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Win XP (beat all)</label>
+                                <input type="number" name="mh_monster_win_xp" value="<?= $meta['mh_monster_win_xp'] ?? 80 ?>" min="0" max="300">
+                            </div>
+                            <div class="form-field">
+                                <label>Partial XP (beat some)</label>
+                                <input type="number" name="mh_monster_partial_xp" value="<?= $meta['mh_monster_partial_xp'] ?? 30 ?>" min="0" max="200">
+                            </div>
+                            <div class="form-field">
+                                <label>Loss XP (Full Slay — monster wiped)</label>
+                                <input type="number" name="mh_monster_loss_xp" value="<?= $meta['mh_monster_loss_xp'] ?? -40 ?>" min="-200" max="0">
+                                <small>Can be negative</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="fields-<?= $sid ?>-bounty_hunter" class="scoring-fields" style="<?= $meta['scoring_system'] === 'bounty_hunter' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🎯 Bounty Hunter Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['bounty_hunter']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Bounty Multiplier</label>
+                                <input type="number" step="0.1" name="bh_multiplier" value="<?= $meta['bh_multiplier'] ?? 1.0 ?>" min="0.1" max="5.0">
+                                <small>Scales raw Elo-gap → points</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Carrying Cost</label>
+                                <select name="bh_carrying_cost">
+                                    <option value="0" <?= empty($meta['bh_carrying_cost']) ? 'selected' : '' ?>>Off (just collect)</option>
+                                    <option value="1" <?= !empty($meta['bh_carrying_cost']) ? 'selected' : '' ?>>On (your bounty subtracts)</option>
+                                </select>
+                                <small>Hurts strong racers who farm the weak</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Reset Cadence</label>
+                                <select name="bh_weekly_reset">
+                                    <option value="0" <?= empty($meta['bh_weekly_reset']) ? 'selected' : '' ?>>Season-long</option>
+                                    <option value="1" <?= !empty($meta['bh_weekly_reset']) ? 'selected' : '' ?>>Weekly (reserved)</option>
+                                </select>
+                                <small>Weekly reset is reserved for future use</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="fields-<?= $sid ?>-pari_mutuel" class="scoring-fields" style="<?= $meta['scoring_system'] === 'pari_mutuel' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🐎 Pari-Mutuel Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['pari_mutuel']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Ante (pts per GP)</label>
+                                <input type="number" name="pm_ante" value="<?= $meta['pm_ante'] ?? 100 ?>" min="1" max="1000">
+                                <small>Each racer pays this into the pot</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Payout Curve</label>
+                                <select name="pm_payout_preset">
+                                    <?php $pmPreset = $meta['pm_payout_preset'] ?? 'steep'; ?>
+                                    <option value="steep"  <?= $pmPreset === 'steep'  ? 'selected' : '' ?>>Steep (50/30/15/5)</option>
+                                    <option value="medium" <?= $pmPreset === 'medium' ? 'selected' : '' ?>>Medium (top 7 paid)</option>
+                                    <option value="flat"   <?= $pmPreset === 'flat'   ? 'selected' : '' ?>>Flat (top 9 paid)</option>
+                                </select>
+                                <small>Steep = winner-takes-most. Flat = everyone breaks even.</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -569,9 +779,99 @@ include __DIR__ . '/../../private/templates/header.php';
                     <button type="submit" name="action" value="activate" class="btn btn-secondary">
                         🔓 Re-Open Season
                     </button>
+                    <button type="submit" name="action" value="snapshot_mikkoliiga" class="btn btn-secondary"
+                            onclick="return confirm('Re-freeze Mikkoliiga roster for <?= htmlspecialchars(strtoupper($sid)) ?> using the CURRENT member flags? This overwrites any existing snapshot for this season.');">
+                        🌟 Re-snapshot Mikkoliiga
+                    </button>
+                <?php endif; ?>
+
+                <?php if($isEmpty): ?>
+                    <button type="submit" name="action" value="delete_season" class="btn btn-danger"
+                            onclick="return confirm('Delete season <?= htmlspecialchars(strtoupper($sid)) ?>? This removes the rules row; no race results exist for it.');">
+                        🗑️ Delete Empty Season
+                    </button>
                 <?php endif; ?>
             </div>
         </form>
+
+        <?php
+        // ── Teams block (constructor season layer) — outside the config form
+        //    because team CRUD uses its own small forms. ──
+        $seasonTeams   = getTeamConfig($pdo, $sid);
+        $seasonRacers  = getActiveRacers($pdo, $sid);
+        usort($seasonRacers, fn($a, $b) => strcmp($a['name'], $b['name']));
+        $assignedRids  = [];
+        foreach ($seasonTeams as $stm) foreach ($stm['members'] as $rid => $n) $assignedRids[$rid] = true;
+        $unassigned    = array_filter($seasonRacers, fn($r) => !isset($assignedRids[(int)$r['id']]));
+        ?>
+        <?php $seasonBestN = (int)($meta['team_best_n'] ?? TEAM_BEST_N); ?>
+        <details class="season-teams" <?= !empty($seasonTeams) ? 'open' : '' ?>>
+            <summary>🤝 Teams <span class="season-teams-count"><?= count($seasonTeams) ?> team<?= count($seasonTeams) === 1 ? '' : 's' ?></span></summary>
+            <p class="info-text">Constructor scoring: each GP a team banks its best <strong><?= $seasonBestN ?></strong> members' points. Public standings at <a href="/teams?season=<?= htmlspecialchars($sid) ?>" target="_blank">/teams</a>. Configuring teams here makes <?= htmlspecialchars(strtoupper($sid)) ?> a teams season (cards show on the homepage when it's active).</p>
+
+            <form method="POST" class="season-team-bestn">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="set_team_best_n">
+                <input type="hidden" name="season_id" value="<?= htmlspecialchars($sid) ?>">
+                <label>Best <input type="number" name="team_best_n" value="<?= $seasonBestN ?>" min="1" max="12"> members count per GP</label>
+                <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+            </form>
+
+            <?php foreach ($seasonTeams as $team): ?>
+                <div class="season-team" style="border-left-color: <?= htmlspecialchars($team['color']) ?>;">
+                    <div class="season-team-head">
+                        <span class="season-team-dot" style="background: <?= htmlspecialchars($team['color']) ?>;"></span>
+                        <strong><?= htmlspecialchars($team['name']) ?></strong>
+                        <span class="season-team-n"><?= count($team['members']) ?></span>
+                        <form method="POST" class="season-team-del" onsubmit="return confirm('Delete team <?= htmlspecialchars($team['name']) ?>?');">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="delete_team">
+                            <input type="hidden" name="season_id" value="<?= htmlspecialchars($sid) ?>">
+                            <input type="hidden" name="team_id" value="<?= (int)$team['id'] ?>">
+                            <button type="submit" title="Delete team">✕</button>
+                        </form>
+                    </div>
+                    <div class="season-team-members">
+                        <?php foreach ($team['members'] as $rid => $mname): ?>
+                            <span class="season-member-chip">
+                                <?= htmlspecialchars($mname) ?>
+                                <form method="POST" style="display:inline;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="remove_team_member">
+                                    <input type="hidden" name="season_id" value="<?= htmlspecialchars($sid) ?>">
+                                    <input type="hidden" name="racer_id" value="<?= (int)$rid ?>">
+                                    <button type="submit" title="Remove">×</button>
+                                </form>
+                            </span>
+                        <?php endforeach; ?>
+                        <?php if (empty($team['members'])): ?><span class="season-member-empty">no members yet</span><?php endif; ?>
+                    </div>
+                    <?php if (!empty($unassigned)): ?>
+                        <form method="POST" class="season-team-add">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="add_team_member">
+                            <input type="hidden" name="season_id" value="<?= htmlspecialchars($sid) ?>">
+                            <input type="hidden" name="team_id" value="<?= (int)$team['id'] ?>">
+                            <select name="racer_id" onchange="this.form.submit()">
+                                <option value="">+ add racer…</option>
+                                <?php foreach ($unassigned as $u): ?>
+                                    <option value="<?= (int)$u['id'] ?>"><?= htmlspecialchars($u['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+
+            <form method="POST" class="season-team-create">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="create_team">
+                <input type="hidden" name="season_id" value="<?= htmlspecialchars($sid) ?>">
+                <input type="text" name="team_name" placeholder="New team name" required>
+                <input type="color" name="team_color" value="var(--nintendo-red)" title="Team colour">
+                <button type="submit" class="btn btn-secondary btn-sm">+ Add team</button>
+            </form>
+        </details>
     </div>
     <?php endforeach; ?>
 
@@ -681,11 +981,46 @@ include __DIR__ . '/../../private/templates/header.php';
                     </div>
 
                     <div id="new-fields-top_12_unique" class="scoring-fields scoring-fields-hidden">
-                        <p class="info-text">Cumulative score from the best 12 GPs, each from a different cup. Tiebreaker: most perfect 60 scores in unique cups.</p>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['top_12_unique']['long_description']) ?></p>
                     </div>
 
                     <div id="new-fields-black_box" class="scoring-fields scoring-fields-hidden">
                         <p class="info-text info-text--warning">Players will only see "Black Box Score" — the formula is hidden.</p>
+                    </div>
+
+                    <div id="new-fields-monster_hunt" class="scoring-fields scoring-fields-hidden">
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Slay XP (base)</label>
+                                <input type="number" name="mh_slay_xp" value="100" min="0" max="500">
+                                <small>Adventurer beats Monster (×CR)</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Survive XP</label>
+                                <input type="number" name="mh_survive_xp" value="20" min="0" max="200">
+                            </div>
+                            <div class="form-field">
+                                <label>Party Bonus XP</label>
+                                <input type="number" name="mh_party_bonus_xp" value="50" min="0" max="200">
+                            </div>
+                            <div class="form-field">
+                                <label>Monster Win XP</label>
+                                <input type="number" name="mh_monster_win_xp" value="80" min="0" max="300">
+                            </div>
+                            <div class="form-field">
+                                <label>Monster Partial XP</label>
+                                <input type="number" name="mh_monster_partial_xp" value="30" min="0" max="200">
+                            </div>
+                            <div class="form-field">
+                                <label>Monster Loss XP</label>
+                                <input type="number" name="mh_monster_loss_xp" value="-40" min="-200" max="0">
+                            </div>
+                            <div class="form-field">
+                                <label>Best X Hunts</label>
+                                <input type="number" name="mh_best_x" value="20" min="1" max="200">
+                                <small>Sum of top X GP XP results</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -780,23 +1115,27 @@ function renderSimStandings(standings, system) {
         return;
     }
 
+    const isMonsterHunt = system === 'monster_hunt';
+
     let html = `<table class="admin-table sim-table">
         <thead><tr>
-            <th>#</th><th>Racer</th><th>Score</th><th>GPs</th><th>Avg</th><th>Best</th><th>Worst</th><th>Delta</th>
+            <th>#</th><th>Racer</th><th>Score</th>
+            ${isMonsterHunt ? '<th>Title</th><th>Lv</th><th>Total XP</th>' : '<th>GPs</th><th>Avg</th><th>Best</th><th>Worst</th>'}
+            <th>Delta</th>
         </tr></thead><tbody>`;
 
     const topScore = standings[0].score;
     standings.forEach((s, i) => {
         const delta = i === 0 ? '—' : '-' + (topScore - s.score).toFixed(1);
         const rowClass = i === 0 ? 'class="sim-row-leader"' : (i <= 2 ? 'class="sim-row-podium"' : '');
+        const extraCols = isMonsterHunt
+            ? `<td>${s.mh_title ?? '—'}</td><td>${s.mh_level ?? '—'}</td><td>${s.mh_total_xp ?? '—'}</td>`
+            : `<td>${s.gps}</td><td>${s.avg}</td><td>${s.best}</td><td>${s.worst}</td>`;
         html += `<tr ${rowClass}>
             <td>${s.rank}</td>
             <td><strong>${s.name}</strong></td>
             <td class="sim-score">${s.score}</td>
-            <td>${s.gps}</td>
-            <td>${s.avg}</td>
-            <td>${s.best}</td>
-            <td>${s.worst}</td>
+            ${extraCols}
             <td class="sim-delta">${delta}</td>
         </tr>`;
     });

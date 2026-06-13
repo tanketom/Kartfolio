@@ -18,9 +18,7 @@ $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';
 // ============================================================
 $currentSeason = getCurrentSeasonNumber();
 
-$seasonStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$seasonStmt->execute([$currentSeason]);
-$seasonMeta = $seasonStmt->fetch(PDO::FETCH_ASSOC);
+$seasonMeta = getSeasonRules($pdo, $currentSeason);
 
 $elo = calculateAllELORatings($pdo);
 $eloRatings   = $elo['ratings'];       // ['Name' => float]
@@ -118,17 +116,9 @@ foreach ($seasonRacers as $racer) {
         ORDER BY race_date DESC, gpid DESC
     ");
     $streakStmt->execute([$racerId, $currentSeason . '%']);
-    $streakResults = $streakStmt->fetchAll(PDO::FETCH_COLUMN);
-    $winStreak = 0;
-    foreach ($streakResults as $rank) {
-        if ((int)$rank === 1) { $winStreak++; } else { break; }
-    }
-
-    // ----- Podium Streak (consecutive rank<=3 from most recent) -----
-    $podiumStreak = 0;
-    foreach ($streakResults as $rank) {
-        if ((int)$rank <= 3) { $podiumStreak++; } else { break; }
-    }
+    $streakResults = array_reverse(array_map(fn($r) => ['rank' => (int)$r], $streakStmt->fetchAll(PDO::FETCH_COLUMN)));
+    $winStreaks    = calculateStreaks($streakResults, 'win');
+    $podiumStreaks = calculateStreaks($streakResults, 'podium');
 
     $rankings[] = [
         'id'              => $racerId,
@@ -140,8 +130,8 @@ foreach ($seasonRacers as $racer) {
         'cons_norm'       => round($consNorm, 1),
         'power_score'     => round($powerScore, 1),
         'char'            => $mainChar,
-        'win_streak'      => $winStreak,
-        'podium_streak'   => $podiumStreak,
+        'win_streak'      => $winStreaks['current'],
+        'podium_streak'   => $podiumStreaks['current'],
         'gps_played'      => count($streakResults),
         'movement'        => 0,      // populated below
         'rank_pos'        => 0,      // populated below
@@ -362,6 +352,7 @@ include __DIR__ . '/../private/templates/header.php';
 
 <?php if (!empty($rankings)): ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js" integrity="sha384-hfkuqrKeWFmnTMWN31VWyoe8xgdTADD11kgxmdpx2uyE6j5Az5uZq6u6AKYYmAOw" crossorigin="anonymous"></script>
+<script>Chart.defaults.color = "#6b6453"; Chart.defaults.borderColor = "#e8e0cc";</script>
 <script>
 (function() {
     // ================================================================
@@ -369,7 +360,7 @@ include __DIR__ . '/../private/templates/header.php';
     // ================================================================
     const allRankings = <?= json_encode($rankings) ?>;
     const topN = allRankings.slice(0, Math.min(3, allRankings.length));
-    const radarColors = ['#E60012', '#0066CC', '#2EBD59'];
+    const radarColors = ['var(--nintendo-red)', '#0066CC', '#2EBD59'];
 
     if (topN.length > 0 && document.getElementById('pwr-radar')) {
         // Compute dynamic min so close values are visually distinguishable
@@ -454,11 +445,11 @@ include __DIR__ . '/../private/templates/header.php';
                     status.style.color = '#2EBD59';
                 } else {
                     status.textContent = 'Error: ' + (data.error || 'Unknown error');
-                    status.style.color = '#E60012';
+                    status.style.color = 'var(--nintendo-red)';
                 }
             } catch(e) {
                 status.textContent = 'Failed to connect to API.';
-                status.style.color = '#E60012';
+                status.style.color = 'var(--nintendo-red)';
             }
             btn.disabled = false;
         });

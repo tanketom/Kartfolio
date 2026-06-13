@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
+require_once __DIR__ . '/../private/includes/programs.php';
 
 $currentSeason = getCurrentSeasonNumber();
 $pageTitle = "Broadcast Archive - Kartfolio";
@@ -20,21 +21,9 @@ $stmt = $pdo->prepare("SELECT * FROM recap_archive ORDER BY created_at DESC");
 $stmt->execute();
 $recaps = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 2. Program Definitions (Label + Image Mapping)
-$programs = [
-    "core_team" => ["label" => "Kart Core Team", "img" => "program_core_team.png"],
-    "reef_dispatch" => ["label" => "Reef’s Dispatch", "img" => "program_reef_dispatch.png"],
-    "meta_report" => ["label" => "The Meta Report", "img" => "program_meta_report.png"],
-    "the_rant" => ["label" => "The Rant", "img" => "program_the_rant.png"],
-    "ghost_racer" => ["label" => "The Ghost Racer’s Ascent", "img" => "program_ghost_racer.png"],
-    "situated_spectator" => ["label" => "The Situated Spectator", "img" => "program_situated_spectator.png"],
-    "viberacing" => ["label" => "Viberacing", "img" => "program_viberacing.png"],
-    "random" => ["label" => "🎲 Surprise Me", "img" => "program_default.png"]
-];
-
-function getProgramInfo($key, $map) {
-    return $map[$key] ?? ["label" => "Unknown Broadcast", "img" => "program_default.png"];
-}
+// 2. Program Definitions — pull from shared catalog (programs.php)
+$programs   = getProgramsCatalog();
+$aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
 ?>
 
 <div class="container stats-container">
@@ -60,7 +49,7 @@ function getProgramInfo($key, $map) {
             <div class="admin-input-group">
                 <label>Select Program</label>
                 <select name="program" class="admin-select">
-                    <?php foreach ($programs as $val => $data): ?>
+                    <?php foreach ($aiPrograms as $val => $data): ?>
                         <option value="<?= $val ?>"><?= $data['label'] ?></option>
                     <?php endforeach; ?>
                 </select>
@@ -70,6 +59,35 @@ function getProgramInfo($key, $map) {
                 <textarea name="notes" placeholder="Specify focus, time range, or length (e.g. 'Tom's dominance', 'last 3 days', '500 words', 'short', 'detailed')..." class="admin-textarea"></textarea>
             </div>
             <button type="submit" class="btn-generate">Broadcast Now</button>
+        </form>
+    </section>
+
+    <section class="admin-ecology-box admin-press-box">
+        <div class="ecology-status">
+            <div class="press-indicator"></div>
+            <h2>📰 OMK Press Office</h2>
+        </div>
+        <p>Publish a news item directly — no AI, no generation, no Director's Notes. What you type is what gets published.</p>
+
+        <form action="/api/press-release" method="POST" class="admin-gen-form">
+            <?= csrf_field() ?>
+            <div class="admin-input-group">
+                <label>Headline</label>
+                <input type="text" name="headline" maxlength="200" required class="admin-select" placeholder="e.g. OMK confirms s03 finals schedule">
+            </div>
+            <div class="admin-input-group">
+                <label>Key Quote (optional — shown as the pull quote on cards)</label>
+                <input type="text" name="key_quote" maxlength="300" class="admin-select" placeholder="A short attention-grabbing line">
+            </div>
+            <div class="admin-input-group">
+                <label>Body</label>
+                <textarea name="body" required class="admin-textarea" placeholder="The full press release text. Plain text — line breaks are preserved."></textarea>
+            </div>
+            <div class="admin-input-group">
+                <label>Linked GPIDs (optional, comma-separated — e.g. s03gp14, s03gp15)</label>
+                <input type="text" name="linked_gpids" class="admin-select" placeholder="s03gp14, s03gp15">
+            </div>
+            <button type="submit" class="btn-generate btn-publish">📢 Publish</button>
         </form>
     </section>
     <?php endif; ?>
@@ -88,7 +106,7 @@ function getProgramInfo($key, $map) {
             <?php foreach ($recaps as $r): 
                 // Determine Program Identity
                 $pKey = $r['program_key'] ?? 'core_team'; // Fallback for old records
-                $pInfo = getProgramInfo($pKey, $programs);
+                $pInfo = getProgramInfo($pKey);
             ?>
                 <div class="archive-card-wrapper">
                     <a href="/view-recap/<?= $r['id'] ?>" class="archive-card">
@@ -119,12 +137,12 @@ function getProgramInfo($key, $map) {
 
 <style>
     .archive-header { margin-bottom: 40px; text-align: center; padding-top: 20px; }
-    .archive-header h1 { font-size: 3rem; font-style: italic; font-weight: 900; text-transform: uppercase; margin: 0; color: #111; }
+    .archive-header h1 { font-size: 3rem; font-style: italic; font-weight: 900; text-transform: uppercase; margin: 0; color: var(--gray-900); }
     .archive-header p { color: #888; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; font-size: 0.8rem; }
 
     /* Admin Box */
     .admin-ecology-box { 
-        background: white; padding: 40px; border-radius: 12px; margin-bottom: 50px; 
+        background: var(--gray-50); padding: 40px; border-radius: 12px; margin-bottom: 50px; 
         box-shadow: var(--card-shadow); border-left: 10px solid var(--nintendo-red);
     }
     .ecology-status { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
@@ -133,16 +151,23 @@ function getProgramInfo($key, $map) {
     .ecology-status h2 { margin: 0; font-size: 1.2rem; text-transform: uppercase; font-weight: 900; }
     .admin-gen-form { display: grid; gap: 20px; }
     .admin-input-group label { display: block; font-size: 0.75rem; font-weight: 900; text-transform: uppercase; color: #888; margin-bottom: 8px; }
-    .admin-select, .admin-textarea { width: 100%; padding: 12px; border: 1px solid #eee; border-radius: 6px; font-family: inherit; font-size: 0.9rem; background: #f9f9f9; }
+    .admin-select, .admin-textarea { width: 100%; padding: 12px; border: 1px solid var(--gray-200); border-radius: 6px; font-family: inherit; font-size: 0.9rem; background: var(--gray-100); }
     .admin-textarea { height: 80px; resize: vertical; }
     .btn-generate { background: #111; color: white; border: none; padding: 15px; border-radius: 6px; font-weight: 900; text-transform: uppercase; cursor: pointer; transition: background 0.2s; }
     .btn-generate:hover { background: var(--nintendo-red); }
 
+    /* OMK Press Office (hand-written news, no AI) */
+    .admin-press-box { border-left-color: #0066CC; }
+    .press-indicator { width: 12px; height: 12px; background: #0066CC; border-radius: 2px; box-shadow: 0 0 8px rgba(0, 102, 204, 0.6); }
+    .btn-publish { background: #0066CC; }
+    .btn-publish:hover { background: #004999; }
+    .admin-press-box .admin-textarea { height: 140px; }
+
     /* Archive Grid */
     .archive-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 30px; }
     .archive-card { 
-        background: white; padding: 30px; border-radius: 12px; text-decoration: none; color: inherit;
-        box-shadow: var(--card-shadow); transition: transform 0.2s, box-shadow 0.2s; border: 1px solid #eee;
+        background: var(--gray-50); padding: 30px; border-radius: 12px; text-decoration: none; color: inherit;
+        box-shadow: var(--card-shadow); transition: transform 0.2s, box-shadow 0.2s; border: 1px solid var(--gray-200);
         display: flex; flex-direction: column;
     }
     .archive-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); border-color: var(--nintendo-red); }
@@ -150,12 +175,12 @@ function getProgramInfo($key, $map) {
     /* New Byline Styles */
     .archive-meta-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #f5f5f5; padding-bottom: 10px; }
     .program-identity { display: flex; align-items: center; gap: 10px; }
-    .program-mini-icon { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid #eee; }
-    .program-name { font-size: 0.8rem; font-weight: 800; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
-    .archive-date { font-size: 0.75rem; color: #aaa; font-weight: 600; }
+    .program-mini-icon { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gray-200); }
+    .program-name { font-size: 0.8rem; font-weight: 800; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.5px; }
+    .archive-date { font-size: 0.75rem; color: var(--gray-500); font-weight: 600; }
 
-    .archive-headline { font-size: 1.6rem; font-weight: 900; line-height: 1.2; margin: 0 0 15px 0; color: #111; }
-    .archive-quote { font-family: 'Georgia', serif; font-style: italic; color: #555; font-size: 1.1rem; line-height: 1.5; border-left: 4px solid #eee; padding-left: 15px; margin-bottom: 20px; flex: 1; }
+    .archive-headline { font-size: 1.6rem; font-weight: 900; line-height: 1.2; margin: 0 0 15px 0; color: var(--gray-900); }
+    .archive-quote { font-family: 'Georgia', serif; font-style: italic; color: var(--gray-700); font-size: 1.1rem; line-height: 1.5; border-left: 4px solid var(--gray-200); padding-left: 15px; margin-bottom: 20px; flex: 1; }
     .read-more-link { font-weight: 900; color: var(--nintendo-red); font-size: 0.8rem; text-transform: uppercase; align-self: flex-start; }
     
     @media (max-width: 768px) {
@@ -206,7 +231,7 @@ function getProgramInfo($key, $map) {
         opacity: 1;
     }
     .archive-delete-btn:hover {
-        background: #e60012;
+        background: var(--nintendo-red);
         transform: scale(1.1);
     }
 

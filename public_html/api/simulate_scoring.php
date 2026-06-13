@@ -48,39 +48,31 @@ if (empty($racers)) {
 
 // Build simulated rules array (mimics season_meta row structure)
 $rules = [
-    'scoring_system' => $system,
-    'attendance_weight' => 1.0,
-    'weekly_bonus_cap' => 2,
-    'min_races_threshold' => 3,
-    'drop_rate' => 10,
-    'cups_required' => 12,
-    'allow_retries' => 1,
-    'best_n_count' => $bestN,
-    'drop_worst_count' => $dropWorst,
-    'perfect_multiplier' => $perfectMult,
+    'scoring_system'       => $system,
+    'attendance_weight'    => 1.0,
+    'weekly_bonus_cap'     => 2,
+    'min_races_threshold'  => 3,
+    'drop_rate'            => 10,
+    'cups_required'        => 12,
+    'allow_retries'        => 1,
+    'best_n_count'         => $bestN,
+    'drop_worst_count'     => $dropWorst,
+    'perfect_multiplier'   => $perfectMult,
+    // MONSTER HUNT defaults
+    'mh_slay_xp'           => (int)($_GET['mh_slay_xp']           ?? 100),
+    'mh_survive_xp'        => (int)($_GET['mh_survive_xp']         ?? 20),
+    'mh_party_bonus_xp'    => (int)($_GET['mh_party_bonus_xp']     ?? 50),
+    'mh_monster_win_xp'    => (int)($_GET['mh_monster_win_xp']     ?? 80),
+    'mh_monster_partial_xp'=> (int)($_GET['mh_monster_partial_xp'] ?? 30),
+    'mh_monster_loss_xp'   => (int)($_GET['mh_monster_loss_xp']    ?? -40),
+    'mh_min_gps'           => (int)($_GET['mh_min_gps']            ?? 6),
 ];
 
-// Route to the correct scoring function based on system
+// Route to the correct scoring function via the shared registry.
 function simulateScore($pdo, $racerId, $seasonId, $system, $rules) {
-    switch ($system) {
-        case 'preseason':
-            return calculatePreSeasonScore($pdo, $racerId, $seasonId, $rules);
-        case 'cup_based':
-            return calculateCupBasedScore($pdo, $racerId, $seasonId, $rules);
-        case 'best_n_gps':
-            return calculateBestNGPsScore($pdo, $racerId, $seasonId, $rules);
-        case 'drop_worst':
-            return calculateDropWorstScore($pdo, $racerId, $seasonId, $rules);
-        case 'perfect_hunt':
-            return calculatePerfectHuntScore($pdo, $racerId, $seasonId, $rules);
-        case 'top_12_unique':
-            return calculateTop12UniqueScore($pdo, $racerId, $seasonId, $rules);
-        case 'black_box':
-            return calculateBlackBoxScore($pdo, $racerId, $seasonId, $rules);
-        case 'average_attendance':
-        default:
-            return calculateAverageAttendanceScore($pdo, $racerId, $seasonId, $rules);
-    }
+    $def = getScoringSystemDef($system);
+    $fn  = $def['calculate'];
+    return $fn($pdo, $racerId, $seasonId, $rules);
 }
 
 // Calculate scores
@@ -98,14 +90,21 @@ foreach ($racers as $racer) {
     $statsStmt->execute([$racer['id'], $season . '%']);
     $stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
 
-    $standings[] = [
-        'name' => $racer['name'],
+    $entry = [
+        'name'  => $racer['name'],
         'score' => round((float)$score, 2),
-        'gps' => $gpCount,
-        'avg' => round((float)$stats['avg_pts'], 1),
-        'best' => (int)$stats['best'],
+        'gps'   => $gpCount,
+        'avg'   => round((float)$stats['avg_pts'], 1),
+        'best'  => (int)$stats['best'],
         'worst' => (int)$stats['worst'],
     ];
+    if ($system === 'monster_hunt') {
+        $mhData = getMonsterHuntDisplayData($pdo, $racer['id'], $season, $rules);
+        $entry['mh_title']    = $mhData['title'];
+        $entry['mh_level']    = $mhData['level'];
+        $entry['mh_total_xp'] = $mhData['total_xp'];
+    }
+    $standings[] = $entry;
 }
 
 // Sort by score descending

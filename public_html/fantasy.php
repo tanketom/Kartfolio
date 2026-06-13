@@ -9,10 +9,11 @@
  *   3. Prop Bets – Yes/No predictions about the week
  *
  * Predictors can be registered racers OR guest names.
- * Runs Friday 18:00 → Friday 18:00.
+ * Runs Sunday 18:00 → Sunday 18:00.
  */
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
+require_once __DIR__ . '/../private/includes/elo_engine.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
 
 // ============================================================
@@ -42,13 +43,17 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS fantasy_bets (
     bet_type TEXT NOT NULL,
     bet_key TEXT NOT NULL,
     bet_value TEXT NOT NULL,
+    confidence INTEGER NOT NULL DEFAULT 1,
     points_earned INTEGER DEFAULT NULL,
     submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(week_key, predictor_id, bet_type, bet_key)
 )");
+// Inline migration for existing DBs (idempotent).
+try { $pdo->exec("ALTER TABLE fantasy_bets ADD COLUMN confidence INTEGER NOT NULL DEFAULT 1"); }
+catch (PDOException $e) {}
 
 // ============================================================
-// 2. Timing – Friday-to-Friday window
+// 2. Timing – Sunday-to-Sunday window
 // ============================================================
 $currentSeason = getCurrentSeasonNumber();
 $now = new DateTime();
@@ -56,15 +61,12 @@ $dayOfWeek = (int)$now->format('N');
 $currentHour = (int)$now->format('H');
 
 $deadline = clone $now;
-if ($dayOfWeek < 5 || ($dayOfWeek === 5 && $currentHour < 18)) {
-    $deadline->modify('friday this week');
+if ($dayOfWeek < 7 || ($dayOfWeek === 7 && $currentHour < 18)) {
+    $deadline->modify('Sunday this week');
 } else {
-    $deadline->modify('next friday');
+    $deadline->modify('next Sunday');
 }
 $deadline->setTime(18, 0, 0);
-
-$windowOpen = clone $deadline;
-$windowOpen->modify('-7 days');
 
 $submissionsOpen = $now < $deadline;
 $deadlineFormatted = $deadline->format('l, M j \a\t g:i A');
@@ -186,11 +188,11 @@ if ($srCount >= 2) {
         ];
     }
 
-    // Prop 3: Over/Under on total GPs played this week
+    // Prop 3: LOL alert — does a LOL-flagged race happen?
     $propBets[] = [
-        'key' => 'gps_over_3',
-        'label' => 'More than 3 GPs are played this week',
-        'description' => 'The group plays 4 or more Grand Prix before the deadline',
+        'key' => 'lol_alert',
+        'label' => 'A LOL race happens this week',
+        'description' => 'At least one GP this week is flagged as a LOL race',
     ];
 
     // Prop 4: Underdog podium
@@ -244,6 +246,54 @@ function getPredictorName($pdo, $predictorId, $racerNameMap) {
     return $row['guest_name'] ?: 'Unknown';
 }
 
+/** Insert a bet, skipping silently on duplicate. Returns true if inserted. */
+function insertBet($pdo, $weekKey, $predictorId, $betType, $betKey, $betValue, $confidence = 1) {
+    $conf = max(1, min(3, (int)$confidence)); // clamp 1..3
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO fantasy_bets (week_key, predictor_id, bet_type, bet_key, bet_value, confidence) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$weekKey, $predictorId, $betType, $betKey, $betValue, $conf]);
+    return $stmt->rowCount() > 0;
+}
+
+/**
+ * Confidence multiplier semantics:
+ *   - Correct pick: base × confidence
+ *   - Wrong pick:   -(ceil(base / 2)) × confidence  (you risked it; you wear it)
+ *   - Push (H2H tie): unchanged, 1 point (tie doesn't reward conviction)
+ */
+function confidenceScore(int $base, int $confidence, bool $correct, bool $push = false): int {
+    if ($push) return 1;
+    $confidence = max(1, min(3, $confidence));
+    if ($correct) return $base * $confidence;
+    if ($base === 0) return 0;
+    return -((int)ceil($base / 2)) * $confidence;
+}
+
+/** Human-readable confidence chip ('light' / 'medium' / 'lock'). */
+function confidenceLabel(int $confidence): string {
+    return ['light', 'medium', 'lock'][max(1, min(3, $confidence)) - 1];
+}
+
+/** Emit the 3-pill confidence picker for a given form field name. */
+function renderConfidencePicker(string $fieldName): void {
+    ?>
+    <fieldset class="fan-conf-picker">
+        <legend class="fan-conf-legend">Confidence</legend>
+        <label class="fan-conf-pill">
+            <input type="radio" name="<?= htmlspecialchars($fieldName) ?>" value="1" checked>
+            <span class="fan-conf-chip" data-level="1">Light ×1</span>
+        </label>
+        <label class="fan-conf-pill">
+            <input type="radio" name="<?= htmlspecialchars($fieldName) ?>" value="2">
+            <span class="fan-conf-chip" data-level="2">Medium ×2</span>
+        </label>
+        <label class="fan-conf-pill">
+            <input type="radio" name="<?= htmlspecialchars($fieldName) ?>" value="3">
+            <span class="fan-conf-chip" data-level="3">🔒 Lock ×3</span>
+        </label>
+    </fieldset>
+    <?php
+}
+
 // ============================================================
 // 5. Page mode
 // ============================================================
@@ -279,48 +329,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'submit') {
 
             // MVP pick
             $mvpPick = intval($_POST['mvp_pick'] ?? 0);
+            $mvpConf = (int)($_POST['mvp_pick_conf'] ?? 1);
             if ($mvpPick > 0) {
-                $dupCheck = $pdo->prepare("SELECT COUNT(*) FROM fantasy_bets WHERE week_key = ? AND predictor_id = ? AND bet_type = 'mvp'");
-                $dupCheck->execute([$weekKey, $predictorId]);
-                if ($dupCheck->fetchColumn() > 0) {
-                    $dupeCount++;
-                } else {
-                    $ins = $pdo->prepare("INSERT INTO fantasy_bets (week_key, predictor_id, bet_type, bet_key, bet_value) VALUES (?, ?, 'mvp', 'weekly_mvp', ?)");
-                    $ins->execute([$weekKey, $predictorId, $mvpPick]);
-                    $betCount++;
-                }
+                insertBet($pdo, $weekKey, $predictorId, 'mvp', 'weekly_mvp', $mvpPick, $mvpConf)
+                    ? $betCount++ : $dupeCount++;
+            }
+
+            // ELO climber pick
+            $eloPick = intval($_POST['elo_gain_pick'] ?? 0);
+            $eloConf = (int)($_POST['elo_gain_pick_conf'] ?? 1);
+            if ($eloPick > 0) {
+                insertBet($pdo, $weekKey, $predictorId, 'elo_gain', 'top_climber', $eloPick, $eloConf)
+                    ? $betCount++ : $dupeCount++;
             }
 
             // H2H picks
             foreach ($h2hMatchups as $idx => $matchup) {
-                $h2hVal = intval($_POST['h2h_' . $idx] ?? 0);
+                $h2hVal  = intval($_POST['h2h_' . $idx] ?? 0);
+                $h2hConf = (int)($_POST['h2h_' . $idx . '_conf'] ?? 1);
                 if ($h2hVal > 0) {
                     $betKey = 'h2h_' . $matchup['a']['id'] . '_' . $matchup['b']['id'];
-                    $dupCheck = $pdo->prepare("SELECT COUNT(*) FROM fantasy_bets WHERE week_key = ? AND predictor_id = ? AND bet_type = 'h2h' AND bet_key = ?");
-                    $dupCheck->execute([$weekKey, $predictorId, $betKey]);
-                    if ($dupCheck->fetchColumn() > 0) {
-                        $dupeCount++;
-                    } else {
-                        $ins = $pdo->prepare("INSERT INTO fantasy_bets (week_key, predictor_id, bet_type, bet_key, bet_value) VALUES (?, ?, 'h2h', ?, ?)");
-                        $ins->execute([$weekKey, $predictorId, $betKey, $h2hVal]);
-                        $betCount++;
-                    }
+                    insertBet($pdo, $weekKey, $predictorId, 'h2h', $betKey, $h2hVal, $h2hConf)
+                        ? $betCount++ : $dupeCount++;
                 }
             }
 
             // Prop bets
             foreach ($propBets as $prop) {
-                $propVal = $_POST['prop_' . $prop['key']] ?? '';
+                $propVal  = $_POST['prop_' . $prop['key']] ?? '';
+                $propConf = (int)($_POST['prop_' . $prop['key'] . '_conf'] ?? 1);
                 if ($propVal === 'yes' || $propVal === 'no') {
-                    $dupCheck = $pdo->prepare("SELECT COUNT(*) FROM fantasy_bets WHERE week_key = ? AND predictor_id = ? AND bet_type = 'prop' AND bet_key = ?");
-                    $dupCheck->execute([$weekKey, $predictorId, $prop['key']]);
-                    if ($dupCheck->fetchColumn() > 0) {
-                        $dupeCount++;
-                    } else {
-                        $ins = $pdo->prepare("INSERT INTO fantasy_bets (week_key, predictor_id, bet_type, bet_key, bet_value) VALUES (?, ?, 'prop', ?, ?)");
-                        $ins->execute([$weekKey, $predictorId, $prop['key'], $propVal]);
-                        $betCount++;
-                    }
+                    insertBet($pdo, $weekKey, $predictorId, 'prop', $prop['key'], $propVal, $propConf)
+                        ? $betCount++ : $dupeCount++;
                 }
             }
 
@@ -377,11 +417,29 @@ if ($mode === 'score' && isset($_SESSION['is_admin']) && $_SESSION['is_admin']) 
                 $anyPerfect60 = false;
                 $leaderWonGP = false;
                 $underdogPodium = false;
-                $leaderId = !empty($standings) ? $standings[0]['id'] : 0;
-                $underdogId = $srCount >= 4 ? $standings[$srCount - 1]['id'] : 0;
+                $anyLol = false;
+
+                // Derive leader/underdog from the season actually played this week,
+                // not the current season (which may differ for historical weeks).
+                $weekSeasonId = preg_replace('/gp\d+$/', '', $weekGPs[0]); // e.g. 's01' from 's01gp59'
+                if ($weekSeasonId !== $currentSeason) {
+                    $wsRacerStmt = $pdo->prepare("SELECT DISTINCT r.id, r.name FROM racers r JOIN results res ON r.id = res.racer_id WHERE res.gpid LIKE ?");
+                    $wsRacerStmt->execute([$weekSeasonId . '%']);
+                    $wsRacers = $wsRacerStmt->fetchAll(PDO::FETCH_ASSOC);
+                    $wsStandings = [];
+                    foreach ($wsRacers as $r) {
+                        $wsStandings[] = ['id' => $r['id'], 'score' => calculateGPScore($pdo, $r['id'], $weekSeasonId)];
+                    }
+                    usort($wsStandings, fn($a, $b) => $b['score'] <=> $a['score']);
+                    $scoringStandings = $wsStandings;
+                } else {
+                    $scoringStandings = $standings;
+                }
+                $leaderId = !empty($scoringStandings) ? $scoringStandings[0]['id'] : 0;
+                $underdogId = count($scoringStandings) >= 4 ? $scoringStandings[count($scoringStandings) - 1]['id'] : 0;
 
                 foreach ($weekGPs as $gp) {
-                    $resStmt = $pdo->prepare("SELECT racer_id, rank, gp_points FROM results WHERE gpid = ?");
+                    $resStmt = $pdo->prepare("SELECT racer_id, rank, gp_points, is_lol FROM results WHERE gpid = ?");
                     $resStmt->execute([$gp]);
                     $rows = $resStmt->fetchAll(PDO::FETCH_ASSOC);
                     foreach ($rows as $row) {
@@ -391,8 +449,24 @@ if ($mode === 'score' && isset($_SESSION['is_admin']) && $_SESSION['is_admin']) 
                         if ((int)$row['gp_points'] >= 60) $anyPerfect60 = true;
                         if ($rid === $leaderId && (int)$row['rank'] === 1) $leaderWonGP = true;
                         if ($rid === $underdogId && (int)$row['rank'] <= 3) $underdogPodium = true;
+                        if (!empty($row['is_lol'])) $anyLol = true;
                     }
                 }
+
+                // Biggest ELO climber of the week (sum ELO changes across weekGPs)
+                $weekGPsSet  = array_flip($weekGPs);
+                $eloData     = calculateAllELORatings($pdo);
+                $nameToId    = [];
+                foreach ($allRacersFull as $r) { $nameToId[$r['name']] = (int)$r['id']; }
+                $eloGainsById = [];
+                foreach ($eloData['all_changes'] as $chg) {
+                    if (!isset($weekGPsSet[$chg['gpid']])) continue;
+                    $rid = $nameToId[$chg['racer']] ?? 0;
+                    if (!$rid) continue;
+                    $eloGainsById[$rid] = ($eloGainsById[$rid] ?? 0) + $chg['change'];
+                }
+                arsort($eloGainsById);
+                $topClimberId = $eloGainsById ? (int)array_key_first($eloGainsById) : 0;
 
                 // Find best form: highest average PPG (not total)
                 $weeklyAverages = [];
@@ -409,10 +483,15 @@ if ($mode === 'score' && isset($_SESSION['is_admin']) && $_SESSION['is_admin']) 
 
                 $scoredPredictors = [];
                 foreach ($allBets as $bet) {
-                    $points = null;
+                    $points     = null;
+                    $confidence = (int)($bet['confidence'] ?? 1);
 
                     if ($bet['bet_type'] === 'mvp') {
-                        $points = ((int)$bet['bet_value'] === $actualMvpId) ? 5 : 0;
+                        $correct = ((int)$bet['bet_value'] === $actualMvpId);
+                        $points  = confidenceScore(5, $confidence, $correct);
+                    } elseif ($bet['bet_type'] === 'elo_gain') {
+                        $correct = ($topClimberId && (int)$bet['bet_value'] === $topClimberId);
+                        $points  = confidenceScore(4, $confidence, $correct);
                     } elseif ($bet['bet_type'] === 'h2h') {
                         // Parse h2h_A_B key — compare by average PPG, not total
                         preg_match('/h2h_(\d+)_(\d+)/', $bet['bet_key'], $m);
@@ -423,9 +502,10 @@ if ($mode === 'score' && isset($_SESSION['is_admin']) && $_SESSION['is_admin']) 
                             $pickedId = (int)$bet['bet_value'];
                             if (abs($aAvg - $bAvg) > 0.01) {
                                 $winnerId = ($aAvg > $bAvg) ? $aId : $bId;
-                                $points = ($pickedId === $winnerId) ? 3 : 0;
+                                $correct  = ($pickedId === $winnerId);
+                                $points   = confidenceScore(3, $confidence, $correct);
                             } else {
-                                $points = 1; // Push: 1 point for tie
+                                $points = confidenceScore(3, $confidence, false, true); // push
                             }
                         }
                     } elseif ($bet['bet_type'] === 'prop') {
@@ -433,11 +513,13 @@ if ($mode === 'score' && isset($_SESSION['is_admin']) && $_SESSION['is_admin']) 
                         switch ($bet['bet_key']) {
                             case 'perfect_60': $outcome = $anyPerfect60; break;
                             case 'leader_wins_gp': $outcome = $leaderWonGP; break;
+                            case 'lol_alert': $outcome = $anyLol; break;
                             case 'gps_over_3': $outcome = ($gpCount > 3); break;
                             case 'underdog_podium': $outcome = $underdogPodium; break;
                         }
                         $betYes = ($bet['bet_value'] === 'yes');
-                        $points = (($betYes && $outcome) || (!$betYes && !$outcome)) ? 2 : 0;
+                        $correct = (($betYes && $outcome) || (!$betYes && !$outcome));
+                        $points  = confidenceScore(2, $confidence, $correct);
                     }
 
                     if ($points !== null) {
@@ -475,17 +557,25 @@ if ($mode === 'score' && isset($_SESSION['is_admin']) && $_SESSION['is_admin']) 
 // 8. Leaderboard data
 // ============================================================
 $leaderboard = [];
-$weekHistory = [];
+
+// Week history needed in leaderboard, score mode, and admin score form
+$whStmt = $pdo->query("SELECT week_key, deadline, scored FROM fantasy_weeks ORDER BY week_key DESC");
+$weekHistory = $whStmt->fetchAll(PDO::FETCH_ASSOC);
 
 if ($mode === 'leaderboard') {
-    // Aggregate leaderboard across all weeks
+    // Aggregate leaderboard across all weeks. Hit/total counts ignore push
+    // results (points_earned = 1 on H2H tie) and only count strict positives.
     $lbStmt = $pdo->query("
         SELECT fp.id as predictor_id, fp.racer_id, fp.guest_name,
                COALESCE(SUM(fb.points_earned), 0) as total_points,
                COUNT(DISTINCT fb.week_key) as weeks_played,
                SUM(CASE WHEN fb.bet_type = 'mvp' AND fb.points_earned > 0 THEN 1 ELSE 0 END) as mvp_hits,
                SUM(CASE WHEN fb.bet_type = 'h2h' AND fb.points_earned >= 3 THEN 1 ELSE 0 END) as h2h_hits,
-               SUM(CASE WHEN fb.bet_type = 'prop' AND fb.points_earned > 0 THEN 1 ELSE 0 END) as prop_hits
+               SUM(CASE WHEN fb.bet_type = 'prop' AND fb.points_earned > 0 THEN 1 ELSE 0 END) as prop_hits,
+               SUM(CASE WHEN fb.points_earned > 0 THEN 1 ELSE 0 END) as total_hits,
+               SUM(CASE WHEN fb.points_earned IS NOT NULL AND fb.points_earned != 1 THEN 1 ELSE 0 END) as graded_bets,
+               SUM(CASE WHEN fb.confidence = 3 THEN 1 ELSE 0 END) as locks_made,
+               SUM(CASE WHEN fb.confidence = 3 AND fb.points_earned > 0 THEN 1 ELSE 0 END) as locks_hit
         FROM fantasy_predictors fp
         JOIN fantasy_bets fb ON fp.id = fb.predictor_id
         WHERE fb.points_earned IS NOT NULL
@@ -493,6 +583,14 @@ if ($mode === 'leaderboard') {
         ORDER BY total_points DESC
     ");
     $leaderboard = $lbStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Compute accuracy %.
+    foreach ($leaderboard as &$lb) {
+        $lb['accuracy_pct'] = (int)$lb['graded_bets'] > 0
+            ? round((int)$lb['total_hits'] / (int)$lb['graded_bets'] * 100)
+            : 0;
+    }
+    unset($lb);
 
     // Fill display names
     foreach ($leaderboard as &$lb) {
@@ -503,10 +601,6 @@ if ($mode === 'leaderboard') {
         }
     }
     unset($lb);
-
-    // Week history
-    $whStmt = $pdo->query("SELECT week_key, deadline, scored FROM fantasy_weeks ORDER BY week_key DESC");
-    $weekHistory = $whStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // ============================================================
@@ -549,7 +643,7 @@ include __DIR__ . '/../private/templates/header.php';
         <?php if ($submissionsOpen): ?>
         <p class="fan-deadline fan-deadline-open">&#9200; Predictions open &mdash; <?= $timeRemainingStr ?> until <?= $deadlineFormatted ?></p>
         <?php else: ?>
-        <p class="fan-deadline fan-deadline-locked">&#128274; Predictions locked &mdash; next window opens Friday at 6 PM</p>
+        <p class="fan-deadline fan-deadline-locked">&#128274; Predictions locked &mdash; next window opens Sunday at 6 PM</p>
         <?php endif; ?>
     </div>
 
@@ -574,6 +668,8 @@ include __DIR__ . '/../private/templates/header.php';
                         <th>Predictor</th>
                         <th>Points</th>
                         <th>Weeks</th>
+                        <th>Accuracy</th>
+                        <th title="Confidence-3 picks that hit / total locks">Locks</th>
                         <th>MVPs</th>
                         <th>H2H</th>
                         <th>Props</th>
@@ -586,6 +682,8 @@ include __DIR__ . '/../private/templates/header.php';
                         <td><strong><?= htmlspecialchars($lb['display_name']) ?></strong></td>
                         <td class="txt-center fan-points-val"><?= (int)$lb['total_points'] ?></td>
                         <td class="txt-center"><?= (int)$lb['weeks_played'] ?></td>
+                        <td class="txt-center"><?= (int)$lb['accuracy_pct'] ?>%</td>
+                        <td class="txt-center"><?= (int)$lb['locks_hit'] ?>/<?= (int)$lb['locks_made'] ?></td>
                         <td class="txt-center"><?= (int)$lb['mvp_hits'] ?></td>
                         <td class="txt-center"><?= (int)$lb['h2h_hits'] ?></td>
                         <td class="txt-center"><?= (int)$lb['prop_hits'] ?></td>
@@ -643,7 +741,7 @@ include __DIR__ . '/../private/templates/header.php';
             <?php foreach ($weekHistory as $wh): ?>
             <?php
                 $whBets = $pdo->prepare("
-                    SELECT fb.predictor_id, fb.bet_type, fb.bet_key, fb.bet_value, fb.points_earned,
+                    SELECT fb.predictor_id, fb.bet_type, fb.bet_key, fb.bet_value, fb.confidence, fb.points_earned,
                            fp.racer_id, fp.guest_name
                     FROM fantasy_bets fb
                     JOIN fantasy_predictors fp ON fb.predictor_id = fp.id
@@ -689,12 +787,15 @@ include __DIR__ . '/../private/templates/header.php';
                             <?php foreach ($wg['bets'] as $bet): ?>
                             <span class="fan-hist-pick">
                                 <?php if ($bet['points_earned'] !== null): ?>
-                                <span class="fan-hist-icon <?= $bet['points_earned'] > 0 ? 'fan-hit' : 'fan-miss' ?>"><?= $bet['points_earned'] > 0 ? 'Y' : 'N' ?></span>
+                                <span class="fan-hist-icon <?= $bet['points_earned'] > 0 ? 'fan-hit' : ($bet['points_earned'] < 0 ? 'fan-miss' : 'fan-push') ?>"><?= $bet['points_earned'] > 0 ? 'Y' : ($bet['points_earned'] < 0 ? 'N' : '=') ?></span>
                                 <?php endif; ?>
                                 <?php
+                                    $conf  = (int)($bet['confidence'] ?? 1);
                                     $label = '';
                                     if ($bet['bet_type'] === 'mvp') {
                                         $label = 'Best Form: ' . ($racerNameMap[(int)$bet['bet_value']] ?? '?');
+                                    } elseif ($bet['bet_type'] === 'elo_gain') {
+                                        $label = 'ELO Climber: ' . ($racerNameMap[(int)$bet['bet_value']] ?? '?');
                                     } elseif ($bet['bet_type'] === 'h2h') {
                                         $label = 'H2H: ' . ($racerNameMap[(int)$bet['bet_value']] ?? '?');
                                     } elseif ($bet['bet_type'] === 'prop') {
@@ -702,6 +803,14 @@ include __DIR__ . '/../private/templates/header.php';
                                     }
                                 ?>
                                 <?= htmlspecialchars($label) ?>
+                                <?php if ($conf >= 2): ?>
+                                    <span class="fan-conf-badge fan-conf-badge--<?= confidenceLabel($conf) ?>" title="<?= ucfirst(confidenceLabel($conf)) ?> confidence (×<?= $conf ?>)">
+                                        <?= $conf === 3 ? '🔒' : '×' . $conf ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php if ($bet['points_earned'] !== null): ?>
+                                    <span class="fan-pts-readout"><?= ($bet['points_earned'] > 0 ? '+' : '') . (int)$bet['points_earned'] ?></span>
+                                <?php endif; ?>
                             </span>
                             <?php endforeach; ?>
                         </div>
@@ -743,7 +852,7 @@ include __DIR__ . '/../private/templates/header.php';
         <div class="fan-deadline-banner fan-deadline-banner-locked">
             <span>&#128274;</span>
             <div>
-                <strong>Submissions closed!</strong> Next window opens Friday at 6:00 PM.
+                <strong>Submissions closed!</strong> Next window opens Sunday at 6:00 PM.
             </div>
         </div>
         <?php endif; ?>
@@ -784,9 +893,28 @@ include __DIR__ . '/../private/templates/header.php';
                     <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?> (avg: <?= $racerForm[$s['id']] ?? 0 ?> pts)</option>
                     <?php endforeach; ?>
                 </select>
+                <?php renderConfidencePicker('mvp_pick_conf'); ?>
             </div>
 
-            <!-- Section 2: Head-to-Head Matchups -->
+            <!-- Section 2: Biggest ELO Climber -->
+            <?php if (!empty($eloClimberCandidates)): ?>
+            <div class="fan-bet-section">
+                <div class="fan-bet-header">
+                    <h3 class="fan-bet-title">&#128200; Biggest ELO Climber</h3>
+                    <span class="fan-pts-badge">4 pts</span>
+                </div>
+                <p class="fan-bet-desc">Who gains the most ELO across this week's GPs? Upsets, beating higher-rated racers, and strong recoveries all pay off here.</p>
+                <select name="elo_gain_pick" class="fan-select">
+                    <option value="">Pick the week's biggest climber...</option>
+                    <?php foreach ($standings as $s): ?>
+                    <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <?php renderConfidencePicker('elo_gain_pick_conf'); ?>
+            </div>
+            <?php endif; ?>
+
+            <!-- Section 3: Head-to-Head Matchups -->
             <?php if (!empty($h2hMatchups)): ?>
             <div class="fan-bet-section">
                 <div class="fan-bet-header">
@@ -807,12 +935,13 @@ include __DIR__ . '/../private/templates/header.php';
                         <span class="fan-h2h-name"><?= htmlspecialchars($matchup['b']['name']) ?></span>
                         <span class="fan-h2h-form">avg <?= $racerForm[$matchup['b']['id']] ?? 0 ?></span>
                     </label>
+                    <?php renderConfidencePicker('h2h_' . $idx . '_conf'); ?>
                 </div>
                 <?php endforeach; ?>
             </div>
             <?php endif; ?>
 
-            <!-- Section 3: Prop Bets -->
+            <!-- Section 4: Prop Bets -->
             <?php if (!empty($propBets)): ?>
             <div class="fan-bet-section">
                 <div class="fan-bet-header">
@@ -833,6 +962,7 @@ include __DIR__ . '/../private/templates/header.php';
                             <span class="fan-prop-no">No</span>
                         </label>
                     </div>
+                    <?php renderConfidencePicker('prop_' . $prop['key'] . '_conf'); ?>
                 </div>
                 <?php endforeach; ?>
             </div>

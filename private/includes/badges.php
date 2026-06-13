@@ -3,15 +3,123 @@
  * Badge Logic - Achievements & Playstyle Analysis
  * Path: /cdnmk/private/includes/badges.php
  */
+require_once __DIR__ . '/gp_logic.php';
+require_once __DIR__ . '/mk_data.php';
+
+/**
+ * Season- and career-wide data shared by every racer's badge computation,
+ * built once per (season) per request. Previously these were re-run as
+ * separate queries inside getRacerBadges for EACH racer — on a leaderboard
+ * with N racers that meant 6+ identical season queries × N, plus an O(N²)
+ * Black Box pass (every racer's BB score recomputed inside every racer's
+ * badge call). Memoised here so each underlying query runs once.
+ */
+function badgeSeasonContext($pdo, $season_id) {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+
+    $like = $season_id . '%';
+
+    // — Highest single-racer attendance this season (badge 14, Longevity) —
+    $st = $pdo->prepare("SELECT COUNT(*) AS c FROM results WHERE gpid LIKE ? GROUP BY racer_id ORDER BY c DESC LIMIT 1");
+    $st->execute([$like]);
+    $highestAttendance = (int)$st->fetchColumn();
+
+    // — First GP of the season + who raced in it (badge 33, Early Bird) —
+    $st = $pdo->prepare("SELECT gpid FROM results WHERE gpid LIKE ? ORDER BY race_date ASC, id ASC LIMIT 1");
+    $st->execute([$like]);
+    $firstGpId = $st->fetchColumn() ?: null;
+    $firstGpRacers = [];
+    if ($firstGpId) {
+        $st = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid = ?");
+        $st->execute([$firstGpId]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) $firstGpRacers[(int)$rid] = true;
+    }
+
+    // — Current season leader by total points, min 3 GPs (badge 34, Giant Killer) —
+    $st = $pdo->prepare("
+        SELECT racer_id FROM (
+            SELECT racer_id, COUNT(*) as gp_count FROM results WHERE gpid LIKE ? GROUP BY racer_id HAVING gp_count >= 3
+        ) qualified
+        ORDER BY (SELECT SUM(gp_points) FROM results WHERE racer_id = qualified.racer_id AND gpid LIKE ?) DESC
+        LIMIT 1
+    ");
+    $st->execute([$like, $like]);
+    $leaderId = (int)$st->fetchColumn();
+
+    // Racers who finished ahead of the leader in any GP this season.
+    $beatLeader = [];
+    if ($leaderId) {
+        $st = $pdo->prepare("
+            SELECT DISTINCT a.racer_id FROM results a
+            JOIN results b ON a.gpid = b.gpid
+            WHERE b.racer_id = ? AND a.gpid LIKE ? AND a.rank < b.rank
+        ");
+        $st->execute([$leaderId, $like]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) $beatLeader[(int)$rid] = true;
+    }
+
+    // — Season scoring system (gates MONSTER HUNT badges) —
+    $st = $pdo->prepare("SELECT scoring_system FROM season_meta WHERE season_id = ?");
+    $st->execute([$season_id]);
+    $scoringSystem = $st->fetchColumn() ?: null;
+
+    // — Black Box leader this season (badge 43). One pass over all racers,
+    //   replacing the per-racer O(N²) recompute. —
+    $st = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid LIKE ? AND gpid LIKE 's%'");
+    $st->execute([$like]);
+    $bbScores = [];
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) {
+        $score = calculateBlackBoxScore($pdo, (int)$rid, $season_id, []);
+        if ($score > 0) $bbScores[(int)$rid] = $score;
+    }
+    $bbLeaderId = null;
+    if (!empty($bbScores)) { arsort($bbScores); $bbLeaderId = (int)array_key_first($bbScores); }
+
+    // — Career-wide maps (season-independent), batched one query each —
+    $careerCups = [];          // racer_id => [cup_name, ...]
+    foreach ($pdo->query("SELECT DISTINCT racer_id, cup_name FROM results")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if ($r['cup_name'] !== null) $careerCups[(int)$r['racer_id']][] = $r['cup_name'];
+    }
+    $careerPerfectCups = [];   // racer_id => [cup_name with a 60, ...]
+    foreach ($pdo->query("SELECT DISTINCT racer_id, cup_name FROM results WHERE gp_points = 60")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if ($r['cup_name'] !== null) $careerPerfectCups[(int)$r['racer_id']][] = $r['cup_name'];
+    }
+    $careerChars = [];         // racer_id => [character_used, ...]
+    foreach ($pdo->query("SELECT DISTINCT racer_id, character_used FROM results")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if ($r['character_used'] !== null) $careerChars[(int)$r['racer_id']][] = $r['character_used'];
+    }
+    $prevSeasonCount = [];     // racer_id => count of s00 results
+    foreach ($pdo->query("SELECT racer_id, COUNT(*) AS c FROM results WHERE gpid LIKE 's00%' GROUP BY racer_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $prevSeasonCount[(int)$r['racer_id']] = (int)$r['c'];
+    }
+    $seasonsPlayed = [];       // racer_id => distinct season count (career)
+    foreach ($pdo->query("SELECT racer_id, COUNT(DISTINCT SUBSTR(gpid, 1, INSTR(gpid, 'g') - 1)) AS c FROM results WHERE gpid LIKE 's%' GROUP BY racer_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $seasonsPlayed[(int)$r['racer_id']] = (int)$r['c'];
+    }
+    $racerNames = $pdo->query("SELECT id, name FROM racers")->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    return $cache[$season_id] = compact(
+        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader',
+        'scoringSystem', 'bbLeaderId', 'careerCups', 'careerPerfectCups', 'careerChars',
+        'prevSeasonCount', 'seasonsPlayed', 'racerNames'
+    );
+}
 
 function getRacerBadges($pdo, $racer_id, $season_id) {
     $badges = [];
+    $racer_id = (int)$racer_id;
+    $ctx = badgeSeasonContext($pdo, $season_id);
 
-    // 1. Fetch data sorted by date (important for streak logic)
-    $stmt = $pdo->prepare("SELECT * FROM results WHERE racer_id = ? AND gpid LIKE ? ORDER BY race_date ASC, id ASC");
-    $stmt->execute([$racer_id, $season_id . "%"]);
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+    // 1. Season results, sorted by date (streak logic needs chronological order).
+    //    Served from the shared per-request season cache (gp_points ASC), so we
+    //    re-sort the slice to race_date ASC, id ASC — matching the old query.
+    $results = getRacerSeasonRows($pdo, $racer_id, $season_id);
+    usort($results, function ($a, $b) {
+        if ($a['race_date'] !== $b['race_date']) return strcmp($a['race_date'], $b['race_date']);
+        return (int)$a['id'] <=> (int)$b['id'];
+    });
+
     $totalRaces = count($results);
     if ($totalRaces < 3) return []; // Minimum races required to earn badges
 
@@ -33,15 +141,17 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     $perfect_cups = []; // Track which cups had a perfect 60 (for Perfectionist)
 
     // Character Groups
-    $babies = ['Baby Mario', 'Baby Luigi', 'Baby Peach', 'Baby Daisy', 'Baby Rosalina'];
-    $heavies = ['Bowser', 'Dry Bowser', 'Morton', 'Wario', 'Donkey Kong', 'Funky Kong'];
-    $spooky = ['Boo', 'Dry Bones', 'King Boo'];
-    $og_stars = ['Mario', 'Luigi', 'Peach', 'Daisy'];
-    $royals = ['Peach', 'Daisy', 'Rosalina'];
-    $fungi = ['Toad', 'Toadette', 'Peachette'];
-    $humans = ['Mii', 'Inkling Boy', 'Inkling Girl', 'Villager', 'Villager (M)', 'Villager (F)'];
-    $furry = ['Tanooki Mario', 'Cat Peach'];
-    $koopa_clan = ['Bowser', 'Dry Bowser', 'Bowser Jr.', 'Koopa Troopa', 'Lakitu', 'Larry', 'Roy', 'Wendy', 'Ludwig', 'Iggy', 'Morton', 'Lemmy', 'Kamek', 'Dry Bones'];
+    $groups    = getCharacterGroups();
+    $babies    = $groups['babies'];
+    $heavies   = $groups['heavies'];
+    $spooky    = $groups['spooky'];
+    $og_stars  = $groups['og_stars'];
+    $royals    = $groups['royals'];
+    $fungi     = $groups['fungi'];
+    $humans    = $groups['humans'];
+    $furry     = $groups['furry'];
+    $koopa_clan = $groups['koopa_clan'];
+    $reptiles  = $groups['reptiles'];
     $baby_count = 0;
     $heavy_count = 0;
     $standard_kart_count = 0;
@@ -55,6 +165,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     $human_count = 0;
     $furry_count = 0;
     $koopa_count = 0;
+    $reptile_count = 0;
 
     // Streak Logic
     $current_win_streak = 0;
@@ -65,6 +176,10 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     foreach ($results as $r) {
         $total_gp_points += $r['gp_points'];
         $gp_scores_by_date[] = $r['gp_points'];
+
+        // Normalise colour variants so group checks work regardless of colour:
+        // "Yoshi (Orange)" → "Yoshi", "Birdo (Blue)" → "Birdo"
+        $charNorm = normalizeCharacterName($r['character_used']);
 
         // Basic Counts
         if ($r['is_lol']) $lols++;
@@ -84,24 +199,25 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         if ($r['rank'] == 7) $sevenths++;
         if ($r['gp_points'] == 60) $perfect_games++;
 
-        // Arrays for Stats
+        // Arrays for Stats (keep original name for display / uniqueness)
         $chars[] = $r['character_used'];
         $ranks[] = $r['rank'];
         $karts[] = $r['kart_setup'];
         $raced_cups[] = $r['cup_name'];
         if ($r['gp_points'] == 60) $perfect_cups[] = $r['cup_name'];
 
-        // Archetype Checks
-        if (in_array($r['character_used'], $babies)) $baby_count++;
-        if (in_array($r['character_used'], $heavies)) $heavy_count++;
-        if (in_array($r['character_used'], $spooky)) $spooky_count++;
-        if (in_array($r['character_used'], $og_stars)) $og_stars_count++;
-        if (in_array($r['character_used'], $royals)) $royal_count++;
-        if ($r['character_used'] === 'Link') $link_count++;
-        if (in_array($r['character_used'], $fungi)) $fungi_count++;
-        if (in_array($r['character_used'], $humans)) $human_count++;
-        if (in_array($r['character_used'], $furry)) $furry_count++;
-        if (in_array($r['character_used'], $koopa_clan)) $koopa_count++;
+        // Archetype Checks (use normalised name so colour variants count correctly)
+        if (in_array($charNorm, $babies)) $baby_count++;
+        if (in_array($charNorm, $heavies)) $heavy_count++;
+        if (in_array($charNorm, $spooky)) $spooky_count++;
+        if (in_array($charNorm, $og_stars)) $og_stars_count++;
+        if (in_array($charNorm, $royals)) $royal_count++;
+        if ($charNorm === 'Link') $link_count++;
+        if (in_array($charNorm, $fungi)) $fungi_count++;
+        if (in_array($charNorm, $humans)) $human_count++;
+        if (in_array($charNorm, $furry)) $furry_count++;
+        if (in_array($charNorm, $koopa_clan)) $koopa_count++;
+        if (in_array($charNorm, $reptiles)) $reptile_count++;
         if (stripos($r['kart_setup'], 'Standard') !== false) $standard_kart_count++;
         if (stripos($r['kart_setup'], 'Bike') !== false) $bike_count++;
 
@@ -211,31 +327,18 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     }
 
     // 14. 🗓️ Longevity
-    $maxAttStmt = $pdo->prepare("SELECT COUNT(*) as c FROM results WHERE gpid LIKE ? GROUP BY racer_id ORDER BY c DESC LIMIT 1");
-    $maxAttStmt->execute([$season_id . "%"]);
-    $highestAttendance = $maxAttStmt->fetchColumn();
+    $highestAttendance = $ctx['highestAttendance'];
     if ($totalRaces >= $highestAttendance && $highestAttendance > 0) {
         $badges[] = ['icon' => '🗓️', 'title' => 'Longevity', 'desc' => 'Highest attendance record in the league.'];
     }
 
     // 15. 🏛️ Base 12 (Won all Base Game Cups)
-    $baseCupsList = [
-        'Mushroom', 'Flower', 'Star', 'Special',
-        'Shell', 'Banana', 'Leaf', 'Lightning',
-        'Egg', 'Triforce', 'Crossing', 'Bell'
-    ];
-    // Check if user has won ALL base cups (array_diff returns empty if won_cups contains all base cups)
-    if (empty(array_diff($baseCupsList, $won_cups_unique))) {
+    if (empty(array_diff(MK_BASE_CUPS, $won_cups_unique))) {
         $badges[] = ['icon' => '🏛️', 'title' => 'Base 12', 'desc' => 'Has won a Grand Prix in all 12 Base Game cups.'];
     }
 
-    // 16. 🚀 Booster\'s Dozen (Won all DLC Cups)
-    $boosterCupsList = [
-        'Golden Dash', 'Lucky Cat', 'Turnip', 'Propeller',
-        'Rock', 'Moon', 'Fruit', 'Boomerang',
-        'Feather', 'Cherry', 'Acorn', 'Spiny'
-    ];
-    if (empty(array_diff($boosterCupsList, $won_cups_unique))) {
+    // 16. 🚀 Booster's Dozen (Won all DLC Cups)
+    if (empty(array_diff(MK_BOOSTER_CUPS, $won_cups_unique))) {
         $badges[] = ['icon' => '🚀', 'title' => 'Booster\'s Dozen', 'desc' => 'Has won a Grand Prix in all 12 Booster Course Pass cups.'];
     }
 
@@ -311,25 +414,13 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     // --- NEW BADGES ---
 
     // 27. 🏅 Cup Collector — Raced in all 24 cups (any season, career)
-    $allCups = [
-        'Mushroom', 'Flower', 'Star', 'Special',
-        'Shell', 'Banana', 'Leaf', 'Lightning',
-        'Egg', 'Triforce', 'Crossing', 'Bell',
-        'Golden Dash', 'Lucky Cat', 'Turnip', 'Propeller',
-        'Rock', 'Moon', 'Fruit', 'Boomerang',
-        'Feather', 'Cherry', 'Acorn', 'Spiny'
-    ];
-    $careerCupsStmt = $pdo->prepare("SELECT DISTINCT cup_name FROM results WHERE racer_id = ?");
-    $careerCupsStmt->execute([$racer_id]);
-    $careerCups = $careerCupsStmt->fetchAll(PDO::FETCH_COLUMN);
-    if (empty(array_diff($allCups, $careerCups))) {
+    $careerCups = $ctx['careerCups'][$racer_id] ?? [];
+    if (empty(array_diff(getMKAllCups(), $careerCups))) {
         $badges[] = ['icon' => '🏅', 'title' => 'Cup Collector', 'desc' => 'Has raced in all 24 Mario Kart 8 Deluxe cups across their career.'];
     }
 
     // 28. 💎 Perfectionist — Perfect 60 in 3+ different cups (any season)
-    $careerPerfectCupsStmt = $pdo->prepare("SELECT DISTINCT cup_name FROM results WHERE racer_id = ? AND gp_points = 60");
-    $careerPerfectCupsStmt->execute([$racer_id]);
-    $careerPerfectCups = $careerPerfectCupsStmt->fetchAll(PDO::FETCH_COLUMN);
+    $careerPerfectCups = $ctx['careerPerfectCups'][$racer_id] ?? [];
     if (count($careerPerfectCups) >= 3) {
         $badges[] = ['icon' => '💎', 'title' => 'Perfectionist', 'desc' => 'Achieved a perfect 60 in 3+ different cups across their career.'];
     }
@@ -340,47 +431,20 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     }
 
     // 31. 🎖️ Old Guard — Participated in both s00 (pre-season) and current season
-    $prevSeasonStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE 's00%'");
-    $prevSeasonStmt->execute([$racer_id]);
-    $prevSeasonCount = (int)$prevSeasonStmt->fetchColumn();
+    $prevSeasonCount = $ctx['prevSeasonCount'][$racer_id] ?? 0;
     if ($prevSeasonCount > 0 && $season_id !== 's00') {
         $badges[] = ['icon' => '🎖️', 'title' => 'Old Guard', 'desc' => 'A veteran who raced in the pre-season and has returned.'];
     }
 
     // 33. 🐓 Early Bird — Participated in the first GP of this season
-    $firstGpStmt = $pdo->prepare("SELECT gpid FROM results WHERE gpid LIKE ? ORDER BY race_date ASC, id ASC LIMIT 1");
-    $firstGpStmt->execute([$season_id . '%']);
-    $firstGpId = $firstGpStmt->fetchColumn();
-    if ($firstGpId) {
-        $inFirstGpStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid = ?");
-        $inFirstGpStmt->execute([$racer_id, $firstGpId]);
-        if ((int)$inFirstGpStmt->fetchColumn() > 0) {
-            $badges[] = ['icon' => '🐓', 'title' => 'Early Bird', 'desc' => 'Participated in the very first GP of this season.'];
-        }
+    if (!empty($ctx['firstGpRacers'][$racer_id])) {
+        $badges[] = ['icon' => '🐓', 'title' => 'Early Bird', 'desc' => 'Participated in the very first GP of this season.'];
     }
 
     // 34. 🥊 Giant Killer — Beat the current season leader in a head-to-head GP
-    $leaderStmt = $pdo->prepare("
-        SELECT racer_id FROM (
-            SELECT racer_id, COUNT(*) as gp_count FROM results WHERE gpid LIKE ? GROUP BY racer_id HAVING gp_count >= 3
-        ) qualified
-        ORDER BY (
-            SELECT SUM(gp_points) FROM results WHERE racer_id = qualified.racer_id AND gpid LIKE ?
-        ) DESC
-        LIMIT 1
-    ");
-    $leaderStmt->execute([$season_id . '%', $season_id . '%']);
-    $leaderId = (int)$leaderStmt->fetchColumn();
-    if ($leaderId && $leaderId !== (int)$racer_id) {
-        $killedStmt = $pdo->prepare("
-            SELECT COUNT(*) FROM results a
-            JOIN results b ON a.gpid = b.gpid
-            WHERE a.racer_id = ? AND b.racer_id = ? AND a.gpid LIKE ? AND a.rank < b.rank
-        ");
-        $killedStmt->execute([$racer_id, $leaderId, $season_id . '%']);
-        if ((int)$killedStmt->fetchColumn() > 0) {
-            $badges[] = ['icon' => '🥊', 'title' => 'Giant Killer', 'desc' => 'Finished ahead of the current season leader in at least one GP.'];
-        }
+    $leaderId = $ctx['leaderId'];
+    if ($leaderId && $leaderId !== $racer_id && !empty($ctx['beatLeader'][$racer_id])) {
+        $badges[] = ['icon' => '🥊', 'title' => 'Giant Killer', 'desc' => 'Finished ahead of the current season leader in at least one GP.'];
     }
 
     // 36. 🌸 Princess Protocol — Mains exclusively Peach, Daisy, or Rosalina (50%+)
@@ -392,10 +456,10 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     $marioUniverse = ['Mario', 'Luigi', 'Peach', 'Daisy', 'Rosalina', 'Toad', 'Toadette',
         'Yoshi', 'Birdo', 'Wario', 'Waluigi', 'Donkey Kong', 'Bowser', 'Bowser Jr.',
         'Baby Mario', 'Baby Luigi', 'Baby Peach', 'Baby Daisy', 'Baby Rosalina'];
-    $careerCharsStmt = $pdo->prepare("SELECT DISTINCT character_used FROM results WHERE racer_id = ?");
-    $careerCharsStmt->execute([$racer_id]);
-    $careerChars = $careerCharsStmt->fetchAll(PDO::FETCH_COLUMN);
-    if (empty(array_diff($marioUniverse, $careerChars))) {
+    $careerChars = $ctx['careerChars'][$racer_id] ?? [];
+    // Normalise colour variants before comparing (e.g. "Yoshi (Orange)" → "Yoshi")
+    $careerCharsNorm = array_unique(array_map('normalizeCharacterName', $careerChars));
+    if (empty(array_diff($marioUniverse, $careerCharsNorm))) {
         $badges[] = ['icon' => '🏰', 'title' => 'Mushroom Kingdom', 'desc' => 'Has raced as every core Mario-universe character at their disposal.'];
     }
 
@@ -424,24 +488,195 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         $badges[] = ['icon' => '😈', 'title' => 'Koopa Klan', 'desc' => 'Mains Bowser and his crew in 50%+ of races. Embrace the dark side.'];
     }
 
-    // 43. ⬛ Black Box — Leader of the Black Box scoring system this season
-    require_once __DIR__ . '/gp_logic.php';
-    $bbAllStmt = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid LIKE ? AND gpid LIKE 's%'");
-    $bbAllStmt->execute([$season_id . '%']);
-    $bbAllRacers = $bbAllStmt->fetchAll(PDO::FETCH_COLUMN);
-    $bbScores = [];
-    foreach ($bbAllRacers as $rid) {
-        $score = calculateBlackBoxScore($pdo, $rid, $season_id, []);
-        if ($score > 0) {
-            $bbScores[$rid] = $score;
+    // ── Playstyle: Cold-Blooded ────────────────────────────────────────────────
+    if (($reptile_count / $totalRaces) >= 0.50) {
+        $badges[] = ['icon' => '🦎', 'title' => 'Cold-Blooded', 'desc' => 'Mains reptilian characters (Yoshi, Koopa Troopa, Bowser and kin) in 50%+ of races.'];
+    }
+
+    // ── Streaks ───────────────────────────────────────────────────────────────
+    // 🎩 Hat Trick — 3 GP wins in a row
+    if ($max_win_streak >= 3) {
+        $badges[] = ['icon' => '🎩', 'title' => 'Hat Trick', 'desc' => 'Won 3 Grand Prix events in a row.'];
+    }
+
+    // ↗️ Ascendant — improved finishing rank in 5 consecutive GPs
+    $maxImprovementStreak = 1;
+    $curImprovementStreak = 1;
+    for ($i = 1; $i < count($ranks); $i++) {
+        if ($ranks[$i] < $ranks[$i - 1]) {
+            $curImprovementStreak++;
+            if ($curImprovementStreak > $maxImprovementStreak) $maxImprovementStreak = $curImprovementStreak;
+        } else {
+            $curImprovementStreak = 1;
         }
     }
-    if (!empty($bbScores)) {
-        arsort($bbScores);
-        $bbLeaderId = array_key_first($bbScores);
-        if ((int)$bbLeaderId === (int)$racer_id) {
-            $badges[] = ['icon' => '⬛', 'title' => 'Black Box', 'desc' => 'The algorithm thinks you should be in the lead.'];
+    if ($maxImprovementStreak >= 5) {
+        $badges[] = ['icon' => '↗️', 'title' => 'Ascendant', 'desc' => 'Improved finishing rank in 5 consecutive Grand Prix events.'];
+    }
+
+    // ── Career ────────────────────────────────────────────────────────────────
+    // 🕰️ The Elder — competed in 3+ distinct seasons
+    if (($ctx['seasonsPlayed'][$racer_id] ?? 0) >= 3) {
+        $badges[] = ['icon' => '🕰️', 'title' => 'The Elder', 'desc' => 'Competed across 3 or more seasons.'];
+    }
+
+    // ── ELO-based badges ──────────────────────────────────────────────────────
+    if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/elo_engine.php';
+
+    $racerName = $ctx['racerNames'][$racer_id] ?? null;
+
+    if ($racerName) {
+        $changelog = getMonsterHuntEloChangelog($pdo);
+
+        // Collect season ELO entries for this racer, ordered by gpid
+        $seasonElo = [];
+        foreach ($changelog as $gpid => $gpData) {
+            if (strpos($gpid, $season_id) !== 0) continue;
+            if (!isset($gpData[$racerName])) continue;
+            $seasonElo[$gpid] = $gpData[$racerName]['old_elo'];
         }
+        ksort($seasonElo);
+
+        if (count($seasonElo) >= 2) {
+            $eloVals  = array_values($seasonElo);
+            $eloDelta = end($eloVals) - $eloVals[0];
+
+            // 🧗 The Climber
+            if ($eloDelta >= 100) {
+                $badges[] = ['icon' => '🧗', 'title' => 'The Climber', 'desc' => 'Gained 100+ Elo points during this season.'];
+            }
+            // 📉 The Fall
+            if ($eloDelta <= -100) {
+                $badges[] = ['icon' => '📉', 'title' => 'The Fall', 'desc' => 'Lost 100+ Elo points during this season.'];
+            }
+        }
+
+        // ⚡ Upset King — beat someone with 200+ higher Elo in 3+ GPs
+        $upsetCount = 0;
+        foreach ($changelog as $gpid => $gpData) {
+            if (strpos($gpid, $season_id) !== 0) continue;
+            if (!isset($gpData[$racerName])) continue;
+            $myElo  = $gpData[$racerName]['old_elo'];
+            $myRank = $gpData[$racerName]['rank'];
+            foreach ($gpData as $oName => $oData) {
+                if ($oName === $racerName) continue;
+                if ($oData['old_elo'] >= $myElo + 200 && $myRank < $oData['rank']) {
+                    $upsetCount++;
+                    break; // one upset per GP is enough
+                }
+            }
+        }
+        if ($upsetCount >= 3) {
+            $badges[] = ['icon' => '⚡', 'title' => 'Upset King', 'desc' => 'Finished ahead of a racer with 200+ higher Elo in 3 or more GPs.'];
+        }
+
+        // 🥶 Stone Cold — held the #1 Elo spot for 5+ consecutive GPs
+        $gpEloLeader = [];
+        foreach ($changelog as $gpid => $gpData) {
+            if (strpos($gpid, $season_id) !== 0) continue;
+            $topElo  = PHP_INT_MIN;
+            $topName = null;
+            foreach ($gpData as $n => $d) {
+                if ($d['old_elo'] > $topElo) { $topElo = $d['old_elo']; $topName = $n; }
+            }
+            $gpEloLeader[$gpid] = $topName;
+        }
+        ksort($gpEloLeader);
+        $scStreak = 0; $scMax = 0;
+        foreach ($gpEloLeader as $topName) {
+            if ($topName === $racerName) { $scStreak++; $scMax = max($scMax, $scStreak); }
+            else $scStreak = 0;
+        }
+        if ($scMax >= 5) {
+            $badges[] = ['icon' => '🥶', 'title' => 'Stone Cold', 'desc' => 'Held the #1 Elo ranking for 5 consecutive Grand Prix events.'];
+        }
+
+        // ── MONSTER HUNT badges (only for monster_hunt seasons) ───────────────
+        if ($ctx['scoringSystem'] === 'monster_hunt') {
+            $mhDragonSlayer  = false;
+            $mhHuntedCount   = 0;
+            $mhWipeCount     = 0;
+            $mhApexCount     = 0;
+            $mhUnderdogDone  = false;
+            $mhSurvivedCount = 0;
+
+            foreach ($changelog as $gpid => $gpData) {
+                if (strpos($gpid, $season_id) !== 0) continue;
+                if (!isset($gpData[$racerName])) continue;
+                if (count($gpData) < 2) continue;
+
+                // Identify Monster — respects is_monster flag from Add Score form
+                [$monsterName, $monsterElo] = pickMonster($gpid, $gpData, $pdo);
+                if ($monsterName === null) continue;
+                $monsterRank = $gpData[$monsterName]['rank'];
+
+                // CR tier
+                $advElos = [];
+                foreach ($gpData as $n => $d) { if ($n !== $monsterName) $advElos[] = $d['old_elo']; }
+                $avgAdv  = count($advElos) ? array_sum($advElos) / count($advElos) : $monsterElo;
+                $eloGap  = max(0, $monsterElo - $avgAdv);
+                $crTier  = $eloGap < 50 ? 1 : ($eloGap < 150 ? 2 : ($eloGap < 300 ? 3 : 4));
+
+                // Adventurer outcomes
+                $advWon = $advLost = 0;
+                foreach ($gpData as $n => $d) {
+                    if ($n === $monsterName) continue;
+                    if ($d['rank'] < $monsterRank) $advWon++; else $advLost++;
+                }
+                $fullSlay = ($advLost === 0 && $advWon > 0); // all adventurers beat Monster
+                $isTPK    = ($advWon === 0);                 // Monster beat all (TPK)
+
+                if ($racerName === $monsterName) {
+                    $mhHuntedCount++;
+                    if ($isTPK) $mhApexCount++;
+                } else {
+                    $myRank = $gpData[$racerName]['rank'];
+                    $iSlew  = $myRank < $monsterRank;
+                    if ($iSlew) {
+                        if ($crTier === 4) $mhDragonSlayer = true;
+                        if ($fullSlay)     $mhWipeCount++;
+                        // Underdog: slew Monster while having lowest Elo among adventurers
+                        if (!$mhUnderdogDone) {
+                            $myElo      = $gpData[$racerName]['old_elo'];
+                            $isLowest   = true;
+                            foreach ($gpData as $n => $d) {
+                                if ($n === $monsterName || $n === $racerName) continue;
+                                if ($d['old_elo'] < $myElo) { $isLowest = false; break; }
+                            }
+                            if ($isLowest) $mhUnderdogDone = true;
+                        }
+                    } else {
+                        $mhSurvivedCount++;
+                    }
+                }
+            }
+
+            if ($mhDragonSlayer) {
+                $badges[] = ['icon' => '🐉', 'title' => 'Dragon Slayer', 'desc' => 'Finished ahead of a CR 4 Dragon — the most feared Monster rating.'];
+            }
+            if ($mhHuntedCount >= 3) {
+                $badges[] = ['icon' => '👹', 'title' => 'The Hunted', 'desc' => 'Designated as the Monster in 3 or more GPs this season.'];
+            }
+            if ($mhWipeCount >= 3) {
+                $badges[] = ['icon' => '🎉', 'title' => 'Wipe Master', 'desc' => 'Participated in a Full Slay — every adventurer ahead of the Monster — in 3 or more GPs.'];
+            }
+            if ($mhApexCount >= 3) {
+                $badges[] = ['icon' => '💀', 'title' => 'Apex Predator', 'desc' => 'Defeated every adventurer as the Monster in 3 or more GPs.'];
+            }
+            if ($mhUnderdogDone) {
+                $badges[] = ['icon' => '🌑', 'title' => 'The Underdog', 'desc' => 'Slew the Monster while being the lowest-Elo adventurer in the race.'];
+            }
+            if ($mhSurvivedCount >= 5) {
+                $badges[] = ['icon' => '🛡️', 'title' => 'Resilient', 'desc' => 'Survived without slaying the Monster in 5 or more GPs.'];
+            }
+        }
+    }
+
+    // ── Black Box ─────────────────────────────────────────────────────────────
+    // 43. ⬛ Black Box — Leader of the Black Box scoring system this season.
+    //     Leader computed once for the whole season in badgeSeasonContext().
+    if ($ctx['bbLeaderId'] !== null && $ctx['bbLeaderId'] === $racer_id) {
+        $badges[] = ['icon' => '⬛', 'title' => 'Black Box', 'desc' => 'The algorithm thinks you should be in the lead.'];
     }
 
     return $badges;

@@ -1,43 +1,81 @@
+/* KART POP webfonts — imported here so EVERY page that links global.css gets
+   them, including the standalone signage screens that don't include header.php.
+   (header.php also <link>s these for an earlier preconnect on main pages.) */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
+
 /* ==========================================================================
    CDN Mario Kart League - Global Styles
    Design System: Variables, Base Styles, Components & Utilities
    ========================================================================== */
 
-/* --- CSS Variables & Design Tokens --- */
+/* --- CSS Variables & Design Tokens — KART POP reskin ---
+   Bright Nintendo energy: warm cream page, white cards with chunky ink
+   outlines and offset shadows, classic Mario red, gold for honors.
+   The grayscale ramp reads light→dark again (gray-50 = card white,
+   gray-900 = ink black); everything styled through the ramp follows. */
 :root {
     /* Brand Colors */
-    --nintendo-red: #e60012;
+    --nintendo-red: #e60012;        /* classic Mario red */
     --nintendo-red-dark: #b3000e;
-    --dark-bg: #1a1a1a;
+    --dark-bg: #1a1a1a;             /* ink: footer / outlines / contrast blocks */
+
+    /* Kart Pop surfaces */
+    --surface-deep: #1a1a1a;
+    --surface: #fdf8ef;
+    --surface-raised: #ffffff;
+    --line: #f0e8d8;
+    --ink: #1a1a1a;
+    --ink-muted: #8a8170;
+
+    /* Type families — KART POP system */
+    --font-display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;   /* chunky rounded headlines */
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'DM Mono', 'SF Mono', 'JetBrains Mono', Consolas, Menlo, monospace;  /* telemetry numerals */
 
     /* Medal Colors */
     --gold: #ffd700;
+    --gold-deep: #9a7b00;   /* gold text legible on light */
     --silver: #c0c0c0;
     --bronze: #cd7f32;
 
-    /* Semantic Colors */
-    --success-bg: #d4edda;
-    --success-text: #155724;
-    --error-bg: #f8d7da;
-    --error-text: #721c24;
+    /* Mario-Kart cast accents — used sparingly + semantically */
+    --luigi: #2ea84f;     --luigi-soft: #e6f6ec;   /* green — go / success */
+    --boost: #009be0;     --boost-soft: #e2f4fc;   /* blue — info / links / no-change */
+    --peach: #ff5ca2;     --peach-soft: #ffe7f1;   /* pink — fantasy / play */
+    --star: #ff8a1e;      --star-soft: #fff0e0;    /* orange — warning / item-box */
+    --power: #7b5bd6;     --power-soft: #efe9fb;   /* purple — MONSTER HUNT / special */
+    --accent-link: var(--boost);
 
-    /* Grayscale */
-    --gray-50: #f8f9fa;
-    --gray-100: #f0f2f5;
-    --gray-200: #eee;
-    --gray-300: #ddd;
-    --gray-400: #ccc;
-    --gray-500: #888;
-    --gray-600: #666;
-    --gray-700: #444;
-    --gray-800: #333;
-    --gray-900: #111;
+    /* Springy KART-POP motion */
+    --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur-fast: 0.14s;
+    --dur-base: 0.22s;
+    --lift: -2px;   /* hover translate up-and-left into the shadow */
 
-    /* Shadows */
-    --shadow-sm: 0 4px 6px rgba(0,0,0,0.1);
-    --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
-    --shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
-    --shadow-xl: 0 15px 40px rgba(0,0,0,0.2);
+    /* Semantic Colors (warm light pastels) */
+    --success-bg: #e6f6ec;
+    --success-text: #157347;
+    --error-bg: #fdeaea;
+    --error-text: #b3261e;
+
+    /* Grayscale — warm light ramp */
+    --gray-50: #ffffff;
+    --gray-100: #fdf8ef;
+    --gray-200: #f0e8d8;
+    --gray-300: #ddd2b8;
+    --gray-400: #c4b896;
+    --gray-500: #8a8170;
+    --gray-600: #6b6453;
+    --gray-700: #4a4438;
+    --gray-800: #2b2620;
+    --gray-900: #1a1a1a;
+
+    /* Shadows — chunky ink offsets, the Kart-Pop signature */
+    --shadow-sm: 2px 2px 0 rgba(26,26,26,0.12);
+    --shadow-md: 4px 4px 0 rgba(26,26,26,0.12);
+    --shadow-lg: 6px 6px 0 rgba(26,26,26,0.14);
+    --shadow-xl: 8px 8px 0 rgba(26,26,26,0.16);
     --shadow-card: var(--shadow-md);
 
     /* Spacing Scale */
@@ -84,19 +122,35 @@
 
 body {
     margin: 0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--gray-100);
+    font-family: var(--font-body);
+    background-color: var(--gray-100);
+    /* Faint 28px checker tarmac texture on the cream page */
+    background-image:
+        linear-gradient(45deg, rgba(26,26,26,0.018) 25%, transparent 25%, transparent 75%, rgba(26,26,26,0.018) 75%),
+        linear-gradient(45deg, rgba(26,26,26,0.018) 25%, transparent 25%, transparent 75%, rgba(26,26,26,0.018) 75%);
+    background-size: 28px 28px;
+    background-position: 0 0, 14px 14px;
     color: var(--gray-800);
     line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* --- Link Hover States --- */
+/* --- Headings — Fredoka, heavy, UPRIGHT (no synthetic italics) --- */
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* --- Link Hover States — links lean boost-blue, shift red on hover --- */
 a {
-    transition: color var(--transition-fast), opacity var(--transition-fast);
+    color: var(--accent-link);   /* boost blue — info/links (component links override) */
+    transition: color var(--transition-fast), opacity var(--transition-fast), transform var(--dur-fast) var(--ease-out);
 }
 
 a:not(.btn):not(.racer-card):hover {
-    opacity: 0.8;
+    color: var(--nintendo-red);
+    opacity: 0.95;
 }
 
 /* --- Container & Layout Utilities --- */
@@ -148,7 +202,7 @@ a:not(.btn):not(.racer-card):hover {
 .text-red { color: var(--nintendo-red); }
 .text-gray { color: var(--gray-500); }
 .text-muted { color: var(--gray-600); }
-.bg-white { background: white; }
+.bg-white { background: var(--gray-50); }
 
 /* Border Utilities */
 .border-red { border-color: var(--nintendo-red); }
@@ -161,7 +215,7 @@ a:not(.btn):not(.racer-card):hover {
 .clean-table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: var(--shadow-card);
@@ -236,7 +290,7 @@ a:not(.btn):not(.racer-card):hover {
 .meta-item select,
 .form-input {
     width: 100%;
-    background: white;
+    background: var(--gray-50);
     border: 2px solid var(--gray-200);
     color: var(--gray-800);
     padding: 12px;
@@ -292,7 +346,6 @@ a:not(.btn):not(.racer-card):hover {
     font-weight: 800;
     font-size: var(--text-base);
     text-transform: uppercase;
-    font-style: italic;
     cursor: pointer;
     text-decoration: none;
     transition: all var(--transition-fast);
@@ -406,7 +459,6 @@ a:not(.btn):not(.racer-card):hover {
     border-radius: var(--radius-md);
     font-weight: 800;
     text-transform: uppercase;
-    font-style: italic;
     cursor: pointer;
     transition: all var(--transition-fast);
 }
@@ -479,7 +531,7 @@ a:not(.btn):not(.racer-card):hover {
 }
 
 .loading-card {
-    background: white;
+    background: var(--gray-50);
     padding: var(--space-2xl);
     border-radius: var(--radius-xl);
     text-align: center;
@@ -540,7 +592,7 @@ a:not(.btn):not(.racer-card):hover {
 }
 
 .racer-card {
-    background: white;
+    background: var(--gray-50);
     display: flex;
     align-items: center;
     padding: 15px 30px;
@@ -561,25 +613,24 @@ a:not(.btn):not(.racer-card):hover {
 
 /* Medal Variants */
 .racer-card.gold {
-    border-color: var(--gold);
-    background: linear-gradient(90deg, #fffdf0 0%, #fff 100%);
+    border-color: var(--dark-bg);
+    background: #fff6dc;
 }
 
 .racer-card.silver {
-    border-color: var(--silver);
-    background: linear-gradient(90deg, #f9f9f9 0%, #fff 100%);
+    border-color: var(--dark-bg);
+    background: #f4f4f2;
 }
 
 .racer-card.bronze {
-    border-color: var(--bronze);
-    background: linear-gradient(90deg, #fff8f5 0%, #fff 100%);
+    border-color: var(--dark-bg);
+    background: #fdf0e8;
 }
 
 /* Card Elements */
 .rank-number {
     font-size: 2.2rem;
     font-weight: 900;
-    font-style: italic;
     color: var(--gray-300);
     width: 60px;
     flex-shrink: 0;
@@ -700,7 +751,7 @@ a:not(.btn):not(.racer-card):hover {
    ======================================================================== */
 
 .empty-state {
-    background: white;
+    background: var(--gray-50);
     padding: 60px 30px;
     border-radius: var(--radius-xl);
     text-align: center;
@@ -765,7 +816,7 @@ a:not(.btn):not(.racer-card):hover {
 }
 
 .modal-container {
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-xl);
     padding: 40px;
     max-width: 500px;
@@ -852,7 +903,6 @@ a:not(.btn):not(.racer-card):hover {
     align-items: center;
     padding: 0 25px;
     font-weight: 900;
-    font-style: italic;
     z-index: 20;
     position: relative;
     flex-shrink: 0;
@@ -868,7 +918,7 @@ a:not(.btn):not(.racer-card):hover {
 .ticker-move {
     display: inline-block;
     white-space: nowrap;
-    animation: ticker-animation 40s linear infinite;
+    animation: ticker-animation 60s linear infinite;
     will-change: transform;
 }
 
@@ -895,7 +945,7 @@ a:not(.btn):not(.racer-card):hover {
 
 /* --- Recap Viewer (Newspaper Style) --- */
 .recap-viewer-root {
-    background: #f4f4f4;
+    background: var(--gray-100);
     min-height: 100vh;
     padding: 20px 10px;
 }
@@ -903,7 +953,7 @@ a:not(.btn):not(.racer-card):hover {
 .recap-paper {
     max-width: 850px;
     margin: 0 auto;
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
     overflow: hidden;
@@ -918,7 +968,6 @@ a:not(.btn):not(.racer-card):hover {
     font-weight: 900;
     line-height: 1.1;
     margin-bottom: var(--space-lg);
-    font-style: italic;
     text-transform: uppercase;
 }
 
@@ -958,14 +1007,11 @@ a:not(.btn):not(.racer-card):hover {
 /* --- Page Headers --- */
 .page-header {
     margin-bottom: var(--space-xl);
-    border-left: 8px solid var(--nintendo-red);
-    padding-left: var(--space-lg);
 }
 
 .page-title {
     font-size: 2.5rem;
     font-weight: 900;
-    font-style: italic;
     text-transform: uppercase;
     margin: 0;
 }
@@ -977,7 +1023,7 @@ a:not(.btn):not(.racer-card):hover {
 
 /* --- Card Containers --- */
 .card {
-    background: white;
+    background: var(--gray-50);
     padding: var(--space-xl);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-card);
@@ -987,7 +1033,6 @@ a:not(.btn):not(.racer-card):hover {
 .card-header {
     margin-top: 0;
     text-transform: uppercase;
-    font-style: italic;
     font-weight: 900;
 }
 
@@ -1228,7 +1273,6 @@ a:not(.btn):not(.racer-card):hover {
 
 .leaderboard-title {
     font-size: 2.2rem;
-    font-style: italic;
     font-weight: 900;
     margin: 0;
     text-transform: uppercase;
@@ -1247,7 +1291,7 @@ a:not(.btn):not(.racer-card):hover {
     border: 2px solid var(--gray-300);
     font-weight: 800;
     cursor: pointer;
-    background: white;
+    background: var(--gray-50);
     font-size: 0.95rem;
 }
 
@@ -1256,7 +1300,7 @@ a:not(.btn):not(.racer-card):hover {
    ======================================================================== */
 
 .rank-up {
-    color: #2EBD59;
+    color: var(--luigi);
     font-size: 0.9rem;
     margin-left: 8px;
 }
@@ -1268,7 +1312,7 @@ a:not(.btn):not(.racer-card):hover {
 }
 
 .rank-same {
-    color: #009BE0;
+    color: var(--boost);
     font-size: 0.9rem;
     margin-left: 8px;
 }
@@ -1354,32 +1398,63 @@ a:not(.btn):not(.racer-card):hover {
 }
 
 .gp-result-card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: var(--shadow-sm);
+    background: var(--gray-50);
+    border: 2.5px solid var(--ink);
+    border-radius: 16px;
+    box-shadow: 4px 4px 0 var(--ink);
     overflow: hidden;
-    border-left: 4px solid var(--nintendo-red);
+    transition: transform .22s var(--ease-pop), box-shadow .22s var(--ease-pop);
+}
+.gp-result-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--ink);
 }
 
+/* Bold cast-palette header band, cycled per card. White cup name on colour. */
 .gp-card-header {
-    background: var(--gray-50);
-    padding: 12px 15px;
+    background: var(--nintendo-red);
+    color: #fff;
+    padding: 12px 16px 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--gray-200);
+    position: relative;
+}
+.gp-results-grid > .gp-result-card:nth-child(6n+2) .gp-card-header { background: var(--boost); }
+.gp-results-grid > .gp-result-card:nth-child(6n+3) .gp-card-header { background: var(--luigi); }
+.gp-results-grid > .gp-result-card:nth-child(6n+4) .gp-card-header { background: var(--power); }
+.gp-results-grid > .gp-result-card:nth-child(6n+5) .gp-card-header { background: var(--star); }
+.gp-results-grid > .gp-result-card:nth-child(6n+6) .gp-card-header { background: var(--peach); }
+
+/* Checkered finish-line strip welds the header to the results — the motif,
+   made a load-bearing divider. */
+.gp-card-header::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 7px;
+    background-color: #fff;
+    background-image:
+        linear-gradient(45deg, var(--ink) 25%, transparent 25%, transparent 75%, var(--ink) 75%),
+        linear-gradient(45deg, var(--ink) 25%, transparent 25%, transparent 75%, var(--ink) 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 5px 5px;
+    border-top: 2px solid var(--ink);
 }
 
 .gp-cup-name {
-    font-weight: 800;
-    font-size: 0.9rem;
-    color: var(--gray-800);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #fff;
+    letter-spacing: -0.01em;
 }
 
 .gp-date {
+    font-family: var(--font-mono);
     font-size: 0.75rem;
-    color: #aaa;
-    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    font-weight: 500;
 }
 
 .gp-results-list {
@@ -1447,7 +1522,7 @@ a:not(.btn):not(.racer-card):hover {
 }
 
 .news-card-home {
-    background: white;
+    background: var(--gray-50);
     border: 1px solid var(--gray-200);
     border-radius: 10px;
     padding: 20px;
@@ -1485,7 +1560,7 @@ a:not(.btn):not(.racer-card):hover {
     font-size: 0.7rem;
     text-transform: uppercase;
     font-weight: 800;
-    color: #999;
+    color: var(--gray-500);
     margin-bottom: 5px;
     display: flex;
     justify-content: space-between;
@@ -1495,7 +1570,7 @@ a:not(.btn):not(.racer-card):hover {
     font-weight: 900;
     font-size: 1.1rem;
     line-height: 1.3;
-    color: #222;
+    color: var(--gray-800);
     margin-bottom: 10px;
 }
 
@@ -1511,11 +1586,11 @@ a:not(.btn):not(.racer-card):hover {
    ======================================================================== */
 
 .scoring-system-banner {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px;
+    background: var(--power);
+    border-radius: 14px; border: 2.5px solid var(--ink);
     padding: 20px 25px;
     margin-bottom: 30px;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    box-shadow: 3px 3px 0 var(--ink);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1643,15 +1718,16 @@ a:not(.btn):not(.racer-card):hover {
 body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #f0f2f5;
+    background: var(--gray-100);
 }
 
 /* Sticky top header */
 .main-header {
     background: var(--nintendo-red);
-    color: white;
+    color: #fff;
     padding: 0.6rem 0;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-bottom: 4px solid var(--dark-bg);
+    box-shadow: 0 4px 12px rgba(26,26,26,0.18);
     position: sticky;
     top: 0;
     z-index: 1000;
@@ -1677,14 +1753,18 @@ body {
 .logo-text {
     font-size: 1.3rem;
     font-weight: 800;
-    font-style: italic;
     letter-spacing: -0.5px;
+    color: #fff;
 }
 
 .logo-season {
-    font-size: 0.9rem;
-    font-weight: 400;
-    opacity: 0.9;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--gold);
+    color: #3a2c00;
+    padding: 1px 8px;
+    border-radius: 4px;
+    opacity: 1;
 }
 
 /* Navigation */
@@ -1697,13 +1777,13 @@ body {
 
 .main-nav a,
 .dropbtn {
-    color: white;
+    color: rgba(255,255,255,0.92);
     text-decoration: none;
     font-size: 0.8rem;
     font-weight: 600;
     padding: 6px 10px;
     border-radius: 4px;
-    transition: background 0.2s;
+    transition: background 0.2s, color 0.2s;
     cursor: pointer;
     border: none;
     background: transparent;
@@ -1711,7 +1791,8 @@ body {
 
 .main-nav a:hover,
 .dropdown:hover .dropbtn {
-    background: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.22);
+    color: #fff;
 }
 
 /* Dropdown */
@@ -1723,7 +1804,7 @@ body {
 .dropdown-content {
     display: none;
     position: absolute;
-    background-color: white;
+    background-color: var(--gray-50);
     min-width: 160px;
     box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
     z-index: 1001;
@@ -1734,17 +1815,17 @@ body {
 }
 
 .dropdown-content a {
-    color: #1a1a1a !important;
+    color: var(--gray-900) !important;
     padding: 10px 14px;
     display: block;
     font-size: 0.8rem;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--gray-200);
 }
 
 .dropdown-content a:last-child { border-bottom: none; }
 
 .dropdown-content a:hover {
-    background-color: #f8f8f8;
+    background-color: var(--gray-100);
     color: var(--nintendo-red) !important;
 }
 
@@ -1794,4 +1875,143 @@ body {
 
     .dropdown-content { min-width: 140px; }
     .dropdown-content a { font-size: 0.7rem; padding: 8px 10px; }
+}
+
+/* --- Night Circuit: telemetry numerals --- */
+.stat-value, .stat-number, .gp-score, .mikko-row-score, .team-score,
+.cup-stat-num, .vault-big, .form-stat-value, .pk-pts, .racer-score,
+.team-home-score, .mikko-score, .gp-points {
+    font-family: var(--font-mono);
+}
+/* …but text labels riding inside a mono score stay in body type */
+.racer-score .cup-completion { font-family: var(--font-body); }
+
+/* --- Night Circuit: form-field normalization (UA defaults are light) --- */
+input:not([type=color]):not([type=checkbox]):not([type=radio]):not([type=range]),
+select, textarea {
+    background: var(--gray-50);
+    color: var(--gray-800);
+    border-color: var(--gray-300);
+}
+::placeholder { color: var(--gray-500); opacity: 1; }
+
+/* --- KART POP signature components --- */
+.racer-card, .card {
+    border: 2.5px solid var(--dark-bg);
+    border-radius: 16px;
+    box-shadow: 4px 4px 0 var(--dark-bg);
+}
+.btn, .btn-primary, .btn-secondary, .btn-success, .btn-danger {
+    border-radius: 999px;
+    font-weight: 800;
+    border: 2px solid var(--dark-bg);
+    box-shadow: 2px 2px 0 var(--dark-bg);
+}
+.page-header {
+    position: relative;
+    padding-bottom: 14px;
+}
+.page-header::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 9px;
+    /* True finish-line checkerboard (two offset 45° layers) */
+    background-color: var(--gray-50);
+    background-image:
+        linear-gradient(45deg, var(--ink) 25%, transparent 25%, transparent 75%, var(--ink) 75%),
+        linear-gradient(45deg, var(--ink) 25%, transparent 25%, transparent 75%, var(--ink) 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 6px 6px;
+    border: 1.5px solid var(--ink);
+    border-radius: 3px;
+}
+
+/* ==========================================================================
+   KART POP — design-system pass (Fredoka display type + pop interactions)
+   ========================================================================== */
+
+/* Chunky rounded display face on ALL large headline + name text, so nothing
+   falls back to angular Inter Black. (Buttons stay Inter — they run weight 800,
+   heavier than Fredoka offers. Numeric value classes stay DM Mono via the
+   telemetry rule above — keep those OUT of this list.) */
+.logo-text,
+.page-title,
+.cup-stats-page-title,
+.cup-detail-title,
+.leaderboard-title,
+.card-header,
+.modal-title,
+.recap-full-headline,
+.empty-state-title,
+.section-title,
+.news-section-title,
+.news-headline,
+.news-mention-headline,
+.scoring-name,
+.racer-name,
+.character-name,
+.nemesis-name,
+.mikko-row-name,
+.mikko-profile-banner-title,
+.team-name,
+.team-home-name,
+.cc-archetype-label,
+.quest-title {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+}
+
+/* Rank numeral: chunky, upright, rounded. */
+.rank-number { font-family: var(--font-display); font-weight: 700; }
+
+/* ── The KART-POP press: lift up-and-LEFT into the shadow, slam back on click ── */
+.racer-card, .card,
+.btn, .btn-primary, .btn-secondary, .btn-success, .btn-danger {
+    transition: transform var(--dur-base) var(--ease-pop),
+                box-shadow var(--dur-base) var(--ease-pop),
+                background var(--dur-fast) var(--ease-out);
+}
+
+.racer-card:hover, .card:hover {
+    transform: translate(var(--lift), var(--lift));
+    box-shadow: 6px 6px 0 var(--dark-bg);
+}
+.racer-card:active, .card:active {
+    transform: translate(0, 0);
+    box-shadow: 2px 2px 0 var(--dark-bg);
+}
+
+/* Buttons share the same tactile pop (override the older soft-shadow lift). */
+.btn-primary:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled),
+.btn-success:hover:not(:disabled),
+.btn-danger:hover:not(:disabled) {
+    transform: translate(var(--lift), var(--lift));
+    box-shadow: 4px 4px 0 var(--dark-bg);
+}
+.btn-primary:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-success:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
+    transform: translate(0, 0);
+    box-shadow: 1px 1px 0 var(--dark-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        /* iteration-count:1 is essential — without it, shortening the duration
+           of an INFINITE loop (e.g. the news ticker) just makes it cycle at
+           warp speed instead of stopping. Run once, then rest. */
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+    /* The news ticker is functional scrolling content, not decorative motion:
+       keep it scrolling at a slow, readable pace (it pauses on hover). */
+    .ticker-move {
+        animation-duration: 60s !important;
+        animation-iteration-count: infinite !important;
+    }
 }

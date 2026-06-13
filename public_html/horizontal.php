@@ -12,105 +12,33 @@ $selectedSeason = getCurrentSeasonNumber();
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
 
 // 1. Fetch Season Rules
-$ruleStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$ruleStmt->execute([$selectedSeason]);
-$rules = $ruleStmt->fetch(PDO::FETCH_ASSOC);
-$minThreshold = $rules['min_races_threshold'] ?? 1;
+$rules = getSeasonRules($pdo, $selectedSeason);
 
 // 2. Calculate previous standings for rank change
-$latestDateStmt = $pdo->prepare("SELECT MAX(race_date) as latest_date FROM results WHERE gpid LIKE ?");
-$latestDateStmt->execute([$selectedSeason . "%"]);
-$latestDate = $latestDateStmt->fetchColumn();
+$latestDate        = getLatestRaceDate($pdo, $selectedSeason);
+$previousStandings = calculatePreviousStandings($pdo, $selectedSeason, $latestDate, $rules);
 
-$previousStandings = [];
-if ($latestDate) {
-    $prevDateStmt = $pdo->prepare("SELECT MAX(race_date) as prev_date FROM results WHERE gpid LIKE ? AND race_date < ?");
-    $prevDateStmt->execute([$selectedSeason . "%", $latestDate]);
-    $prevDate = $prevDateStmt->fetchColumn();
-
-    if ($prevDate) {
-        $prevRacers = $pdo->query("SELECT * FROM racers")->fetchAll();
-        $prevTemp = [];
-        foreach ($prevRacers as $r) {
-            $stmt = $pdo->prepare("SELECT gp_points FROM results WHERE racer_id = ? AND gpid LIKE ? AND race_date <= ? ORDER BY gp_points ASC");
-            $stmt->execute([$r['id'], $selectedSeason . "%", $prevDate]);
-            $results = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-            if (count($results) > 0) {
-                $dropRate = $rules['drop_rate'] ?? 10;
-                $numToDrop = ($dropRate > 0) ? floor(count($results) / $dropRate) : 0;
-                $filteredPoints = array_slice($results, $numToDrop);
-                $average = array_sum($filteredPoints) / count($filteredPoints);
-
-                $attWeight = $rules['attendance_weight'] ?? 1.0;
-                $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-                $dateStmt = $pdo->prepare("SELECT race_date FROM results WHERE racer_id = ? AND gpid LIKE ? AND race_date <= ?");
-                $dateStmt->execute([$r['id'], $selectedSeason . "%", $prevDate]);
-                $dates = $dateStmt->fetchAll(PDO::FETCH_COLUMN);
-
-                $attendanceBonus = 0;
-                $weeklyTracker = [];
-                foreach ($dates as $date) {
-                    $weekKey = date('Y-W', strtotime($date));
-                    if (!isset($weeklyTracker[$weekKey])) $weeklyTracker[$weekKey] = 0;
-                    if ($weeklyTracker[$weekKey] < $weeklyCap) {
-                        $attendanceBonus += $attWeight;
-                        $weeklyTracker[$weekKey] += $attWeight;
-                    }
-                }
-
-                $prevTemp[] = ['id' => $r['id'], 'score' => $average + $attendanceBonus];
-            }
-        }
-
-        usort($prevTemp, fn($a, $b) => $b['score'] <=> $a['score']);
-        foreach ($prevTemp as $index => $racer) {
-            $previousStandings[$racer['id']] = $index + 1;
-        }
-    }
-}
-
-// 3. Fetch All Racers & Process Scores
-$currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-$racers = $pdo->query("SELECT * FROM racers")->fetchAll();
+// 3. Build standings
 $allRacers = [];
-
-foreach ($racers as $r) {
-    $score = calculateGPScore($pdo, $r['id'], $selectedSeason);
-    $stmt = $pdo->prepare("SELECT character_used FROM results WHERE racer_id = ? AND gpid LIKE ? ORDER BY race_date DESC LIMIT 1");
-    $stmt->execute([$r['id'], $selectedSeason . "%"]);
-    $lastChar = $stmt->fetchColumn();
-
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE ?");
-    $countStmt->execute([$r['id'], $selectedSeason . "%"]);
-    $raceCount = (int)$countStmt->fetchColumn();
-
-    if ($raceCount > 0) {
-        $entry = [
-            'id' => $r['id'],
-            'name' => $r['name'],
-            'score' => $score,
-            'char' => $lastChar ?: 'Mii',
-            'raceCount' => $raceCount,
-            'qualifies' => ($raceCount >= $minThreshold),
-            'badges' => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $selectedSeason) : []
-        ];
-        if ($currentScoringSystem === 'top_12_unique') {
-            $cupStmt = $pdo->prepare("SELECT COUNT(DISTINCT cup_name) FROM results WHERE racer_id = ? AND gpid LIKE ?");
-            $cupStmt->execute([$r['id'], $selectedSeason . "%"]);
-            $entry['cupsCounted'] = min((int)$cupStmt->fetchColumn(), 12);
-        }
-        $allRacers[] = $entry;
-    }
+foreach (getActiveRacers($pdo, $selectedSeason) as $r) {
+    $raceCount = getRaceCount($pdo, $r['id'], $selectedSeason);
+    $allRacers[] = [
+        'id'        => $r['id'],
+        'name'      => $r['name'],
+        'score'     => calculateGPScore($pdo, $r['id'], $selectedSeason),
+        'char'      => getMostUsedCharacter($pdo, $r['id'], $selectedSeason),
+        'raceCount' => $raceCount,
+        'qualifies' => racerQualifies($raceCount, $rules),
+        'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $selectedSeason) : [],
+    ];
 }
-
-usort($allRacers, fn($a, $b) => $b['score'] <=> $a['score']);
+$currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';
+sortStandingsByScoring($allRacers, $currentScoringSystem, $pdo, $selectedSeason);
 
 // Calculate rank changes
 foreach ($allRacers as $index => &$racer) {
-    $currentRank = $index + 1;
     $previousRank = $previousStandings[$racer['id']] ?? null;
-    $racer['rank_change'] = ($previousRank !== null) ? ($previousRank - $currentRank) : null;
+    $racer['rank_change'] = ($previousRank !== null) ? ($previousRank - ($index + 1)) : null;
 }
 unset($racer);
 

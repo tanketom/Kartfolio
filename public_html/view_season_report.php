@@ -50,6 +50,18 @@ foreach ($racers as $r) {
 }
 usort($finalStandings, fn($a, $b) => $b['score'] <=> $a['score']);
 
+// Mikkoliiga standings for this archived season. Returns empty if no
+// members or no Mikkoliiga races happened this season.
+$mikkoliigaStandings = getMikkoliigaStandings($pdo, $sid);
+foreach ($mikkoliigaStandings as &$_m) {
+    $charStmt = $pdo->prepare("SELECT character_used FROM results WHERE racer_id = ? AND gpid LIKE ? GROUP BY character_used ORDER BY COUNT(*) DESC LIMIT 1");
+    $charStmt->execute([$_m['id'], $sid . "%"]);
+    $_m['char'] = $charStmt->fetchColumn() ?: 'Mii';
+}
+unset($_m);
+// Drop members who never raced this season.
+$mikkoliigaStandings = array_values(array_filter($mikkoliigaStandings, fn($m) => $m['total_gps'] > 0));
+
 // 3.5 Fetch Season Progression Data for Timeline
 $progressionData = [];
 $gpStmt = $pdo->prepare("
@@ -90,19 +102,16 @@ foreach ($allGPs as $gp) {
 // Helper function to calculate GPScore up to a specific date
 // Note: For cup-based and other complex scoring systems, progressive scoring may not be accurate
 function calculateGPScoreUpTo($pdo, $racer_id, $season_id, $date) {
-    $stmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-    $stmt->execute([$season_id]);
-    $rules = $stmt->fetch(PDO::FETCH_ASSOC);
+    $rules = getSeasonRules($pdo, $season_id);
 
     $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-    $threshold = $rules['min_races_threshold'] ?? 3;
 
     $stmt = $pdo->prepare("SELECT gp_points, race_date FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' AND race_date <= ? ORDER BY gp_points ASC");
     $stmt->execute([$racer_id, $season_id . "%", $date]);
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $totalRaces = count($results);
-    if ($totalRaces < $threshold) return 0;
+    if (!racerQualifies($totalRaces, $rules)) return 0;
 
     // For timeline progression, use simple calculation for all non-average systems
     if ($scoringSystem === 'average_attendance') {
@@ -259,6 +268,30 @@ include __DIR__ . '/../private/templates/header.php';
                 </div>
                 <?php endforeach; ?>
             </div>
+
+            <?php if (!empty($mikkoliigaStandings)): ?>
+            <h3 class="sidebar-title sidebar-title--mikko">
+                🌟 Mikkoliiga Standings
+            </h3>
+            <p class="sidebar-mikko-caption">Casual sub-league · best <?= MIKKOLIIGA_BEST_X ?> of <?= count($mikkoliigaStandings) ?> members</p>
+            <div class="sidebar-list">
+                <?php foreach ($mikkoliigaStandings as $index => $row):
+                    $rank = $index + 1;
+                    $rankClass = ($rank <= 3) ? ['gold', 'silver', 'bronze'][$rank-1] : "";
+                ?>
+                <div class="sidebar-card <?= $rankClass ?>">
+                    <div class="s-rank">#<?= $rank ?></div>
+                    <div class="s-portrait">
+                        <img src="/assets/img/<?= htmlspecialchars($row['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'">
+                    </div>
+                    <div class="s-info">
+                        <div class="s-name"><?= htmlspecialchars($row['name']) ?></div>
+                        <div class="s-score"><?= $row['score'] ?> <span style="font-size:0.7em; color:#999;">pts</span></div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
         </aside>
 
     </div>

@@ -15,9 +15,7 @@ if (isset($_GET['data'])) {
     header('Content-Type: application/json');
 
     // Fetch season rules
-    $rulesStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-    $rulesStmt->execute([$seasonId]);
-    $rules = $rulesStmt->fetch(PDO::FETCH_ASSOC);
+    $rules = getSeasonRules($pdo, $seasonId);
     $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
 
     // Get all GPs in order
@@ -203,9 +201,7 @@ $seasonsStmt = $pdo->query("
 ");
 $availableSeasons = $seasonsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-$metaStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$metaStmt->execute([$seasonId]);
-$meta = $metaStmt->fetch(PDO::FETCH_ASSOC);
+$meta = getSeasonRules($pdo, $seasonId);
 $seasonName = $meta['season_name'] ?? '';
 
 $pageTitle = "Season Race - Kartfolio";
@@ -268,7 +264,7 @@ include __DIR__ . '/../private/templates/header.php';
 
     // Assigned colors per racer (consistent across frames)
     const colorPalette = [
-        '#E60012', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
+        'var(--nintendo-red)', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
         '#EC4899', '#14B8A6', '#F59E0B', '#6366F1', '#EF4444',
         '#10B981', '#3B82F6', '#F97316', '#A855F7', '#06B6D4',
         '#D946EF', '#84CC16', '#FB923C'

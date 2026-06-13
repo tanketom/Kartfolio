@@ -79,16 +79,16 @@ try {
             max-width: 800px;
             margin: 50px auto;
             padding: 20px;
-            background: #f5f5f5;
+            background: var(--gray-100);
         }
         .container {
-            background: white;
+            background: var(--gray-50);
             padding: 40px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         h1 {
-            color: #e60012;
+            color: var(--nintendo-red);
             margin-top: 0;
         }
         .result {
@@ -104,12 +104,12 @@ try {
             color: #155724;
         }
         .info {
-            background: #fff3cd;
+            background: #fff6dc;
             border-left: 4px solid #ffc107;
             color: #856404;
         }
         .error {
-            background: #f8d7da;
+            background: #fdecec;
             border-left: 4px solid #dc3545;
             color: #721c24;
         }
@@ -123,7 +123,7 @@ try {
         .btn {
             display: inline-block;
             padding: 12px 24px;
-            background: #e60012;
+            background: var(--nintendo-red);
             color: white;
             text-decoration: none;
             border-radius: 6px;

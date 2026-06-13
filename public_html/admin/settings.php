@@ -123,6 +123,7 @@ include __DIR__ . '/../../private/templates/header.php';
                 <h3>Import Database</h3>
                 <p>Restore your database from a backup file.</p>
                 <form action="/admin/import-database" method="POST" enctype="multipart/form-data" id="import-form">
+                    <?= csrf_field() ?>
                     <input type="file" name="database_file" accept=".sql,.db,.sqlite" id="db-file-input" required class="admin-file-input-hidden">
                     <button type="button" class="btn btn-import" onclick="document.getElementById('db-file-input').click()">
                         📁 Choose Backup File

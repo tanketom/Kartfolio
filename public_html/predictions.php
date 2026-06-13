@@ -15,9 +15,7 @@ $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';
 
 // ─── 1. Season Info ─────────────────────────────────────────────────────
 $currentSeason = getCurrentSeasonNumber();
-$metaStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$metaStmt->execute([$currentSeason]);
-$seasonMeta = $metaStmt->fetch(PDO::FETCH_ASSOC);
+$seasonMeta = getSeasonRules($pdo, $currentSeason);
 $startDate = $seasonMeta['start_date'] ?? null;
 $endDate   = $seasonMeta['end_date']   ?? null;
 $seasonName = $seasonMeta['season_name'] ?? strtoupper($currentSeason);
@@ -422,13 +420,14 @@ include __DIR__ . '/../private/templates/header.php';
 
 <?php if (!$insufficientData && count($racers) >= 2): ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js" integrity="sha384-hfkuqrKeWFmnTMWN31VWyoe8xgdTADD11kgxmdpx2uyE6j5Az5uZq6u6AKYYmAOw" crossorigin="anonymous"></script>
+<script>Chart.defaults.color = "#6b6453"; Chart.defaults.borderColor = "#e8e0cc";</script>
 <script>
 (function() {
     const ctx = document.getElementById('pred-chart').getContext('2d');
     const names = <?= json_encode(array_keys($probabilities)) ?>;
     const probs = <?= json_encode(array_values($probabilities)) ?>;
     const colors = [
-        '#E60012', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
+        'var(--nintendo-red)', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
         '#EC4899', '#14B8A6', '#F59E0B', '#6366F1', '#EF4444',
         '#06B6D4', '#84CC16', '#F97316', '#A855F7', '#10B981'
     ];

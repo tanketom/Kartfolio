@@ -197,7 +197,28 @@ include __DIR__ . '/../../private/templates/header.php';
                             <option value="double_elim">Double Elimination</option>
                             <option value="gauntlet">Gauntlet</option>
                             <option value="team_relay">Team Relay</option>
+                            <option value="survivor">Survivor</option>
+                            <option value="team_scramble">Team Scramble</option>
+                            <option value="world_cup">World Cup</option>
                         </select>
+                    </div>
+
+                    <div id="worldCupWrap" style="display:none;">
+                        <label class="tcreate-field-label">Group matchdays</label>
+                        <input type="number" name="group_gps" min="1" max="6" value="3" class="tcreate-select">
+                        <small style="color:#888;">GPs each group races before the knockout. 3 = the classic World Cup rhythm.</small>
+                    </div>
+
+                    <div id="survivorElimWrap" style="display:none;">
+                        <label class="tcreate-field-label">Eliminations per round</label>
+                        <input type="number" name="eliminations_per_round" min="1" max="6" value="1" class="tcreate-select">
+                        <small style="color:#888;">Bottom N finishers each round are knocked out. Use 2+ for big fields to keep things moving.</small>
+                    </div>
+
+                    <div id="scrambleTeamsWrap" style="display:none;">
+                        <label class="tcreate-field-label">Number of teams</label>
+                        <input type="number" name="num_teams" min="2" max="6" value="2" class="tcreate-select">
+                        <small style="color:#888;">The field is snake-drafted into this many balanced teams. Everyone races one GP; the team with the most combined points wins.</small>
                     </div>
 
                     <div>
@@ -319,11 +340,21 @@ const formatInfo = {
     'single_elim': '<strong>Single Elimination:</strong> Lose once and you\'re out. Fast and dramatic.<br><span class="tcreate-format-best-for">📌 Best for:</span> Quick tournaments, time-limited events, high-stakes drama. (8 players = 7 races)',
     'double_elim': '<strong>Double Elimination:</strong> Two brackets (Winners + Losers). Lose once, drop to losers bracket. Lose twice, you\'re out.<br><span class="tcreate-format-best-for">📌 Best for:</span> Giving players a second chance, comeback stories, competitive tournaments. (8 players = ~13 races)',
     'gauntlet': '<strong>Gauntlet:</strong> One "Boss" racer defends their title against all challengers in sequence. Boss must win all matches; challengers only need to win once to become the new Boss.<br><span class="tcreate-format-best-for">📌 Best for:</span> Champion defense events, asymmetric challenge mode, testing dominance. (8 players = 7-14 races)',
-    'team_relay': '<strong>Team Relay:</strong> Players split into teams. Each team member races one leg, team with most cumulative wins advances. Emphasizes team strategy and balance.<br><span class="tcreate-format-best-for">📌 Best for:</span> Team-based competition, social/party tournaments, collaborative play. (8 players = ~7 races)'
+    'team_relay': '<strong>Team Relay:</strong> Players split into teams. Each team member races one leg, team with most cumulative wins advances. Emphasizes team strategy and balance.<br><span class="tcreate-format-best-for">📌 Best for:</span> Team-based competition, social/party tournaments, collaborative play. (8 players = ~7 races)',
+    'survivor': '<strong>Survivor:</strong> One big multi-player race each round. The bottom finisher is eliminated; everyone else returns next round. Last racer standing wins.<br><span class="tcreate-format-best-for">📌 Best for:</span> Pure attrition drama, large fields, deathboard storylines. (8 players = 7 rounds; bump eliminations/round for bigger fields)',
+    'team_scramble': '<strong>Team Scramble:</strong> A one-night event. The field is snake-drafted into balanced teams, everyone races a single GP, and the team with the highest combined points wins. No bracket, no elimination — just a quick team showdown.<br><span class="tcreate-format-best-for">📌 Best for:</span> Casual nights, mixing up rivalries, fast team fun. (any field size, 1 GP)',
+    'world_cup': '<strong>World Cup:</strong> The 2026 treatment. A pot-seeded draw splits the field into groups of ~4, each group races its matchdays, then the top 2 per group — plus the best third-placed racers — advance to a head-to-head knockout. Hosted by Kartificial. 🏆<br><span class="tcreate-format-best-for">📌 Best for:</span> Multi-night flagship events, 8–16 racers, maximum drama. (Bracket Pick\'em opens automatically)'
 };
 
 document.getElementById('formatSelect').addEventListener('change', function() {
     document.getElementById('formatInfo').innerHTML = formatInfo[this.value];
+    // Format-specific config fields.
+    const elimWrap = document.getElementById('survivorElimWrap');
+    if (elimWrap) elimWrap.style.display = (this.value === 'survivor') ? 'block' : 'none';
+    const scrambleWrap = document.getElementById('scrambleTeamsWrap');
+    if (scrambleWrap) scrambleWrap.style.display = (this.value === 'team_scramble') ? 'block' : 'none';
+    const wcWrap = document.getElementById('worldCupWrap');
+    if (wcWrap) wcWrap.style.display = (this.value === 'world_cup') ? 'block' : 'none';
 });
 
 function updateCount() {

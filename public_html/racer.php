@@ -8,6 +8,10 @@ require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
 require_once __DIR__ . '/../private/includes/card_rendering.php';
+require_once __DIR__ . '/../private/includes/elo_engine.php';
+// csrf.php starts the session so $_SESSION['is_admin'] is available for any
+// admin-gated UI on this page.
+require_once __DIR__ . '/../private/includes/csrf.php';
 
 // Get racer ID from URL
 $racerId = $_GET['id'] ?? null;
@@ -43,6 +47,28 @@ $seasonsStmt = $pdo->prepare("
 ");
 $seasonsStmt->execute([$racerId]);
 $seasons = $seasonsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+// Consecutive seasons participated
+$seasonNums = [];
+foreach ($seasons as $s) {
+    if (preg_match('/\d+/', $s, $m)) $seasonNums[] = (int)$m[0];
+}
+sort($seasonNums);
+$maxConsecSeasons = 0;
+$currentConsecSeasons = 0;
+if (!empty($seasonNums)) {
+    $streak = 1; $maxStreak = 1;
+    for ($i = 1; $i < count($seasonNums); $i++) {
+        if ($seasonNums[$i] === $seasonNums[$i - 1] + 1) { $streak++; $maxStreak = max($maxStreak, $streak); }
+        else $streak = 1;
+    }
+    $maxConsecSeasons = $maxStreak;
+    $currentConsecSeasons = 1;
+    for ($i = count($seasonNums) - 1; $i > 0; $i--) {
+        if ($seasonNums[$i] === $seasonNums[$i - 1] + 1) $currentConsecSeasons++;
+        else break;
+    }
+}
 
 // Calculate career stats
 $careerStmt = $pdo->prepare("
@@ -103,6 +129,18 @@ foreach ($allResults as $result) {
     }
 }
 
+// Longest completed win drought (gap between wins, ended by a subsequent win)
+$maxWinDrought = 0;
+$winDroughtCurrent = 0;
+foreach ($allResults as $r) {
+    if ($r['rank'] == 1) {
+        $maxWinDrought = max($maxWinDrought, $winDroughtCurrent);
+        $winDroughtCurrent = 0;
+    } else {
+        $winDroughtCurrent++;
+    }
+}
+
 // Note: Using getScoringBreakdown() from gp_logic.php for season-aware scoring
 
 // Get season-by-season breakdown
@@ -128,10 +166,7 @@ foreach ($seasons as $season) {
     $stats = $seasonStatsStmt->fetch(PDO::FETCH_ASSOC);
 
     // Calculate season placement
-    $rankStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-    $rankStmt->execute([$season]);
-    $seasonRules = $rankStmt->fetch(PDO::FETCH_ASSOC);
-    $minThreshold = $seasonRules['min_races_threshold'] ?? 3;
+    $seasonRules = getSeasonRules($pdo, $season);
 
     // Get all racers for this season and their scores
     $allRacersStmt = $pdo->prepare("SELECT DISTINCT r.id, r.name FROM racers r JOIN results res ON r.id = res.racer_id WHERE res.gpid LIKE ?");
@@ -145,7 +180,7 @@ foreach ($seasons as $season) {
         $rCountStmt->execute([$r['id'], $season . "%"]);
         $rCount = (int)$rCountStmt->fetchColumn();
 
-        if ($rCount >= $minThreshold) {
+        if (racerQualifies($rCount, $seasonRules)) {
             $seasonStandings[] = ['id' => $r['id'], 'score' => $rScore, 'name' => $r['name']];
         }
     }
@@ -183,6 +218,359 @@ foreach ($seasons as $season) {
         'scoring_info' => $seasonScoringInfo
     ];
 }
+
+// Season-derived personal bests
+$bestSeasonPlacement = PHP_INT_MAX;
+$bestSeasonWins      = 0;
+$bestPastSeasonWins  = 0;
+$bestSeasonAvg       = 0.0;
+$bestPastSeasonAvg   = 0.0;
+foreach ($seasonBreakdown as $sb) {
+    if ($sb['placement'] > 0) $bestSeasonPlacement = min($bestSeasonPlacement, $sb['placement']);
+    $wins = (int)$sb['stats']['wins'];
+    $gps  = (int)$sb['stats']['gps'];
+    $avg  = $gps > 0 ? (float)$sb['stats']['points'] / $gps : 0.0;
+    $bestSeasonWins = max($bestSeasonWins, $wins);
+    $bestSeasonAvg  = max($bestSeasonAvg, $avg);
+    if ($sb['season'] !== $currentSeason) {
+        $bestPastSeasonWins = max($bestPastSeasonWins, $wins);
+        $bestPastSeasonAvg  = max($bestPastSeasonAvg, $avg);
+    }
+}
+if ($bestSeasonPlacement === PHP_INT_MAX) $bestSeasonPlacement = 0;
+
+$isAdminViewer        = !empty($_SESSION['is_admin']);
+
+// Mikkoliiga: compute current-season score and rank if this racer is a member.
+$mikkoliigaInfo = null;
+if (!empty($racer['in_mikkoliiga'])) {
+    $mikkoStandings = getMikkoliigaStandings($pdo, $currentSeason);
+    foreach ($mikkoStandings as $idx => $row) {
+        // $racerId comes from $_GET (string); row id is cast to int — compare as ints.
+        if ((int)$row['id'] === (int)$racerId) {
+            $mikkoliigaInfo = [
+                'rank'        => $idx + 1,
+                'total'       => count($mikkoStandings),
+                'score'       => $row['score'],
+                'gps_counted' => $row['gps_counted'],
+                'total_gps'   => $row['total_gps'],
+            ];
+            break;
+        }
+    }
+}
+
+// Consistency vs Ceiling (this season) + field medians for the archetype.
+require_once __DIR__ . '/../private/includes/quests.php';
+$ccStats = racerSeasonStats($pdo, $racerId, $currentSeason);
+$ccArchetype = null; $ccMedianCeiling = 0; $ccMedianStddev = 0;
+if ($ccStats['gps'] >= 3) {
+    $ceilings = []; $stddevs = [];
+    foreach (getActiveRacers($pdo, $currentSeason) as $ar) {
+        $as = racerSeasonStats($pdo, (int)$ar['id'], $currentSeason);
+        if ($as['gps'] >= 3) { $ceilings[] = $as['best']; $stddevs[] = $as['stddev']; }
+    }
+    sort($ceilings); sort($stddevs);
+    $median = fn($a) => empty($a) ? 0 : (count($a) % 2 ? $a[intdiv(count($a), 2)] : ($a[count($a)/2 - 1] + $a[count($a)/2]) / 2);
+    $ccMedianCeiling = $median($ceilings);
+    $ccMedianStddev  = $median($stddevs);
+    $ccArchetype = consistencyCeilingArchetype($ccStats['best'], $ccStats['stddev'], $ccMedianCeiling, $ccMedianStddev);
+}
+
+// Side quests (this season) — two per racer, assigned + frozen on first view.
+$racerQuests = ($ccStats['gps'] >= 1) ? getRacerQuests($pdo, $racerId, $currentSeason) : [];
+
+// Current season quick-stats (for self-record chases)
+$currentSeasonEntry = null;
+foreach ($seasonBreakdown as $sb) {
+    if ($sb['season'] === $currentSeason) { $currentSeasonEntry = $sb; break; }
+}
+$currentSeasonWins = (int)($currentSeasonEntry['stats']['wins'] ?? 0);
+$currentSeasonGPs  = (int)($currentSeasonEntry['stats']['gps']  ?? 0);
+$currentSeasonAvg  = $currentSeasonGPs > 0
+    ? (float)($currentSeasonEntry['stats']['points'] ?? 0) / $currentSeasonGPs
+    : 0.0;
+
+// Peak ELO
+$eloData         = calculateAllELORatings($pdo);
+$racerEloHistory = $eloData['history'][$racer['name']] ?? [];
+$currentElo      = (int)round($eloData['ratings'][$racer['name']] ?? ELO_INITIAL_RATING);
+$peakElo         = $currentElo;
+foreach ($racerEloHistory as $entry) {
+    $peakElo = max($peakElo, (int)round($entry['rating']));
+}
+
+// Score distribution — career and current season
+$distRawStmt = $pdo->prepare("SELECT gp_points, COUNT(*) as cnt FROM results WHERE racer_id = ? GROUP BY gp_points");
+$distRawStmt->execute([$racerId]);
+$distRawCareer = $distRawStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+$distRawSeasonStmt = $pdo->prepare("SELECT gp_points, COUNT(*) as cnt FROM results WHERE racer_id = ? AND gpid LIKE ? GROUP BY gp_points");
+$distRawSeasonStmt->execute([$racerId, $currentSeason . '%']);
+$distRawSeason = $distRawSeasonStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+$distBins = [
+    '0–9'   => [0,  9,  '#5c1010', '#ff9999'],
+    '10–19' => [10, 19, '#5c1010', '#ff9999'],
+    '20–29' => [20, 29, '#5c1010', '#ff9999'],
+    '30–34' => [30, 34, '#5c3b00', '#ffbb66'],
+    '35–39' => [35, 39, '#5c3b00', '#ffbb66'],
+    '40–44' => [40, 44, '#5c3b00', '#ffbb66'],
+    '45–49' => [45, 49, '#1a4a1a', '#88ee88'],
+    '50–54' => [50, 54, '#1a4a1a', '#88ee88'],
+    '55–59' => [55, 59, '#0d3a5c', '#88ccff'],
+    '60'    => [60, 60, '#4a3800', '#ffd700'],
+];
+
+$distCareer = [];
+$distSeason = [];
+foreach ($distBins as $label => [$lo, $hi, $bg, $fg]) {
+    $c = 0; $s = 0;
+    for ($v = $lo; $v <= $hi; $v++) { $c += $distRawCareer[$v] ?? 0; $s += $distRawSeason[$v] ?? 0; }
+    $distCareer[$label] = $c;
+    $distSeason[$label] = $s;
+}
+$distTotalCareer = max(1, array_sum($distCareer));
+$distTotalSeason = max(1, array_sum($distSeason));
+$distMaxCareer   = max(1, max($distCareer));
+$distMaxSeason   = max(1, max($distSeason));
+
+// ── Record Chaser ──────────────────────────────────────────────────────────
+// Build a list of upcoming milestones and records this racer is close to.
+$chaseMilestones = [];
+
+$rcGPs      = (int)$careerStats['total_gps'];
+$rcWins     = (int)$careerStats['wins'];
+$rcPodiums  = (int)$careerStats['podiums'];
+$rcPoints   = (int)$careerStats['total_points'];
+$rcPerfects = $distCareer['60'] ?? 0; // reuse already-computed distribution
+
+// Helper: return next threshold >= 85% of the way toward, or null
+$nextMs = function(int $current, array $thresholds): ?int {
+    foreach ($thresholds as $t) {
+        if ($current < $t && ($current / $t) >= 0.82) return $t;
+    }
+    // Also catch: just below the first threshold
+    foreach ($thresholds as $t) {
+        if ($current < $t) return $t;
+    }
+    return null;
+};
+
+// Career GP count
+if (($n = $nextMs($rcGPs, [25, 50, 75, 100, 150, 200, 250, 300])) !== null) {
+    $gap = $n - $rcGPs;
+    if ($gap <= 15) $chaseMilestones[] = [
+        'icon' => '🎮', 'label' => number_format($n) . ' Career GPs',
+        'gap' => $gap, 'unit' => 'GP', 'pct' => round($rcGPs / $n * 100), 'record' => false,
+    ];
+}
+
+// Career wins
+if ($rcWins > 0 && ($n = $nextMs($rcWins, [5, 10, 15, 20, 25, 50])) !== null) {
+    $gap = $n - $rcWins;
+    if ($gap <= 5) $chaseMilestones[] = [
+        'icon' => '🏆', 'label' => $n . ' Career Wins',
+        'gap' => $gap, 'unit' => 'win', 'pct' => round($rcWins / $n * 100), 'record' => false,
+    ];
+}
+
+// Career podiums
+if ($rcPodiums > 0 && ($n = $nextMs($rcPodiums, [10, 25, 50, 75, 100, 150])) !== null) {
+    $gap = $n - $rcPodiums;
+    if ($gap <= 10) $chaseMilestones[] = [
+        'icon' => '🥇', 'label' => $n . ' Career Podiums',
+        'gap' => $gap, 'unit' => 'podium', 'pct' => round($rcPodiums / $n * 100), 'record' => false,
+    ];
+}
+
+// Career perfect 60s
+if ($rcPerfects > 0 && ($n = $nextMs($rcPerfects, [3, 5, 10, 20])) !== null) {
+    $gap = $n - $rcPerfects;
+    if ($gap <= 3) $chaseMilestones[] = [
+        'icon' => '💯', 'label' => $n . ' Perfect 60s',
+        'gap' => $gap, 'unit' => 'perfect', 'pct' => round($rcPerfects / $n * 100), 'record' => false,
+    ];
+}
+
+// Career points
+if (($n = $nextMs($rcPoints, [1000, 2000, 3000, 5000, 7500, 10000])) !== null) {
+    $gap = $n - $rcPoints;
+    if ($gap <= 400) $chaseMilestones[] = [
+        'icon' => '✨', 'label' => number_format($n) . ' Career Points',
+        'gap' => $gap, 'unit' => 'pt', 'pct' => round($rcPoints / $n * 100), 'record' => false,
+    ];
+}
+
+// All-time wins record chase
+$rcWinsLeaderStmt = $pdo->query("
+    SELECT r.name, COUNT(*) as cnt
+    FROM results res JOIN racers r ON res.racer_id = r.id
+    WHERE res.rank = 1 AND res.gpid LIKE 's%'
+    GROUP BY res.racer_id ORDER BY cnt DESC LIMIT 1
+");
+$rcWinsLeader = $rcWinsLeaderStmt->fetch(PDO::FETCH_ASSOC);
+if ($rcWinsLeader && $rcWinsLeader['name'] !== $racer['name'] && $rcWins > 0) {
+    $gap = (int)$rcWinsLeader['cnt'] - $rcWins;
+    if ($gap > 0 && $gap <= 5) $chaseMilestones[] = [
+        'icon' => '👑', 'label' => 'Break ' . $rcWinsLeader['name'] . "'s wins record",
+        'gap' => $gap, 'unit' => 'win', 'pct' => round($rcWins / $rcWinsLeader['cnt'] * 100), 'record' => true,
+    ];
+}
+
+// All-time GPs played record chase
+$rcGPsLeaderStmt = $pdo->query("
+    SELECT r.name, COUNT(*) as cnt
+    FROM results res JOIN racers r ON res.racer_id = r.id
+    WHERE res.gpid LIKE 's%'
+    GROUP BY res.racer_id ORDER BY cnt DESC LIMIT 1
+");
+$rcGPsLeader = $rcGPsLeaderStmt->fetch(PDO::FETCH_ASSOC);
+if ($rcGPsLeader && $rcGPsLeader['name'] !== $racer['name']) {
+    $gap = (int)$rcGPsLeader['cnt'] - $rcGPs;
+    if ($gap > 0 && $gap <= 10) $chaseMilestones[] = [
+        'icon' => '📅', 'label' => 'Most GPs record (' . $rcGPsLeader['name'] . ': ' . $rcGPsLeader['cnt'] . ')',
+        'gap' => $gap, 'unit' => 'GP', 'pct' => round($rcGPs / $rcGPsLeader['cnt'] * 100), 'record' => true,
+    ];
+}
+
+// All-time perfect 60s record chase
+if ($rcPerfects > 0) {
+    $rcPerfLeaderStmt = $pdo->query("
+        SELECT r.name, COUNT(*) as cnt
+        FROM results res JOIN racers r ON res.racer_id = r.id
+        WHERE res.gp_points = 60 AND res.gpid LIKE 's%'
+        GROUP BY res.racer_id ORDER BY cnt DESC LIMIT 1
+    ");
+    $rcPerfLeader = $rcPerfLeaderStmt->fetch(PDO::FETCH_ASSOC);
+    if ($rcPerfLeader && $rcPerfLeader['name'] !== $racer['name']) {
+        $gap = (int)$rcPerfLeader['cnt'] - $rcPerfects;
+        if ($gap > 0 && $gap <= 3) $chaseMilestones[] = [
+            'icon' => '💎', 'label' => 'Most perfects record (' . $rcPerfLeader['name'] . ': ' . $rcPerfLeader['cnt'] . ')',
+            'gap' => $gap, 'unit' => 'perfect', 'pct' => round($rcPerfects / $rcPerfLeader['cnt'] * 100), 'record' => true,
+        ];
+    }
+}
+// All-time podiums record chase
+$rcPodiumsLeaderStmt = $pdo->query("
+    SELECT r.name, COUNT(*) as cnt
+    FROM results res JOIN racers r ON res.racer_id = r.id
+    WHERE res.rank <= 3 AND res.gpid LIKE 's%'
+    GROUP BY res.racer_id ORDER BY cnt DESC LIMIT 1
+");
+$rcPodiumsLeader = $rcPodiumsLeaderStmt->fetch(PDO::FETCH_ASSOC);
+if ($rcPodiumsLeader && $rcPodiumsLeader['name'] !== $racer['name'] && $rcPodiums > 0) {
+    $gap = (int)$rcPodiumsLeader['cnt'] - $rcPodiums;
+    if ($gap > 0 && $gap <= 10) $chaseMilestones[] = [
+        'icon' => '🥇', 'label' => 'Most podiums record (' . $rcPodiumsLeader['name'] . ': ' . $rcPodiumsLeader['cnt'] . ')',
+        'gap' => $gap, 'unit' => 'podium', 'pct' => round($rcPodiums / $rcPodiumsLeader['cnt'] * 100), 'record' => true,
+    ];
+}
+
+// All-time career points record chase
+$rcPointsLeaderStmt = $pdo->query("
+    SELECT r.name, SUM(res.gp_points) as total
+    FROM results res JOIN racers r ON res.racer_id = r.id
+    WHERE res.gpid LIKE 's%'
+    GROUP BY res.racer_id ORDER BY total DESC LIMIT 1
+");
+$rcPointsLeader = $rcPointsLeaderStmt->fetch(PDO::FETCH_ASSOC);
+if ($rcPointsLeader && $rcPointsLeader['name'] !== $racer['name'] && $rcPoints > 0) {
+    $gap = (int)$rcPointsLeader['total'] - $rcPoints;
+    if ($gap > 0 && $gap <= 400) $chaseMilestones[] = [
+        'icon' => '✨', 'label' => 'Most career points (' . $rcPointsLeader['name'] . ': ' . number_format($rcPointsLeader['total']) . ')',
+        'gap' => $gap, 'unit' => 'pt', 'pct' => round($rcPoints / $rcPointsLeader['total'] * 100), 'record' => true,
+    ];
+}
+
+// All-time win rate record (min 20 GPs qualifier)
+if ($rcGPs >= 20 && $rcWins > 0) {
+    $rcWinRateLeaderStmt = $pdo->query("
+        SELECT r.name,
+               COUNT(*) as total_gps,
+               CAST(SUM(CASE WHEN res.rank = 1 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) as win_rate
+        FROM results res JOIN racers r ON res.racer_id = r.id
+        WHERE res.gpid LIKE 's%'
+        GROUP BY res.racer_id
+        HAVING total_gps >= 20
+        ORDER BY win_rate DESC LIMIT 1
+    ");
+    $rcWinRateLeader = $rcWinRateLeaderStmt->fetch(PDO::FETCH_ASSOC);
+    $myWinRate = $rcWins / $rcGPs;
+    if ($rcWinRateLeader && $rcWinRateLeader['name'] !== $racer['name']) {
+        $leaderRate = (float)$rcWinRateLeader['win_rate'];
+        $gapPct = ($leaderRate - $myWinRate) * 100;
+        if ($gapPct > 0 && ($myWinRate / $leaderRate) >= 0.82) $chaseMilestones[] = [
+            'icon' => '📊',
+            'label' => 'Highest win rate (' . $rcWinRateLeader['name'] . ': ' . number_format($leaderRate * 100, 1) . '%)',
+            'gap' => $gapPct, 'unit' => '% pt',
+            'gap_label' => number_format($gapPct, 1) . '% pts away',
+            'pct' => round(($myWinRate / $leaderRate) * 100), 'record' => true,
+        ];
+    }
+}
+
+// All-time best single-season average (min 5 GPs in the season)
+$rcSeasonAvgLeaderStmt = $pdo->query("
+    SELECT r.name, SUBSTR(res.gpid, 1, 3) as sid,
+           AVG(res.gp_points) as avg_pts,
+           COUNT(*) as gps_count
+    FROM results res JOIN racers r ON res.racer_id = r.id
+    WHERE res.gpid LIKE 's%'
+    GROUP BY res.racer_id, sid
+    HAVING gps_count >= 5
+    ORDER BY avg_pts DESC LIMIT 1
+");
+$rcSeasonAvgLeader = $rcSeasonAvgLeaderStmt->fetch(PDO::FETCH_ASSOC);
+if ($rcSeasonAvgLeader && $rcSeasonAvgLeader['name'] !== $racer['name'] && $bestSeasonAvg > 0) {
+    $leaderAvg = (float)$rcSeasonAvgLeader['avg_pts'];
+    $gapAvg = $leaderAvg - $bestSeasonAvg;
+    if ($gapAvg > 0 && ($bestSeasonAvg / $leaderAvg) >= 0.82) $chaseMilestones[] = [
+        'icon' => '📈',
+        'label' => 'Best season average (' . $rcSeasonAvgLeader['name'] . ': ' . number_format($leaderAvg, 1) . ')',
+        'gap' => $gapAvg, 'unit' => 'pt avg',
+        'gap_label' => number_format($gapAvg, 1) . ' pts avg away',
+        'pct' => round(($bestSeasonAvg / $leaderAvg) * 100), 'record' => true,
+    ];
+}
+
+// Self: approaching own season wins record in the current season
+if ($currentSeasonWins > 0 && $bestPastSeasonWins > 0) {
+    $target = $bestPastSeasonWins + 1;
+    $gap    = $target - $currentSeasonWins;
+    $pct    = round(($currentSeasonWins / $target) * 100);
+    if ($gap > 0 && $gap <= 3 && $pct >= 82) $chaseMilestones[] = [
+        'icon' => '🎯', 'label' => 'Break your season wins record (' . $bestPastSeasonWins . ')',
+        'gap' => $gap, 'unit' => 'win', 'pct' => $pct, 'record' => false,
+    ];
+}
+
+// Self: approaching own season average record in the current season
+if ($currentSeasonGPs >= 3 && $bestPastSeasonAvg > 0 && $currentSeasonAvg < $bestPastSeasonAvg) {
+    $gapAvg = $bestPastSeasonAvg - $currentSeasonAvg;
+    $pct    = round(($currentSeasonAvg / $bestPastSeasonAvg) * 100);
+    if ($pct >= 82) $chaseMilestones[] = [
+        'icon' => '📈', 'label' => 'Beat your best season average (' . number_format($bestPastSeasonAvg, 1) . ')',
+        'gap' => $gapAvg, 'unit' => 'pt avg',
+        'gap_label' => number_format($gapAvg, 1) . ' pts avg away',
+        'pct' => $pct, 'record' => false,
+    ];
+}
+
+// Self: approaching next round-100 ELO milestone
+foreach ([1600, 1700, 1800, 1900, 2000] as $eloTarget) {
+    if ($currentElo < $eloTarget) {
+        $eloGap = $eloTarget - $currentElo;
+        $eloPct = round(($currentElo / $eloTarget) * 100);
+        if ($eloPct >= 82) $chaseMilestones[] = [
+            'icon' => '⚡', 'label' => number_format($eloTarget) . ' ELO Rating',
+            'gap' => $eloGap, 'unit' => 'ELO', 'pct' => $eloPct, 'record' => false,
+        ];
+        break;
+    }
+}
+
+// ── /Record Chaser ─────────────────────────────────────────────────────────
 
 // Get character usage
 $charStmt = $pdo->prepare("
@@ -251,6 +639,19 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="container stats-container">
+    <?php
+    // Wrapped entry point — public in December, admins can preview any time.
+    $wrappedShow = ((int)date('n') === 12) || $isAdminViewer;
+    if ($wrappedShow):
+        $wrappedYear = date('Y');
+    ?>
+        <a href="/wrapped/<?= (int)$racerId ?>?year=<?= htmlspecialchars($wrappedYear) ?>" class="racer-wrapped-cta">
+            🎁 See <?= htmlspecialchars($racer['name']) ?>'s <?= htmlspecialchars($wrappedYear) ?> Wrapped
+            <?php if ((int)date('n') !== 12): ?><span class="racer-wrapped-preview">admin preview</span><?php endif; ?>
+            <span class="racer-wrapped-arrow">→</span>
+        </a>
+    <?php endif; ?>
+
     <!-- Racer Header -->
     <header class="page-header racer-page-header">
         <div class="racer-page-header-info">
@@ -267,9 +668,49 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                     "<?= htmlspecialchars($racer['catchphrase']) ?>"
                 </p>
             <?php endif; ?>
+            <?php
+            // Sticker album chip — public from the stickers epoch; admins see
+            // it early as an art-preview link.
+            $stkEpoch = getSetting($pdo, 'stickers_epoch', '2026-06-21') ?: '2026-06-21';
+            $stkLive  = date('Y-m-d') >= $stkEpoch;
+            if ($stkLive || $isAdminViewer): ?>
+                <a href="/stickers/<?= (int)$racerId ?>" class="stk-profile-chip">
+                    🩹 Sticker album →
+                    <?php if (!$stkLive): ?><span class="racer-wrapped-preview">admin preview</span><?php endif; ?>
+                </a>
+            <?php endif; ?>
+            <?php if (!empty($racer['in_mikkoliiga'])): ?>
+                <a href="/mikkoliiga" class="mikko-member-badge">
+                    🌟 MIKKOLIIGA MEMBER
+                    <?php if ($mikkoliigaInfo): ?>
+                        <span class="mikko-member-rank">#<?= $mikkoliigaInfo['rank'] ?> of <?= $mikkoliigaInfo['total'] ?> · <?= $mikkoliigaInfo['score'] ?> pts</span>
+                    <?php endif; ?>
+                </a>
+            <?php endif; ?>
         </div>
         <a href="/" class="btn btn-secondary">← Back to Leaderboard</a>
     </header>
+
+    <?php if (!empty($racer['in_mikkoliiga']) && $mikkoliigaInfo): ?>
+    <div class="mikko-profile-banner">
+        <div class="mikko-profile-banner-icon">🌟</div>
+        <div class="mikko-profile-banner-content">
+            <div class="mikko-profile-banner-title">Mikkoliiga · Season <?= strtoupper($currentSeason) ?></div>
+            <div class="mikko-profile-banner-stats">
+                <span><strong>#<?= $mikkoliigaInfo['rank'] ?></strong> of <?= $mikkoliigaInfo['total'] ?> members</span>
+                <span>·</span>
+                <span><strong><?= $mikkoliigaInfo['score'] ?></strong> internal pts</span>
+                <span>·</span>
+                <span><?= $mikkoliigaInfo['gps_counted'] ?> of best <?= MIKKOLIIGA_BEST_X ?> GPs counted</span>
+                <?php if ($mikkoliigaInfo['total_gps'] > $mikkoliigaInfo['gps_counted']): ?>
+                <span>·</span>
+                <span><?= $mikkoliigaInfo['total_gps'] ?> total GPs this season</span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <a href="/mikkoliiga" class="mikko-profile-banner-cta">Full standings →</a>
+    </div>
+    <?php endif; ?>
 
     <!-- Card and Career Stats Row -->
     <div class="racer-top-grid">
@@ -326,6 +767,57 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
 
     </div>
+
+    <!-- Season Form: Consistency vs Ceiling + Side Quests -->
+    <?php if ($ccArchetype || !empty($racerQuests)): ?>
+    <div class="card cc-quest-card">
+        <?php if ($ccArchetype): ?>
+        <div class="cc-block">
+            <h2 class="card-header">📐 Consistency vs Ceiling <span class="cc-season">S<?= strtoupper(htmlspecialchars(substr($currentSeason, 1))) ?></span></h2>
+            <div class="cc-archetype" style="--cc-accent: <?= $ccStats['best'] >= $ccMedianCeiling ? '#e60012' : '#0066cc' ?>;">
+                <div class="cc-archetype-label"><?= htmlspecialchars($ccArchetype['label']) ?></div>
+                <div class="cc-archetype-blurb"><?= htmlspecialchars($ccArchetype['blurb']) ?></div>
+            </div>
+            <div class="cc-metrics">
+                <div class="cc-metric">
+                    <div class="cc-metric-val"><?= (int)$ccStats['best'] ?></div>
+                    <div class="cc-metric-lbl">Ceiling (best GP)</div>
+                    <div class="cc-metric-ctx">field median <?= (int)round($ccMedianCeiling) ?></div>
+                </div>
+                <div class="cc-metric">
+                    <div class="cc-metric-val">±<?= number_format($ccStats['stddev'], 1) ?></div>
+                    <div class="cc-metric-lbl">Spread (std dev)</div>
+                    <div class="cc-metric-ctx">field median ±<?= number_format($ccMedianStddev, 1) ?> · lower = steadier</div>
+                </div>
+                <div class="cc-metric">
+                    <div class="cc-metric-val"><?= number_format($ccStats['avg'], 1) ?></div>
+                    <div class="cc-metric-lbl">Season average</div>
+                    <div class="cc-metric-ctx"><?= (int)$ccStats['gps'] ?> GPs raced</div>
+                </div>
+            </div>
+            <p class="cc-foot">See the whole field plotted on <a href="/stats?season=<?= htmlspecialchars($currentSeason) ?>">Trends →</a></p>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($racerQuests)): ?>
+        <div class="cc-block">
+            <h2 class="card-header">🎯 Side Quests</h2>
+            <p class="cc-quest-sub">Two season-long objectives, drawn for <?= htmlspecialchars($racer['name']) ?> this season.</p>
+            <div class="quest-list">
+                <?php foreach ($racerQuests as $q): ?>
+                    <div class="quest <?= $q['completed'] ? 'quest--done' : '' ?>">
+                        <span class="quest-icon"><?= $q['icon'] ?></span>
+                        <div class="quest-body">
+                            <div class="quest-title"><?= htmlspecialchars($q['title']) ?><?= $q['completed'] ? ' <span class="quest-check">✓ complete</span>' : '' ?></div>
+                            <div class="quest-desc"><?= htmlspecialchars($q['desc']) ?></div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <!-- Personal Bests & Milestones -->
     <div class="card">
@@ -396,8 +888,97 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
             <?php endif; ?>
 
+            <!-- Best Season Finish -->
+            <?php if ($bestSeasonPlacement > 0 && count($seasons) > 1): ?>
+            <?php $placIcon = match($bestSeasonPlacement) { 1 => '🥇', 2 => '🥈', 3 => '🥉', default => '🏁' }; ?>
+            <div class="milestone-card milestone-card--placement">
+                <div class="milestone-icon"><?= $placIcon ?></div>
+                <div class="milestone-label">Best Season Finish</div>
+                <div class="milestone-value--lg">#<?= $bestSeasonPlacement ?></div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Best Single-Season Wins -->
+            <?php if ($bestSeasonWins > 0 && count($seasons) > 1): ?>
+            <div class="milestone-card milestone-card--season-wins">
+                <div class="milestone-icon">🏅</div>
+                <div class="milestone-label">Best Season Wins</div>
+                <div class="milestone-value--lg"><?= $bestSeasonWins ?></div>
+                <div class="milestone-sub">in a single season</div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Best Season Average -->
+            <?php if ($bestSeasonAvg > 0 && count($seasons) > 1): ?>
+            <div class="milestone-card milestone-card--season-avg">
+                <div class="milestone-icon">📊</div>
+                <div class="milestone-label">Best Season Avg</div>
+                <div class="milestone-value--lg"><?= number_format($bestSeasonAvg, 1) ?></div>
+                <div class="milestone-sub">pts per GP</div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Peak ELO -->
+            <?php if ($peakElo > ELO_INITIAL_RATING && $rcGPs >= 5): ?>
+            <div class="milestone-card milestone-card--elo">
+                <div class="milestone-icon">⚡</div>
+                <div class="milestone-label">Peak ELO</div>
+                <div class="milestone-value--lg"><?= $peakElo ?></div>
+                <div class="milestone-sub">Current: <?= $currentElo ?></div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Consecutive Seasons -->
+            <?php if ($maxConsecSeasons >= 2): ?>
+            <div class="milestone-card milestone-card--seasons">
+                <div class="milestone-icon">📅</div>
+                <div class="milestone-label">Consecutive Seasons</div>
+                <div class="milestone-value--lg"><?= $maxConsecSeasons ?></div>
+                <?php if ($currentConsecSeasons < $maxConsecSeasons): ?>
+                    <div class="milestone-sub">current: <?= $currentConsecSeasons ?></div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <!-- Longest Win Drought -->
+            <?php if ($maxWinDrought > 0 && $rcWins > 0): ?>
+            <div class="milestone-card milestone-card--drought">
+                <div class="milestone-icon">🏜️</div>
+                <div class="milestone-label">Longest Win Drought</div>
+                <div class="milestone-value--lg"><?= $maxWinDrought ?> GP<?= $maxWinDrought > 1 ? 's' : '' ?></div>
+            </div>
+            <?php endif; ?>
+
         </div>
     </div>
+
+    <!-- Record Chaser -->
+    <?php if (!empty($chaseMilestones)): ?>
+    <div class="card">
+        <h2 class="card-header">🎯 Record Chaser</h2>
+        <div class="chase-grid">
+            <?php foreach ($chaseMilestones as $m): ?>
+            <div class="chase-item <?= $m['record'] ? 'chase-item--record' : '' ?>">
+                <div class="chase-icon"><?= $m['icon'] ?></div>
+                <div class="chase-body">
+                    <div class="chase-label"><?= htmlspecialchars($m['label']) ?></div>
+                    <div class="chase-progress-wrap">
+                        <div class="chase-bar" style="width:<?= min(100, $m['pct']) ?>%"></div>
+                    </div>
+                    <div class="chase-gap">
+                        <?php if (!empty($m['gap_label'])): ?>
+                            <strong><?= htmlspecialchars($m['gap_label']) ?></strong>
+                        <?php else: ?>
+                            <strong><?= number_format($m['gap']) ?></strong>
+                            <?= htmlspecialchars($m['unit']) ?><?= $m['gap'] !== 1 ? 's' : '' ?> away
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Form Graph -->
     <?php
@@ -412,7 +993,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
     $formStmt->execute([$racerId]);
     $formData = array_reverse($formStmt->fetchAll(PDO::FETCH_ASSOC));
 
-    if (!empty($formData)):
+    if (count($formData) >= 2):
         // Calculate rolling average (last 5 races)
         $rollingAvg = [];
         for ($i = 0; $i < count($formData); $i++) {
@@ -512,6 +1093,72 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Score Distribution -->
+    <?php if ($distTotalCareer > 1): ?>
+    <div class="card">
+        <div class="dist-header">
+            <h2 class="card-header" style="margin:0;">📊 Score Distribution</h2>
+            <div class="dist-toggle">
+                <button class="dist-toggle-btn active" onclick="setDistView('career', this)">Career</button>
+                <button class="dist-toggle-btn" onclick="setDistView('season', this)"><?= strtoupper($currentSeason) ?></button>
+            </div>
+        </div>
+
+        <div class="dist-chart">
+            <?php foreach ($distBins as $label => [$lo, $hi, $bg, $fg]):
+                $cCount  = $distCareer[$label];
+                $sCount  = $distSeason[$label];
+                $cPct    = round(($cCount / $distTotalCareer) * 100, 1);
+                $sPct    = round(($sCount / $distTotalSeason) * 100, 1);
+                $cHeight = round(($cCount / $distMaxCareer) * 100);
+                $sHeight = round(($sCount / $distMaxSeason) * 100);
+            ?>
+            <div class="dist-col"
+                 data-career-h="<?= $cHeight ?>"
+                 data-season-h="<?= $sHeight ?>"
+                 data-career-count="<?= $cCount ?>"
+                 data-season-count="<?= $sCount ?>"
+                 data-career-pct="<?= $cPct ?>"
+                 data-season-pct="<?= $sPct ?>"
+                 data-tooltip="<?= $label ?>: <?= $cCount ?> GP<?= $cCount !== 1 ? 's' : '' ?> (<?= $cPct ?>%)">
+                <div class="dist-count" id="dc-<?= preg_replace('/[^a-z0-9]/i', '', $label) ?>">
+                    <?= $cCount ?: '' ?>
+                </div>
+                <div class="dist-bar-wrap">
+                    <div class="dist-bar"
+                         style="height:<?= $cHeight ?>%;background:<?= $bg ?>;color:<?= $fg ?>">
+                    </div>
+                </div>
+                <div class="dist-label" style="color:<?= $fg ?>"><?= $label ?></div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="dist-footer">
+            <span class="dist-footer-stat" id="dist-total-label">
+                <?= $distTotalCareer ?> GPs career
+            </span>
+            <?php
+            // Most common bin (career)
+            $peakBin   = array_search(max($distCareer), $distCareer);
+            $peakCount = max($distCareer);
+            $peakPct   = round(($peakCount / $distTotalCareer) * 100);
+            ?>
+            <span class="dist-footer-stat">
+                Most common: <strong><?= htmlspecialchars($peakBin) ?></strong> (<?= $peakPct ?>%)
+            </span>
+            <?php
+            $perfects = $distCareer['60'];
+            if ($perfects > 0):
+            ?>
+            <span class="dist-footer-stat" style="color:#ffd700;">
+                ✦ <?= $perfects ?> perfect<?= $perfects !== 1 ? 's' : '' ?>
+            </span>
+            <?php endif; ?>
         </div>
     </div>
     <?php endif; ?>
@@ -1163,6 +1810,41 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
 <script>
+// ── Score Distribution toggle ────────────────────────────────────────────
+let distView = 'career';
+
+function setDistView(view, btn) {
+    distView = view;
+    document.querySelectorAll('.dist-toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const cols = document.querySelectorAll('.dist-col');
+    const totalLabel = document.getElementById('dist-total-label');
+    let maxH = 0;
+    cols.forEach(col => {
+        maxH = Math.max(maxH, parseInt(col.dataset[view + 'H'], 10) || 0);
+    });
+    // Rescale so the tallest bar always fills the chart
+    cols.forEach(col => {
+        const h    = parseInt(col.dataset[view + 'H'], 10) || 0;
+        const cnt  = parseInt(col.dataset[view + 'Count'], 10) || 0;
+        const pct  = parseFloat(col.dataset[view + 'Pct']) || 0;
+        const bar  = col.querySelector('.dist-bar');
+        const countEl = col.querySelector('.dist-count');
+        const label = col.querySelector('.dist-label').textContent.trim();
+
+        bar.style.height = (maxH > 0 ? Math.round((h / maxH) * 100) : 0) + '%';
+        countEl.textContent = cnt > 0 ? cnt : '';
+        col.dataset.tooltip = label + ': ' + cnt + ' GP' + (cnt !== 1 ? 's' : '') + ' (' + pct + '%)';
+    });
+
+    if (totalLabel) {
+        const totals = { career: <?= $distTotalCareer ?>, season: <?= $distTotalSeason ?> };
+        const labels = { career: 'GPs career', season: 'GPs this season' };
+        totalLabel.textContent = totals[view] + ' ' + labels[view];
+    }
+}
+
 function downloadCard() {
     const card = document.getElementById('racerCard');
     const button = event.target;
@@ -1184,5 +1866,166 @@ function downloadCard() {
     });
 }
 </script>
+
+<style>
+/* ── Record Chaser ────────────────────────────────────────────────── */
+.chase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 4px;
+}
+.chase-item {
+    background: var(--gray-50);
+    border: 1px solid #1e1e1e;
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+.chase-item--record {
+    border-color: #6b4f00;
+    background: #0c0900;
+}
+.chase-icon { font-size: 1.3rem; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+.chase-body { flex: 1; min-width: 0; }
+.chase-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--gray-600);
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+.chase-progress-wrap {
+    height: 4px;
+    background: #1e1e1e;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.chase-bar {
+    height: 100%;
+    background: var(--nintendo-red);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+.chase-item--record .chase-bar { background: #c9901a; }
+.chase-gap { font-size: 0.7rem; color: var(--gray-700); }
+.chase-gap strong { color: #eee; }
+
+/* ── Score Distribution Chart ─────────────────────────────────────── */
+.dist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.dist-toggle {
+    display: flex;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.dist-toggle-btn {
+    background: #111;
+    border: none;
+    color: #888;
+    padding: 6px 16px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.dist-toggle-btn.active {
+    background: var(--nintendo-red);
+    color: #fff;
+}
+
+.dist-toggle-btn:not(.active):hover {
+    background: #1e1e1e;
+    color: var(--gray-600);
+}
+
+.dist-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 160px;
+    padding-bottom: 28px; /* space for labels */
+    position: relative;
+}
+
+.dist-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    cursor: default;
+    position: relative;
+}
+
+.dist-count {
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: #888;
+    margin-bottom: 3px;
+    min-height: 14px;
+    text-align: center;
+}
+
+.dist-bar-wrap {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+}
+
+.dist-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    min-height: 2px;
+    transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dist-label {
+    position: absolute;
+    bottom: 0;
+    font-size: 0.6rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transform: rotate(-45deg);
+    transform-origin: top left;
+    left: 50%;
+    bottom: -4px;
+}
+
+.dist-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #1e1e1e;
+}
+
+.dist-footer-stat {
+    font-size: 0.78rem;
+    color: #888;
+}
+
+.dist-footer-stat strong {
+    color: var(--gray-600);
+}
+</style>
 
 <?php include __DIR__ . '/../private/templates/footer.php'; ?>

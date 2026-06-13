@@ -8,7 +8,7 @@
 .admin-table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-xl);
     overflow: hidden;
     box-shadow: var(--shadow-card);
@@ -129,7 +129,7 @@
 .char-icon-box {
     width: 70px;
     height: 70px;
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-md);
     padding: 8px;
     box-sizing: border-box;
@@ -226,7 +226,7 @@
 }
 
 .racer-card {
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
     overflow: hidden;
@@ -243,7 +243,7 @@
 
 /* Card Header with Avatar */
 .racer-card-header {
-    background: linear-gradient(135deg, var(--nintendo-red) 0%, #c70010 100%);
+    background: var(--nintendo-red);
     padding: 24px 20px 18px;
     position: relative;
     overflow: hidden;
@@ -276,7 +276,7 @@
 .racer-avatar-frame {
     width: 90px;
     height: 90px;
-    background: white;
+    background: var(--gray-50);
     border-radius: var(--radius-lg);
     padding: 8px;
     box-shadow: var(--shadow-lg);
@@ -352,7 +352,7 @@
 
 .racer-card-nickname {
     display: inline-block;
-    background: linear-gradient(135deg, rgba(230, 0, 18, 0.12) 0%, rgba(230, 0, 18, 0.06) 100%);
+    background: rgba(230, 0, 18, 0.12);
     color: var(--nintendo-red);
     font-size: 0.85rem;
     font-weight: 800;
@@ -445,7 +445,7 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border: none;
-    background: white;
+    background: var(--gray-50);
     cursor: pointer;
     transition: all var(--transition-fast);
     text-decoration: none;
@@ -695,7 +695,7 @@
 }
 
 .admin-page-subtitle {
-    color: #666;
+    color: var(--gray-600);
     margin: 5px 0 0 0;
 }
 
@@ -708,7 +708,7 @@
 .admin-new-season-subtitle {
     margin: 5px 0 0 0;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--gray-600);
     font-weight: 600;
 }
 
@@ -728,7 +728,7 @@
 }
 
 .admin-section-header p {
-    color: #888;
+    color: var(--gray-500);
     margin-top: 10px;
 }
 
@@ -739,7 +739,7 @@
 .admin-file-name-display {
     margin-top: 10px;
     font-size: 0.85rem;
-    color: #666;
+    color: var(--gray-600);
 }
 
 .admin-import-btn-hidden {
@@ -771,8 +771,8 @@
 
 .admin-search-input {
     flex-grow: 1;
-    background: white;
-    color: #333;
+    background: var(--gray-50);
+    color: var(--gray-800);
 }
 
 .admin-bulk-bar {
@@ -797,7 +797,7 @@
 
 /* Bulk Edit Panel */
 .admin-bulk-edit-panel {
-    background: #f8f9fa;
+    background: var(--gray-100);
     border: 2px solid var(--nintendo-red);
     border-radius: 10px;
     padding: 20px;
@@ -821,7 +821,7 @@
     font-size: 0.75rem;
     font-weight: 800;
     text-transform: uppercase;
-    color: #666;
+    color: var(--gray-600);
 }
 
 .bulk-edit-submit {
@@ -860,15 +860,15 @@
 
 .admin-date-text {
     font-size: 0.7rem;
-    color: #888;
+    color: var(--gray-500);
 }
 
 .admin-select-cup {
     width: 100px;
     font-size: 0.75rem;
     padding: 5px;
-    background: #f9f9f9;
-    color: #333;
+    background: var(--gray-100);
+    color: var(--gray-800);
 }
 
 .admin-racer-name {
@@ -878,29 +878,29 @@
 .admin-input-pts {
     width: 50px;
     padding: 5px;
-    background: white;
-    color: #333;
+    background: var(--gray-50);
+    color: var(--gray-800);
 }
 
 .admin-input-rank {
     width: 45px;
     padding: 5px;
-    background: white;
-    color: #333;
+    background: var(--gray-50);
+    color: var(--gray-800);
 }
 
 .admin-input-char {
     width: 90px;
     padding: 5px;
-    background: white;
-    color: #333;
+    background: var(--gray-50);
+    color: var(--gray-800);
 }
 
 .admin-input-setup {
     width: 110px;
     padding: 5px;
-    background: white;
-    color: #333;
+    background: var(--gray-50);
+    color: var(--gray-800);
 }
 
 .admin-row-actions {
@@ -934,7 +934,7 @@
 
 .admin-edit-back-link {
     font-size: 0.9rem;
-    color: #888;
+    color: var(--gray-500);
     text-decoration: none;
 }
 
@@ -949,7 +949,7 @@
 }
 
 .admin-form-card {
-    background: white;
+    background: var(--gray-50);
     padding: 30px;
     border-radius: 12px;
     box-shadow: var(--shadow-sm);
@@ -979,7 +979,7 @@
 
 .admin-field-hint {
     font-size: 0.7rem;
-    color: #888;
+    color: var(--gray-500);
     margin-top: 4px;
 }
 
@@ -995,7 +995,7 @@
 
 .admin-field-tip {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--gray-500);
     margin-top: 5px;
 }
 
@@ -1012,8 +1012,8 @@
 
 .admin-btn-cancel {
     padding: 15px 30px;
-    background: #eee;
-    color: #333;
+    background: var(--gray-200);
+    color: var(--gray-800);
     text-decoration: none;
     border-radius: 4px;
     font-weight: bold;
@@ -1032,7 +1032,7 @@
 }
 
 .admin-awards-subtitle {
-    color: #666;
+    color: var(--gray-600);
     font-weight: 600;
 }
 
@@ -1046,7 +1046,7 @@
 }
 
 .admin-alert-error-awards {
-    background: #f8d7da;
+    background: #fdecec;
     color: #721c24;
     padding: 15px;
     border-radius: 8px;
@@ -1055,7 +1055,7 @@
 }
 
 .admin-awards-form-card {
-    background: white;
+    background: var(--gray-50);
     padding: 40px;
     border-radius: 12px;
     box-shadow: var(--card-shadow);
@@ -1068,7 +1068,7 @@
 
 .admin-award-row {
     padding: 25px;
-    background: #f9f9f9;
+    background: var(--gray-100);
     border-radius: 12px;
     border-left: 4px solid var(--nintendo-red);
 }
@@ -1091,14 +1091,14 @@
     font-size: 0.75rem;
     font-weight: 800;
     text-transform: uppercase;
-    color: #888;
+    color: var(--gray-500);
     margin-bottom: 8px;
 }
 
 .admin-award-select {
     width: 100%;
     padding: 12px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--gray-300);
     border-radius: 8px;
     font-size: 16px;
     font-weight: 600;
@@ -1107,14 +1107,14 @@
 .admin-award-input-number {
     width: 100%;
     padding: 12px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--gray-300);
     border-radius: 8px;
     font-size: 16px;
 }
 
 .admin-award-tip {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--gray-600);
     margin-top: 10px;
 }
 
@@ -1153,7 +1153,7 @@
 .awards-generate-hint {
     text-align: center;
     font-size: 0.8rem;
-    color: #888;
+    color: var(--gray-500);
     margin-top: 8px;
 }
 
@@ -1184,7 +1184,7 @@
 }
 
 .award-card {
-    background: white;
+    background: var(--gray-50);
     border-radius: 16px;
     padding: 28px 20px;
     text-align: center;
@@ -1215,7 +1215,7 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #333;
+    color: var(--gray-800);
     margin-bottom: 16px;
     min-height: 2.4em;
 }
@@ -1226,8 +1226,8 @@
     margin: 0 auto 12px;
     border-radius: 50%;
     overflow: hidden;
-    background: linear-gradient(135deg, #f0f0f0, #e0e0e0);
-    border: 3px solid #ddd;
+    background: #f0f0f0;
+    border: 3px solid var(--gray-300);
 }
 .award-card-core .award-card-portrait {
     border-color: var(--nintendo-red);
@@ -1244,13 +1244,13 @@
 .award-card-winner {
     font-size: 1.1rem;
     font-weight: 800;
-    color: #111;
+    color: var(--gray-900);
     margin-bottom: 8px;
 }
 
 .award-card-reason {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--gray-600);
     font-style: italic;
     line-height: 1.4;
     margin: 0;
@@ -1259,7 +1259,7 @@
 .awards-empty-state {
     text-align: center;
     padding: 80px 20px;
-    background: white;
+    background: var(--gray-50);
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
 }
@@ -1273,7 +1273,7 @@
     margin-bottom: 8px;
 }
 .awards-empty-state p {
-    color: #888;
+    color: var(--gray-500);
     font-size: 0.9rem;
 }
 
@@ -1335,7 +1335,7 @@
 }
 
 .admin-migrate-error-alert {
-    background: #f8d7da;
+    background: #fdecec;
     color: #721c24;
     padding: 20px;
     margin-bottom: 30px;
@@ -1355,7 +1355,7 @@
 
 .admin-migrate-intro {
     font-size: 1rem;
-    color: #666;
+    color: var(--gray-600);
     line-height: 1.6;
 }
 
@@ -1383,17 +1383,17 @@
 
 .admin-migrate-status-detail {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--gray-600);
 }
 
 .admin-migrate-ol {
     line-height: 1.8;
-    color: #333;
+    color: var(--gray-800);
 }
 
 .admin-migrate-warning-card {
     margin-bottom: 30px;
-    background: linear-gradient(135deg, #fff3cd 0%, #fff 100%);
+    background: #fff6dc;
     border: 2px solid #ffc107;
 }
 
@@ -1471,7 +1471,7 @@
 
 .bracket-meta-label {
     font-size: 0.85rem;
-    color: #888;
+    color: var(--gray-500);
     text-transform: uppercase;
     font-weight: 700;
 }
@@ -1507,18 +1507,18 @@
 }
 
 .bracket-empty-title {
-    color: #666;
+    color: var(--gray-600);
 }
 
 .bracket-empty-text {
-    color: #888;
+    color: var(--gray-500);
     margin-top: 10px;
 }
 
 .bracket-bye-display {
     text-align: center;
     padding: 20px;
-    color: #888;
+    color: var(--gray-500);
 }
 
 .bracket-bye-label {
@@ -1528,10 +1528,10 @@
 .bracket-cup-display {
     text-align: center;
     font-size: 0.8rem;
-    color: #666;
+    color: var(--gray-600);
     margin-bottom: 10px;
     padding: 6px;
-    background: #f0f0f0;
+    background: var(--gray-100);
     border-radius: 6px;
 }
 
@@ -1553,7 +1553,7 @@
 
 .bracket-placement-text {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--gray-600);
     margin-top: 4px;
 }
 
@@ -1571,7 +1571,7 @@
 
 .bracket-cup-select-box {
     padding: 15px;
-    background: #fff3cd;
+    background: #fff6dc;
     border-radius: 8px;
     border: 2px solid #ffc107;
 }
@@ -1587,14 +1587,14 @@
 .bracket-form-select {
     width: 100%;
     padding: 10px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--gray-300);
     border-radius: 4px;
     font-size: 16px;
 }
 
 .bracket-form-participant {
     padding: 15px;
-    background: #f8f9fa;
+    background: var(--gray-100);
     border-radius: 8px;
 }
 
@@ -1621,14 +1621,14 @@
     display: block;
     font-size: 0.75rem;
     font-weight: 700;
-    color: #666;
+    color: var(--gray-600);
     margin-bottom: 4px;
 }
 
 .bracket-form-input {
     width: 100%;
     padding: 8px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--gray-300);
     border-radius: 4px;
     font-size: 16px;
 }
@@ -1651,15 +1651,15 @@
 
 .bracket-participant-tbd {
     padding: 12px;
-    background: #f8f9fa;
+    background: var(--gray-100);
     border-radius: 6px;
     text-align: center;
-    color: #888;
+    color: var(--gray-500);
 }
 
 .bracket-participant-pending {
     padding: 12px;
-    background: #f8f9fa;
+    background: var(--gray-100);
     border-radius: 6px;
 }
 
@@ -1681,7 +1681,7 @@
 
 .bracket-participant-card {
     padding: 15px;
-    background: #f8f9fa;
+    background: var(--gray-100);
     border-radius: 8px;
     display: flex;
     justify-content: space-between;
@@ -1694,12 +1694,12 @@
 
 .bracket-participant-meta {
     font-size: 0.85rem;
-    color: #888;
+    color: var(--gray-500);
     margin-top: 4px;
 }
 
 .bracket-broadcast-desc {
-    color: #666;
+    color: var(--gray-600);
     margin-bottom: 25px;
 }
 
@@ -1712,7 +1712,7 @@
 }
 
 .tcreate-header-desc {
-    color: #888;
+    color: var(--gray-500);
     margin-top: 10px;
 }
 
@@ -1738,13 +1738,13 @@
     margin-bottom: 8px;
     font-size: 0.9rem;
     text-transform: uppercase;
-    color: #666;
+    color: var(--gray-600);
 }
 
 .tcreate-text-input {
     width: 100%;
     padding: 12px;
-    border: 2px solid #eee;
+    border: 2px solid var(--gray-200);
     border-radius: 6px;
     font-size: 1rem;
     font-weight: 600;
@@ -1752,7 +1752,7 @@
 
 .tcreate-suggestions-label {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--gray-600);
     font-weight: 700;
     margin-bottom: 8px;
 }
@@ -1776,18 +1776,18 @@
 .tcreate-select {
     width: 100%;
     padding: 12px;
-    border: 2px solid #eee;
+    border: 2px solid var(--gray-200);
     border-radius: 6px;
     font-size: 1rem;
     font-weight: 600;
-    background: white;
+    background: var(--gray-50);
     cursor: pointer;
 }
 
 .tcreate-tiebreaker-hint {
     margin-top: 6px;
     font-size: 0.75rem;
-    color: #888;
+    color: var(--gray-500);
 }
 
 .tcreate-format-info-box {
@@ -1832,7 +1832,7 @@
 
 .tcreate-count-label {
     font-weight: 700;
-    color: #666;
+    color: var(--gray-600);
 }
 
 .tcreate-count-value {
@@ -1848,7 +1848,7 @@
 .tcreate-seeding-notice {
     margin-bottom: 20px;
     padding: 12px;
-    background: #fff3cd;
+    background: #fff6dc;
     border-left: 4px solid #ffc107;
     border-radius: 4px;
 }
@@ -1886,20 +1886,20 @@
 
 .tcreate-racer-elo {
     font-size: 0.85rem;
-    color: #888;
+    color: var(--gray-500);
     margin-top: 4px;
 }
 
 .tcreate-seed-number {
     font-size: 1.5rem;
     font-weight: 900;
-    color: #ccc;
+    color: var(--gray-700);
 }
 
 .tcreate-submit-row {
     margin-top: 30px;
     padding-top: 20px;
-    border-top: 2px solid #eee;
+    border-top: 2px solid var(--gray-200);
 }
 
 .tcreate-submit-btn {
@@ -1946,12 +1946,12 @@
 }
 
 .tournaments-empty-title {
-    color: #666;
+    color: var(--gray-600);
     margin-bottom: 10px;
 }
 
 .tournaments-empty-text {
-    color: #888;
+    color: var(--gray-500);
 }
 
 .tournaments-table-card {
@@ -1974,7 +1974,7 @@
 .tournaments-td-center-sm {
     text-align: center;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--gray-600);
 }
 
 .tournaments-td-participants {
@@ -1986,7 +1986,7 @@
 .tournaments-td-date {
     text-align: center;
     font-size: 0.85rem;
-    color: #666;
+    color: var(--gray-600);
 }
 
 .tournaments-td-winner {
@@ -2004,7 +2004,7 @@
 
 .tournaments-season-label {
     font-size: 0.8rem;
-    color: #888;
+    color: var(--gray-500);
     margin-top: 4px;
 }
 
@@ -2046,7 +2046,7 @@
 /* Winner Podium */
 .winner-podium {
     position: relative;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--power);
     padding: 60px 40px;
     border-radius: 16px;
     margin-bottom: 30px;
@@ -2087,7 +2087,7 @@
 }
 
 .podium-place {
-    background: white;
+    background: var(--gray-50);
     border-radius: 12px;
     padding: 30px 20px;
     text-align: center;
@@ -2103,20 +2103,20 @@
 .podium-place.first {
     order: 2;
     padding: 40px 25px;
-    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    background: #ffd700;
     border: 4px solid #ffb700;
     box-shadow: 0 8px 30px rgba(255, 215, 0, 0.4);
 }
 
 .podium-place.second {
     order: 1;
-    background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+    background: #c0c0c0;
     border: 3px solid #a8a8a8;
 }
 
 .podium-place.third {
     order: 3;
-    background: linear-gradient(135deg, #cd7f32 0%, #e8a87c 100%);
+    background: #cd7f32;
     border: 3px solid #b8732d;
 }
 
@@ -2151,19 +2151,19 @@
     font-size: 1.3rem;
     font-weight: 900;
     margin-bottom: 8px;
-    color: #333;
+    color: var(--gray-800);
     text-transform: uppercase;
 }
 
 .podium-name.champion {
     font-size: 1.8rem;
-    color: #333;
+    color: var(--gray-800);
     text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
 }
 
 .podium-rank {
     font-size: 0.9rem;
-    color: #666;
+    color: var(--gray-600);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -2228,12 +2228,12 @@
 }
 
 .btn-broadcast {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--power);
     color: white;
 }
 
 .btn-broadcast:hover {
-    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    background: #764ba2;
     transform: translateY(-2px);
 }
 
@@ -2256,7 +2256,7 @@
     gap: 60px;
     overflow-x: auto;
     padding: 40px 20px;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background: #f4f0e6;
     border-radius: 12px;
     position: relative;
 }
@@ -2287,8 +2287,8 @@
 }
 
 .match-card {
-    background: white;
-    border: 3px solid #e0e0e0;
+    background: var(--gray-50);
+    border: 3px solid var(--gray-200);
     border-radius: 12px;
     padding: 20px;
     position: relative;
@@ -2322,9 +2322,9 @@
     top: 10px;
     right: 10px;
     font-size: 0.75rem;
-    color: #888;
+    color: var(--gray-500);
     font-weight: 700;
-    background: #f5f5f5;
+    background: var(--gray-100);
     padding: 4px 10px;
     border-radius: 12px;
 }
@@ -2360,7 +2360,7 @@
 }
 
 .broadcast-modal-content {
-    background: white;
+    background: var(--gray-50);
     padding: 40px;
     border-radius: 16px;
     max-width: 600px;
@@ -2393,7 +2393,7 @@
 }
 
 .broadcast-modal-close:hover {
-    color: #333;
+    color: var(--gray-800);
 }
 
 .broadcast-modal-header {
@@ -2434,7 +2434,7 @@
     font-size: 0.75rem;
     font-weight: 900;
     text-transform: uppercase;
-    color: #888;
+    color: var(--gray-500);
     margin-bottom: 8px;
 }
 
@@ -2442,11 +2442,11 @@
 .broadcast-textarea {
     width: 100%;
     padding: 12px;
-    border: 2px solid #eee;
+    border: 2px solid var(--gray-200);
     border-radius: 6px;
     font-family: inherit;
     font-size: 0.9rem;
-    background: #f9f9f9;
+    background: var(--gray-100);
 }
 
 .broadcast-textarea {
@@ -2455,7 +2455,7 @@
 }
 
 .btn-broadcast-generate {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--power);
     color: white;
     border: none;
     padding: 15px;
@@ -2468,7 +2468,7 @@
 }
 
 .btn-broadcast-generate:hover {
-    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    background: #764ba2;
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
@@ -2477,7 +2477,7 @@
 
 .racer-checkbox:hover {
     border-color: var(--nintendo-red);
-    background: #fff9f9;
+    background: #fdecec;
 }
 
 .racer-checkbox input:checked + div {
@@ -2486,7 +2486,7 @@
 
 .racer-checkbox:has(input:checked) {
     border-color: var(--nintendo-red);
-    background: #fff9f9;
+    background: #fdecec;
 }
 
 .racer-checkbox:has(input:checked) .seed-number {
@@ -2517,18 +2517,18 @@
 
 .name-suggestion-btn {
     padding: 6px 12px;
-    background: #f8f9fa;
+    background: var(--gray-100);
     border: 1px solid #dee2e6;
     border-radius: 4px;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s;
     font-weight: 600;
-    color: #333;
+    color: var(--gray-800);
 }
 
 .name-suggestion-btn:hover {
-    background: #e9ecef;
+    background: var(--gray-200);
     border-color: var(--nintendo-red);
     color: var(--nintendo-red);
 }
@@ -2554,14 +2554,14 @@
     margin-bottom: 6px;
     font-size: 0.75rem;
     text-transform: uppercase;
-    color: #555;
+    color: var(--gray-700);
     letter-spacing: 0.5px;
 }
 
 .admin-input {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--gray-400);
     border-radius: 6px;
     font-size: 1rem;
     box-sizing: border-box;
@@ -2588,7 +2588,7 @@
 }
 
 .alert-error {
-    background: #f8d7da;
+    background: #fdecec;
     color: #721c24;
     padding: 15px 20px;
     margin-bottom: 20px;
@@ -2599,7 +2599,7 @@
 
 /* Season Cards */
 .season-card {
-    background: white;
+    background: var(--gray-50);
     border-radius: 12px;
     margin-bottom: 30px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -2620,12 +2620,12 @@
 
 .season-card.new-season {
     border-left: 6px solid #ffa500;
-    background: linear-gradient(135deg, #fff9f0 0%, #ffffff 100%);
+    background: #fff6dc;
 }
 
 .season-card.simulator-card {
     border-left: 6px solid #6c5ce7;
-    background: linear-gradient(135deg, #f3f0ff 0%, #ffffff 100%);
+    background: #efeafa;
 }
 
 .season-header {
@@ -2643,7 +2643,7 @@
     margin: 0;
     font-weight: 900;
     font-size: 1.8rem;
-    color: #111;
+    color: var(--gray-900);
 }
 
 .season-meta-line {
@@ -2654,17 +2654,17 @@
 }
 
 .scoring-badge {
-    background: #f0f0f0;
+    background: var(--gray-100);
     padding: 4px 12px;
     border-radius: 6px;
     font-size: 0.85rem;
     font-weight: 700;
-    color: #333;
+    color: var(--gray-800);
 }
 
 .academic-info, .date-range {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--gray-600);
     font-weight: 600;
 }
 
@@ -2720,7 +2720,7 @@
     font-size: 0.9rem;
     font-weight: 900;
     text-transform: uppercase;
-    color: #666;
+    color: var(--gray-600);
     margin: 0 0 15px 0;
     letter-spacing: 0.5px;
 }
@@ -2728,7 +2728,7 @@
 .subsection-title {
     font-size: 0.95rem;
     font-weight: 800;
-    color: #333;
+    color: var(--gray-800);
     margin: 15px 0 10px 0;
 }
 
@@ -2758,7 +2758,7 @@
 .form-field label {
     font-size: 0.8rem;
     font-weight: 700;
-    color: #555;
+    color: var(--gray-700);
     margin-bottom: 5px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -2770,11 +2770,11 @@
 .form-field select,
 .form-field textarea {
     padding: 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--gray-300);
     border-radius: 6px;
     font-size: 0.95rem;
     font-family: inherit;
-    background: #f9f9f9;
+    background: var(--gray-100);
     transition: border-color 0.2s, background 0.2s;
 }
 
@@ -2783,7 +2783,7 @@
 .form-field textarea:focus {
     outline: none;
     border-color: var(--nintendo-red);
-    background: white;
+    background: var(--gray-50);
 }
 
 .form-field input[type="checkbox"] {
@@ -2793,19 +2793,19 @@
 
 .checkbox-label {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--gray-600);
     font-weight: 600;
 }
 
 .form-field small {
     font-size: 0.75rem;
-    color: #999;
+    color: var(--gray-500);
     margin-top: 4px;
 }
 
 .info-text {
     font-size: 0.9rem;
-    color: #666;
+    color: var(--gray-600);
     font-style: italic;
     margin: 10px 0;
 }
@@ -2813,7 +2813,7 @@
 .scoring-fields {
     margin-top: 15px;
     padding: 15px;
-    background: #f9f9f9;
+    background: var(--gray-100);
     border-radius: 8px;
     border-left: 4px solid var(--nintendo-red);
 }
@@ -2842,16 +2842,16 @@
     display: flex;
     gap: 10px;
     padding: 15px;
-    background: #f9f9f9;
+    background: var(--gray-100);
     border-radius: 8px;
 }
 
 .season-type-btn {
     flex: 1;
     padding: 15px 20px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--gray-300);
     border-radius: 8px;
-    background: white;
+    background: var(--gray-50);
     font-weight: 700;
     font-size: 0.95rem;
     cursor: pointer;
@@ -2859,7 +2859,7 @@
 }
 
 .season-type-btn:hover {
-    border-color: #999;
+    border-color: var(--gray-500);
     transform: translateY(-2px);
 }
 
@@ -2903,7 +2903,7 @@
 }
 
 .settings-section {
-    background: white;
+    background: var(--gray-50);
     border-radius: 12px;
     padding: 30px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -2916,7 +2916,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    color: #333;
+    color: var(--gray-800);
     text-transform: uppercase;
 }
 
@@ -2939,13 +2939,13 @@
     font-weight: 900;
     font-size: 0.9rem;
     text-transform: uppercase;
-    color: #666;
+    color: var(--gray-600);
     letter-spacing: 0.5px;
 }
 
 .setting-description {
     font-size: 0.85rem;
-    color: #888;
+    color: var(--gray-500);
     margin: 0;
     font-style: italic;
 }
@@ -2953,7 +2953,7 @@
 .setting-input,
 .setting-textarea {
     padding: 12px;
-    border: 2px solid #eee;
+    border: 2px solid var(--gray-200);
     border-radius: 6px;
     font-size: 1rem;
     font-family: inherit;
@@ -2981,7 +2981,7 @@
 .setting-color-picker {
     width: 60px;
     height: 50px;
-    border: 2px solid #eee;
+    border: 2px solid var(--gray-200);
     border-radius: 6px;
     cursor: pointer;
     -webkit-appearance: none;
@@ -3008,7 +3008,7 @@
     width: 50px;
     height: 50px;
     border-radius: 6px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--gray-300);
     box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
 }
 
@@ -3040,7 +3040,7 @@
     left: 3px;
     width: 24px;
     height: 24px;
-    background: white;
+    background: var(--gray-50);
     border-radius: 50%;
     transition: transform 0.3s;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -3057,7 +3057,7 @@
 .toggle-label {
     font-weight: 700;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--gray-600);
 }
 
 /* Settings Actions */
@@ -3065,7 +3065,7 @@
     display: flex;
     gap: 15px;
     padding: 30px;
-    background: white;
+    background: var(--gray-50);
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
@@ -3083,7 +3083,7 @@
 }
 
 .backup-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: var(--gray-50);
     border: 2px solid #dee2e6;
     border-radius: 12px;
     padding: 30px;
@@ -3105,11 +3105,11 @@
     font-size: 1.3rem;
     font-weight: 900;
     margin-bottom: 10px;
-    color: #333;
+    color: var(--gray-800);
 }
 
 .backup-card p {
-    color: #666;
+    color: var(--gray-600);
     margin-bottom: 20px;
     font-size: 0.9rem;
     line-height: 1.5;
@@ -3117,7 +3117,7 @@
 
 .backup-note {
     font-size: 0.75rem !important;
-    color: #888 !important;
+    color: var(--gray-500) !important;
     font-style: italic;
     margin-top: 15px !important;
 }
@@ -3196,10 +3196,83 @@
 .sim-header-toggle { cursor: pointer; }
 .badge--tool { background: #6c5ce7; color: white; }
 .info-text--warning { color: #c00; font-weight: 700; }
-.sim-status { color: #888; }
+.sim-status { color: var(--gray-500); }
 .sim-error { color: #c00; }
 .sim-table { margin-top: 10px; }
-.sim-row-leader { background: #fff9e6; font-weight: 800; }
-.sim-row-podium { background: #f8f8f8; }
+.sim-row-leader { background: #fff6dc; font-weight: 800; }
+.sim-row-podium { background: var(--gray-100); }
 .sim-score { color: var(--nintendo-red); font-weight: 900; }
-.sim-delta { color: #888; }
+.sim-delta { color: var(--gray-500); }
+/* ── Mikkoliiga admin badges ──────────────────────────────────────────── */
+.mikko-admin-checkbox {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+.mikko-roster-tag {
+    font-size: 0.75em;
+    background: #FFD700;
+    color: #3a2c00;
+    padding: 2px 6px;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.retired-roster-tag {
+    font-size: 0.75em;
+    background: #888;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 4px;
+    letter-spacing: 0.5px;
+}
+
+/* ── Per-season Teams block (admin/seasons.php) ─────────────────────────── */
+.season-teams {
+    margin-top: 18px;
+    border-top: 1px solid var(--gray-300);
+    padding-top: 14px;
+}
+.season-teams > summary {
+    cursor: pointer;
+    font-weight: 800;
+    color: #FFD700;
+    list-style: none;
+}
+.season-teams > summary::-webkit-details-marker { display: none; }
+.season-teams-count { color: var(--gray-500); font-weight: 600; font-size: 0.82rem; margin-left: 6px; }
+.season-team {
+    background: var(--gray-100);
+    border: 1px solid var(--gray-300);
+    border-left: 4px solid var(--nintendo-red);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+}
+.season-team-head { display: flex; align-items: center; gap: 10px; }
+.season-team-dot { width: 14px; height: 14px; border-radius: 50%; }
+.season-team-n { color: var(--gray-500); font-size: 0.8rem; }
+.season-team-del { margin-left: auto; }
+.season-team-del button {
+    background: none; border: none; color: #a55; cursor: pointer; font-size: 1rem;
+}
+.season-team-del button:hover { color: #f66; }
+.season-team-members { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.season-member-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--gray-200); color: var(--gray-700); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 0.82rem;
+}
+.season-member-chip button {
+    background: none; border: none; color: var(--gray-500); cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0 4px;
+}
+.season-member-chip button:hover { color: #f66; }
+.season-member-empty { color: var(--gray-500); font-style: italic; font-size: 0.82rem; }
+.season-team-add { margin-top: 8px; }
+.season-team-add select, .season-team-create input[type=text] {
+    background: var(--gray-100); color: #fff; border: 1px solid var(--gray-300); padding: 5px 8px; border-radius: 4px;
+}
+.season-team-create { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.season-team-create input[type=color] { width: 40px; height: 34px; border: 1px solid var(--gray-300); background: var(--gray-100); border-radius: 4px; }
+.btn-sm { padding: 5px 12px; font-size: 0.85rem; }

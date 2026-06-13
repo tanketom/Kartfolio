@@ -2,27 +2,25 @@
 /**
  * Random Cup Picker - Weighted by Season Race Count
  * Supports optional racer filtering: picks cups that selected racers haven't done yet
+ * In MONSTER HUNT seasons, also returns Monster/Party role assignments.
  * Path: /cdnmk/public_html/pick_cup.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
+require_once __DIR__ . '/../private/includes/mk_data.php';
 
 header('Content-Type: application/json');
 
-// All 24 Mario Kart 8 Deluxe cups (Base Game + Booster Course Pass DLC)
-$cups = [
-    // Base Game Cups (12)
-    'Mushroom', 'Flower', 'Star', 'Special',
-    'Shell', 'Banana', 'Leaf', 'Lightning',
-    'Egg', 'Triforce', 'Crossing', 'Bell',
-    // Booster Course Pass DLC Cups (12)
-    'Golden Dash', 'Lucky Cat', 'Turnip', 'Propeller',
-    'Rock', 'Moon', 'Fruit', 'Boomerang',
-    'Feather', 'Cherry', 'Acorn', 'Spiny'
-];
+$cups = getMKAllCups();
 
 // Get current season
 $currentSeason = getCurrentSeasonNumber();
+
+// Check if this is a MONSTER HUNT season
+$mhStmt = $pdo->prepare("SELECT scoring_system FROM season_meta WHERE season_id = ?");
+$mhStmt->execute([$currentSeason]);
+$seasonMeta = $mhStmt->fetch(PDO::FETCH_ASSOC);
+$isMonsterHunt = ($seasonMeta && $seasonMeta['scoring_system'] === 'monster_hunt');
 
 // Check for racer IDs (comma-separated)
 $racerIds = [];
@@ -121,11 +119,72 @@ foreach ($cups as $cup) {
     }
 }
 
+// Build MONSTER HUNT role data if applicable
+$mhData = null;
+if ($isMonsterHunt) {
+    require_once __DIR__ . '/../private/includes/elo_engine.php';
+    $eloResult = calculateAllELORatings($pdo);
+    $allRatings = $eloResult['ratings']; // ['Name' => float, ...]
+
+    // If the user selected racers, the role assignment is for THAT subset
+    // (the modal otherwise dumps the entire league as adventurers and
+    // pushes the action buttons off the viewport). Fall back to the full
+    // roster only when no racers were picked.
+    if (!empty($racerIds)) {
+        $placeholders = implode(',', array_fill(0, count($racerIds), '?'));
+        $participantStmt = $pdo->prepare("SELECT id, name FROM racers WHERE id IN ($placeholders) ORDER BY name ASC");
+        $participantStmt->execute($racerIds);
+    } else {
+        $participantStmt = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC");
+    }
+    $participants = $participantStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Build list with current Elo, sorted descending
+    $eloStandings = [];
+    foreach ($participants as $p) {
+        $eloStandings[] = [
+            'id'   => $p['id'],
+            'name' => $p['name'],
+            'elo'  => (int)round($allRatings[$p['name']] ?? 1000),
+        ];
+    }
+    usort($eloStandings, fn($a, $b) => $b['elo'] <=> $a['elo']);
+
+    if (!empty($eloStandings)) {
+        // The Monster is the highest-Elo participant. Matches the post-GP
+        // pickMonster() helper in gp_logic.php.
+        $monster     = $eloStandings[0];
+        $monsterName = $monster['name'];
+
+        $adventurers = array_values(array_filter($eloStandings, fn($r) => $r['name'] !== $monsterName));
+
+        // CR tier — gap between monster Elo and avg adventurer Elo
+        $advEloVals = array_column($adventurers, 'elo');
+        $avgAdvElo  = count($advEloVals) > 0
+            ? array_sum($advEloVals) / count($advEloVals)
+            : $monster['elo'];
+        $eloGap = max(0, $monster['elo'] - $avgAdvElo);
+        if      ($eloGap < 50)  { $crTier = 1; $crEpithet = 'the Rival'; }
+        elseif  ($eloGap < 150) { $crTier = 2; $crEpithet = 'the Beast'; }
+        elseif  ($eloGap < 300) { $crTier = 3; $crEpithet = 'the Fearsome One'; }
+        else                    { $crTier = 4; $crEpithet = 'the Dragon'; }
+        $monster['cr_tier']    = $crTier;
+        $monster['cr_epithet'] = $crEpithet;
+
+        $mhData = [
+            'is_monster_hunt' => true,
+            'monster'         => $monster,
+            'adventurers'     => $adventurers,
+        ];
+    }
+}
+
 // Build response
 $response = [
     'cup' => $selectedCup,
     'seasonRaceCount' => $raceCounts[$selectedCup],
-    'allCups' => $cups
+    'allCups' => $cups,
+    'is_monster_hunt' => $isMonsterHunt,
 ];
 
 // If racers were specified, add per-racer info for the selected cup
@@ -159,6 +218,12 @@ if ($racerCount > 0) {
 
     $response['racerDetails'] = $racerDetails;
     $response['missingCount'] = $missingCounts[$selectedCup];
+}
+
+// Attach MONSTER HUNT role data
+if ($mhData) {
+    $response['monster']     = $mhData['monster'];
+    $response['adventurers'] = $mhData['adventurers'];
 }
 
 echo json_encode($response);

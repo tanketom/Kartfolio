@@ -53,7 +53,6 @@ https://yourdomain.com/stats
 ### API Endpoints (RESTful Style)
 | Clean URL | Actual File | Purpose |
 |-----------|-------------|---------|
-| `/api/ocr` | `api/ocr_gemini.php` | OCR image processing |
 | `/api/recap` | `api/gemini_recap.php` | AI recap generation |
 | `/api/season-report` | `api/generate_season_report.php` | Season report generation |
 
@@ -149,8 +148,6 @@ If your hosting allows `.htaccess` PHP settings:
 
 ```apache
 expose_php = Off                      # Hide PHP version
-upload_max_filesize = 10M             # Support OCR image uploads
-post_max_size = 10M                   # Match upload size
 session.cookie_httponly = 1           # Prevent XSS session theft
 session.cookie_samesite = Lax         # CSRF protection
 ```
@@ -278,7 +275,7 @@ https://display.yourdomain.com/horizontal
 ### API Versioning
 For future API changes:
 ```apache
-RewriteRule ^api/v2/ocr$ api/v2/ocr_gemini.php [L]
+RewriteRule ^api/v2/recap$ api/v2/gemini_recap.php [L]
 ```
 
 ## Summary

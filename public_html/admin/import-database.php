@@ -11,6 +11,7 @@ $error = "";
 $success = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['database_file'])) {
+    verify_csrf();
     $uploadedFile = $_FILES['database_file'];
 
     // Check for upload errors

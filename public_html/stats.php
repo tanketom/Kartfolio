@@ -18,9 +18,7 @@ $availableSeasons = $seasonsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 1. Fetch Season Rules and Scoring Info
 if (!$isAllTime) {
-    $ruleStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-    $ruleStmt->execute([$currentSeason]);
-    $rules = $ruleStmt->fetch(PDO::FETCH_ASSOC);
+    $rules = getSeasonRules($pdo, $currentSeason);
 
     $scoringInfo = getScoringSystemInfo($pdo, $currentSeason);
     $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
@@ -71,6 +69,66 @@ foreach ($raw_data as $row) {
 
 $timeline = array_values(array_unique($all_dates));
 sort($timeline);
+
+// 3b. Pre-compute MONSTER HUNT XP per GP per racer (needs all participants + Elo)
+$mhXpSeries = []; // racer_name => [gpid => xp_earned]
+$gpDates     = []; // gpid => race_date
+foreach ($raw_data as $row) {
+    if (!isset($gpDates[$row['gpid']])) $gpDates[$row['gpid']] = $row['race_date'];
+}
+if (!$isAllTime && $scoringSystem === 'monster_hunt') {
+    $changelog      = getMonsterHuntEloChangelog($pdo);
+    $mh_slay        = (int)($rules['mh_slay_xp']           ?? 100);
+    $mh_survive     = (int)($rules['mh_survive_xp']         ?? 20);
+    $mh_party       = (int)($rules['mh_party_bonus_xp']     ?? 50);
+    $mh_mon_win     = (int)($rules['mh_monster_win_xp']     ?? 80);
+    $mh_mon_part    = (int)($rules['mh_monster_partial_xp'] ?? 30);
+    $mh_mon_loss    = (int)($rules['mh_monster_loss_xp']    ?? -40);
+
+    foreach ($changelog as $gpid => $gpData) {
+        if (!str_starts_with($gpid, $currentSeason)) continue;
+        if (count($gpData) < 2) continue;
+
+        $monsterName = null; $monsterElo = PHP_INT_MIN;
+        foreach ($gpData as $n => $d) {
+            if ($d['old_elo'] > $monsterElo ||
+                ($d['old_elo'] === $monsterElo && strcmp($n, $monsterName) < 0)) {
+                $monsterElo = $d['old_elo']; $monsterName = $n;
+            }
+        }
+        $monsterRank = $gpData[$monsterName]['rank'];
+
+        $advElos = [];
+        foreach ($gpData as $n => $d) { if ($n !== $monsterName) $advElos[] = $d['old_elo']; }
+        $avgAdv = count($advElos) > 0 ? array_sum($advElos) / count($advElos) : $monsterElo;
+        $gap    = max(0, $monsterElo - $avgAdv);
+        if ($gap < 50) $cr = 1.0; elseif ($gap < 150) $cr = 1.25; elseif ($gap < 300) $cr = 1.5; else $cr = 2.0;
+
+        $advWon = $advLost = 0;
+        foreach ($gpData as $n => $d) {
+            if ($n === $monsterName) continue;
+            if ($d['rank'] < $monsterRank) $advWon++; else $advLost++;
+        }
+        $fullSlay = ($advLost === 0 && $advWon > 0); // all adventurers beat Monster
+        $isTpk    = ($advWon === 0);                 // Monster beat all (TPK)
+
+        foreach ($gpData as $name => $d) {
+            if ($name === $monsterName) {
+                if ($isTpk)        $xp = $mh_mon_win;
+                elseif ($fullSlay) $xp = $mh_mon_loss;
+                else               $xp = $mh_mon_part;
+            } else {
+                if ($d['rank'] < $monsterRank) {
+                    $xp = (int)round($mh_slay * $cr);
+                    if ($fullSlay) $xp += $mh_party;
+                } else {
+                    $xp = $mh_survive;
+                }
+            }
+            $mhXpSeries[$name][$gpid] = $xp;
+        }
+    }
+}
 
 // 4. THE REPLAY ENGINE
 $chart_series = [];
@@ -270,6 +328,24 @@ foreach ($all_racers as $racer) {
                     }
                     $chart_points[] = round(array_sum($cupBests), 2);
                     break;
+
+                case 'monster_hunt':
+                    // Running Best X XP sum as of $currentDate
+                    $mhBestX   = max(1, (int)($rules['mh_best_x'] ?? 20));
+                    $mhSeries  = $mhXpSeries[$racer] ?? [];
+                    $mhRunning = [];
+                    foreach ($mhSeries as $gpid => $xp) {
+                        $gpDate = $gpDates[$gpid] ?? '';
+                        if ($gpDate && $gpDate <= $currentDate) $mhRunning[] = $xp;
+                    }
+                    if (count($mhRunning) > 0) {
+                        rsort($mhRunning);
+                        $topX = array_slice($mhRunning, 0, $mhBestX);
+                        $chart_points[] = round(array_sum($topX), 2);
+                    } else {
+                        $chart_points[] = null;
+                    }
+                    break;
             }
         } else {
             $chart_points[] = null;
@@ -368,7 +444,10 @@ foreach ($chart_series as $name => $dataPoints) {
     <div class="racer-card stats-chart-card">
         <h1 class="stats-chart-title">Historical Power Rankings</h1>
         <p class="stats-chart-subtitle">
-            Tracking GPScore™ progression using <?= htmlspecialchars($scoringInfo['name']) ?>.
+            <?= $scoringSystem === 'monster_hunt'
+                ? 'Tracking avg XP/GP over the season. Title and level are shown on the leaderboard.'
+                : 'Tracking GPScore™ progression using ' . htmlspecialchars($scoringInfo['name']) . '.'
+            ?>
             <span class="stats-threshold-note">(All racers shown)</span>
         </p>
 
@@ -433,6 +512,32 @@ foreach ($chart_series as $name => $dataPoints) {
 
     </div>
 
+    <?php
+    // Consistency vs Ceiling scatter — only meaningful for a single season.
+    $ccPoints = [];
+    if (!$isAllTime) {
+        foreach (getActiveRacers($pdo, $currentSeason) as $ccr) {
+            $cs = racerSeasonStats($pdo, (int)$ccr['id'], $currentSeason);
+            if ($cs['gps'] < 3) continue; // need a few GPs to be meaningful
+            $ccPoints[] = ['x' => $cs['best'], 'y' => round($cs['stddev'], 1), 'name' => $ccr['name']];
+        }
+    }
+    if (!empty($ccPoints)):
+        $ccMedX = (function ($a) { sort($a); $n = count($a); return $n % 2 ? $a[intdiv($n,2)] : ($a[$n/2-1]+$a[$n/2])/2; })(array_column($ccPoints, 'x'));
+        $ccMedY = (function ($a) { sort($a); $n = count($a); return $n % 2 ? $a[intdiv($n,2)] : ($a[$n/2-1]+$a[$n/2])/2; })(array_column($ccPoints, 'y'));
+    ?>
+    <section class="racer-card stats-section-card stats-section-card--top">
+        <h2 class="stats-section-heading">📐 Consistency vs Ceiling</h2>
+        <p class="stats-section-sub">
+            Every racer plotted by their best GP (ceiling, →) and score spread (consistency, ↑ = steadier).
+            Lines mark the field median. Top-right = complete; bottom-right = boom-or-bust.
+        </p>
+        <div class="stats-chart-wrap">
+            <canvas id="ccScatter"></canvas>
+        </div>
+    </section>
+    <?php endif; ?>
+
     <section class="racer-card stats-section-card stats-section-card--top">
         <h2 class="stats-section-heading">📈 Current Form Rankings</h2>
         <p class="stats-section-sub">Ranked by average performance over the last 5 GPs.</p>
@@ -468,6 +573,7 @@ foreach ($chart_series as $name => $dataPoints) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js" integrity="sha384-hfkuqrKeWFmnTMWN31VWyoe8xgdTADD11kgxmdpx2uyE6j5Az5uZq6u6AKYYmAOw" crossorigin="anonymous"></script>
+<script>Chart.defaults.color = "#6b6453"; Chart.defaults.borderColor = "#e8e0cc";</script>
 <script>
     const ctx = document.getElementById('seasonChart').getContext('2d');
     const rawLabels = <?= json_encode(array_values($timeline)) ?>;
@@ -498,7 +604,7 @@ foreach ($chart_series as $name => $dataPoints) {
             },
             scales: {
                 y: { 
-                    grid: { color: '#f0f0f0' },
+                    grid: { color: '#e8e0cc' },
                     ticks: { font: { weight: 'bold' } },
                     title: { display: true, text: 'GPScore™', font: { weight: 'bold' } }
                 },
@@ -510,5 +616,69 @@ foreach ($chart_series as $name => $dataPoints) {
         }
     });
 </script>
+
+<?php if (!$isAllTime && !empty($ccPoints)): ?>
+<script>
+(function () {
+    const pts = <?= json_encode($ccPoints) ?>;
+    const medX = <?= json_encode($ccMedX) ?>;   // median ceiling
+    const medY = <?= json_encode($ccMedY) ?>;   // median spread
+    const el = document.getElementById('ccScatter');
+    if (!el) return;
+
+    // Colour by quadrant: high ceiling = red family, low = blue family;
+    // steadier (low spread) = darker/stronger.
+    const colored = pts.map(p => {
+        const hi = p.x >= medX, steady = p.y <= medY;
+        const color = hi ? (steady ? '#c0102a' : '#ff7a59') : (steady ? '#0066cc' : '#7fb3e6');
+        return { x: p.x, y: p.y, name: p.name, color };
+    });
+
+    new Chart(el.getContext('2d'), {
+        type: 'scatter',
+        data: { datasets: [{
+            data: colored,
+            pointBackgroundColor: colored.map(p => p.color),
+            pointBorderColor: '#fff', pointBorderWidth: 1.5,
+            pointRadius: 7, pointHoverRadius: 9,
+        }]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => {
+                    const p = c.raw;
+                    return `${p.name}: ceiling ${p.x}, spread ±${p.y}`;
+                } } },
+                // Median crosshair via annotation-free approach: draw using grid lines below.
+            },
+            scales: {
+                x: { title: { display: true, text: 'Ceiling — best GP →', font: { weight: 'bold' } }, grid: { color: '#e8e0cc' }, suggestedMin: 0, suggestedMax: 60 },
+                y: { reverse: true, title: { display: true, text: '↑ steadier (lower spread)', font: { weight: 'bold' } }, grid: { color: '#e8e0cc' }, suggestedMin: 0 }
+            }
+        },
+        plugins: [{
+            // Median crosshair + datapoint labels.
+            id: 'ccGuides',
+            afterDraw(chart) {
+                const { ctx, chartArea: a, scales } = chart;
+                const mx = scales.x.getPixelForValue(medX);
+                const my = scales.y.getPixelForValue(medY);
+                ctx.save();
+                ctx.strokeStyle = '#c4b896'; ctx.setLineDash([5, 4]); ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(mx, a.top); ctx.lineTo(mx, a.bottom); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(a.left, my); ctx.lineTo(a.right, my); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#4a4438'; ctx.font = 'bold 11px sans-serif';
+                chart.getDatasetMeta(0).data.forEach((pt, i) => {
+                    ctx.fillText(colored[i].name, pt.x + 9, pt.y + 4);
+                });
+                ctx.restore();
+            }
+        }]
+    });
+})();
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../private/templates/footer.php'; ?>

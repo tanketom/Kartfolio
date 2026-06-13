@@ -12,10 +12,7 @@ $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
 $seasonId = getCurrentSeasonNumber();
 
 // 1. Fetch Season Rules
-$ruleStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$ruleStmt->execute([$seasonId]);
-$rules = $ruleStmt->fetch(PDO::FETCH_ASSOC);
-$minThreshold = $rules['min_races_threshold'] ?? 3;
+$rules = getSeasonRules($pdo, $seasonId);
 
 // 2. Calculate previous standings for rank change
 $latestDateStmt = $pdo->prepare("SELECT MAX(race_date) as latest_date FROM results WHERE gpid LIKE ?");
@@ -94,7 +91,7 @@ foreach ($activeRacers as $r) {
         'score' => $score,
         'char' => $char,
         'count' => $raceCount,
-        'qualifies' => ($raceCount >= $minThreshold)
+        'qualifies' => racerQualifies($raceCount, $rules)
     ];
 }
 $currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';

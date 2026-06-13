@@ -13,9 +13,10 @@ include __DIR__ . '/../private/templates/header.php';
 // 1. Fetch Career Aggregates
 // We calculate: Total Points, Total GPs, Avg PPG, and Total LOLs across all time
 $stmt = $pdo->query("
-    SELECT 
-        r.id, 
-        r.name, 
+    SELECT
+        r.id,
+        r.name,
+        r.is_retired,
         COUNT(res.id) as total_gps,
         SUM(res.gp_points) as lifetime_points,
         AVG(res.gp_points) as lifetime_ppg,
@@ -176,8 +177,8 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
                     $eff = $careerStats;
                     usort($eff, fn($a, $b) => $b['lifetime_ppg'] <=> $a['lifetime_ppg']);
                     foreach (array_slice($eff, 0, 10) as $row): ?>
-                    <tr>
-                        <td><strong><a href="/racer/<?= $row['id'] ?>" class="racer-link" onmouseover="this.style.color='var(--nintendo-red)'" onmouseout="this.style.color='inherit'"><?= htmlspecialchars($row['name']) ?></a></strong></td>
+                    <tr class="<?= !empty($row['is_retired']) ? 'racer-retired' : '' ?>">
+                        <td><strong><a href="/racer/<?= $row['id'] ?>" class="racer-link" onmouseover="this.style.color='var(--nintendo-red)'" onmouseout="this.style.color='inherit'"><?= htmlspecialchars($row['name']) ?></a></strong><?php if (!empty($row['is_retired'])): ?> <span class="retired-badge" title="Retired racer">RETIRED</span><?php endif; ?></td>
                         <td><?= $row['total_gps'] ?></td>
                         <td class="txt-right alltime-ppg-val"><?= number_format($row['lifetime_ppg'], 2) ?></td>
                     </tr>
@@ -218,7 +219,10 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
                     'single_elim' => 'Single Elim',
                     'double_elim' => 'Double Elim',
                     'gauntlet' => 'Gauntlet',
-                    'team_relay' => 'Team Relay'
+                    'team_relay' => 'Team Relay',
+                    'survivor' => 'Survivor',
+                    'team_scramble' => 'Team Scramble',
+                    'world_cup' => 'World Cup'
                 ];
                 $formatLabel = $formatLabels[$tournament['format']] ?? $tournament['format'];
             ?>
@@ -244,7 +248,7 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
     <?php endif; ?>
 
     <div class="racer-card stats-section-card alltime-recent-tournaments">
-        <h2 class="stats-section-heading" style="color: #111;">Master Career Ledger</h2>
+        <h2 class="stats-section-heading" style="color: var(--gray-900);">Master Career Ledger</h2>
         <div class="alltime-table-scroll">
             <table class="admin-table">
                 <thead>
@@ -273,6 +277,7 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js" integrity="sha384-hfkuqrKeWFmnTMWN31VWyoe8xgdTADD11kgxmdpx2uyE6j5Az5uZq6u6AKYYmAOw" crossorigin="anonymous"></script>
+<script>Chart.defaults.color = "#6b6453"; Chart.defaults.borderColor = "#e8e0cc";</script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const ctx = document.getElementById('careerChart').getContext('2d');

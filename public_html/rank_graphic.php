@@ -23,14 +23,11 @@ $seasonsStmt = $pdo->query("SELECT season_id, status FROM season_meta ORDER BY s
 $availableSeasons = $seasonsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch season metadata
-$metaStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$metaStmt->execute([$seasonId]);
-$meta = $metaStmt->fetch(PDO::FETCH_ASSOC);
+$meta = getSeasonRules($pdo, $seasonId);
 
 $seasonNumber = strtoupper($seasonId);
 $seasonName = $meta['season_name'] ?? '';
 $scoringInfo = getScoringSystemInfo($pdo, $seasonId);
-$minThreshold = isset($meta['min_races_threshold']) ? (int)$meta['min_races_threshold'] : 3;
 
 // Season dates for footer
 $startDate = !empty($meta['start_date']) ? date('F j, Y', strtotime($meta['start_date'])) : null;
@@ -58,10 +55,10 @@ foreach ($activeRacers as $r) {
         'name'      => $r['name'],
         'score'     => $score,
         'char'      => $char,
-        'badges'    => ($raceCount >= $minThreshold) ? getRacerBadges($pdo, $r['id'], $seasonId) : [],
+        'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $seasonId) : [],
         'unique'    => getUniqueBadges($pdo, $r['id'], $seasonId),
         'raceCount' => $raceCount,
-        'eligible'  => ($raceCount >= $minThreshold)
+        'eligible'  => racerQualifies($raceCount, $meta)
     ];
 }
 

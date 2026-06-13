@@ -6,7 +6,7 @@ $governingBodyFull = getSetting($pdo, 'governing_body_full', 'Organisation Mondi
 $governingBodyShort = getSetting($pdo, 'governing_body_short', 'OMK');
 $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario Kart 8 Deluxe league.');
 ?>
-</main> <footer class="site-footer">
+</div> <!-- /.main-content — close the centered container so the footer spans full width --> <footer class="site-footer">
     <div class="container footer-grid">
         <div class="footer-brand">
             <span class="logo-text"><?= htmlspecialchars($leagueName) ?></span>
@@ -23,6 +23,7 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
                 <li><a href="/vertical.php" target="_blank">🖥️ Lounge Screen  (Vertical)</a></li>
                 <li><a href="/horizontal.php" target="_blank">📺 Game Room Screen (Horizontal)</a></li>
                 <li><a href="/auto-vertical.php" target="_blank">🔄 Vertical Broadcast Auto-Rotator</a></li>
+                <li><a href="/display/overlay" target="_blank">📡 OBS Stream Overlay</a></li>
             </ul>
         </div>
 
@@ -52,17 +53,17 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
 <style>
     .site-footer {
         margin-top: 60px;
-        background: #1a1a1a;
-        color: #888;
-        padding: 40px 0;
-        border-top: 4px solid var(--nintendo-red);
+        background: var(--surface-deep);
+        color: #b8b8b8;
+        padding: 44px 0;
+        border-top: 5px solid var(--nintendo-red);   /* full-width red finish line */
     }
     .footer-grid {
         display: grid;
         grid-template-columns: 2fr 1fr 1fr;
         gap: 40px;
     }
-    .footer-brand .logo-text { color: white; font-size: 1.5rem; font-weight: 900; font-style: italic; }
+    .footer-brand .logo-text { color: white; font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
     .footer-brand p { margin-top: 10px; font-size: 0.85rem; line-height: 1.6; }
     
     .footer-nav h4 { color: white; font-size: 0.9rem; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
@@ -95,9 +96,11 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
             <div class="cup-wheel-result" id="cup-result">🎰</div>
         </div>
         <div class="cup-wheel-stats" id="cup-stats"></div>
+        <div class="cup-mh-info" id="cup-mh-info"></div>
         <div class="cup-racer-details" id="cup-racer-details"></div>
         <div class="cup-buttons">
             <button class="cup-pick-btn" id="cup-pick-btn">PICK!</button>
+            <button class="cup-log-btn" id="cup-log-btn" hidden>📝 Log this GP</button>
             <button class="cup-close-btn" id="cup-close-btn">Close</button>
         </div>
     </div>
@@ -127,6 +130,8 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     padding: 50px;
     text-align: center;
     max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 20px 60px rgba(230, 0, 18, 0.3);
     position: relative;
 }
@@ -257,6 +262,91 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     font-style: italic;
 }
 
+/* MONSTER HUNT Role Panel */
+.cup-mh-info {
+    margin-bottom: 16px;
+    min-height: 0;
+}
+
+.cup-mh-panel {
+    background: linear-gradient(135deg, #1a0a00 0%, #2d0a00 100%);
+    border: 2px solid #8B0000;
+    border-radius: 12px;
+    padding: 14px 18px;
+    text-align: left;
+    animation: mhFadeIn 0.4s ease;
+}
+
+@keyframes mhFadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.cup-mh-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 3px 0;
+}
+
+.cup-mh-label {
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #aaa;
+    margin-bottom: 8px;
+}
+
+.cup-mh-monster-row {
+    color: #ff6666;
+    font-size: 1rem;
+    font-weight: 900;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #5a1a1a;
+    margin-bottom: 6px;
+}
+
+.cup-mh-monster-name {
+    color: #ff4444;
+}
+
+.cup-mh-cr-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 900;
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: #fff;
+    vertical-align: middle;
+    letter-spacing: 0.5px;
+    margin-left: 4px;
+}
+
+.cup-mh-epithet {
+    color: #ffaa88;
+    font-size: 0.78rem;
+    font-style: italic;
+    font-weight: 600;
+    margin-left: 3px;
+}
+
+.cup-mh-elo {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #888;
+    margin-left: auto;
+    font-family: monospace;
+}
+
+.cup-mh-adventurer-row {
+    color: #a0c8ff;
+    font-size: 0.82rem;
+    padding: 2px 0;
+}
+
 /* Racer Details Under Result */
 .cup-racer-details {
     margin-bottom: 16px;
@@ -291,6 +381,12 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     display: flex;
     gap: 10px;
     justify-content: center;
+    position: sticky;
+    bottom: -50px; /* offset to sit flush with container padding */
+    background: white;
+    padding-top: 12px;
+    margin-top: 20px;
+    z-index: 2;
 }
 
 .cup-pick-btn {
@@ -336,12 +432,33 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     transform: scale(1.05);
 }
 
+.cup-log-btn {
+    background: #2EBD59;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 30px;
+    font-size: 1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(46, 189, 89, 0.3);
+}
+
+.cup-log-btn:hover {
+    background: #28a14b;
+    transform: scale(1.05);
+}
+
+.cup-log-btn[hidden] { display: none !important; }
+
 @media (max-width: 480px) {
     .cup-wheel-container { padding: 30px 20px; }
     .cup-racer-chips { max-height: 100px; }
     .cup-racer-chip { padding: 5px 10px; font-size: 0.72rem; }
     .cup-buttons { flex-direction: column; }
-    .cup-pick-btn, .cup-close-btn { width: 100%; }
+    .cup-pick-btn, .cup-close-btn, .cup-log-btn { width: 100%; }
 }
 
 </style>
@@ -440,8 +557,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const cupStats = document.getElementById('cup-stats');
     const cupCloseBtn = document.getElementById('cup-close-btn');
     const cupPickBtn = document.getElementById('cup-pick-btn');
+    const cupLogBtn = document.getElementById('cup-log-btn');
     const cupRacerChips = document.getElementById('cup-racer-chips');
     const cupRacerDetails = document.getElementById('cup-racer-details');
+    const cupMhInfo = document.getElementById('cup-mh-info');
+
+    // What got picked most recently — used by the "Log this GP" button.
+    let cupLastPicked = null; // { cup, racerIds: [...], monsterId: number|null }
 
     let cupRacersLoaded = false;
     let cupSelectedRacers = new Set();
@@ -465,6 +587,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    if (cupLogBtn) {
+        cupLogBtn.addEventListener('click', function() {
+            if (!cupLastPicked) return;
+            // Order racers so the monster (if any) lands in slot 1.
+            // The form has 4 racer rows; we fill 1..N in order.
+            const ids = cupLastPicked.racerIds.slice();
+            if (cupLastPicked.monsterId !== null) {
+                const i = ids.indexOf(cupLastPicked.monsterId);
+                if (i > 0) { ids.splice(i, 1); ids.unshift(cupLastPicked.monsterId); }
+            }
+            const params = new URLSearchParams();
+            params.set('cup', cupLastPicked.cup);
+            ids.slice(0, 4).forEach((id, i) => params.set('r' + (i + 1), id));
+            if (cupLastPicked.monsterId !== null) {
+                params.set('monster', cupLastPicked.monsterId);
+            }
+            window.location.href = '/add-result?' + params.toString();
+        });
+    }
+
     cupOverlay.addEventListener('click', function(e) {
         if (e.target === cupOverlay) {
             cupOverlay.classList.remove('active');
@@ -476,9 +618,13 @@ document.addEventListener('DOMContentLoaded', function() {
         cupResult.textContent = '🎰';
         cupStats.textContent = '';
         cupRacerDetails.innerHTML = '';
+        cupMhInfo.innerHTML = '';
         cupWheel.classList.remove('spinning');
         cupResult.classList.remove('revealed');
         cupPickBtn.disabled = false;
+        // Hide the "Log this GP" button until a fresh pick is made.
+        cupLogBtn.hidden = true;
+        cupLastPicked = null;
 
         // Load racer list once
         if (!cupRacersLoaded) {
@@ -517,9 +663,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (count === 0) {
                 hint.textContent = 'Select 2\u20134 racers to find a cup most haven\u2019t done';
             } else if (count < 2) {
-                hint.textContent = 'Select at least 1 more racer';
+                hint.textContent = 'Select at least 1 more racer to roll a cup';
+            } else if (count < 3) {
+                hint.textContent = count + ' racer' + (count !== 1 ? 's' : '') + ' \u2014 ready to roll a cup. Add 1 more to also log the GP.';
             } else {
-                hint.textContent = count + ' racer' + (count !== 1 ? 's' : '') + ' selected \u2014 ready to pick!';
+                hint.textContent = count + ' racers \u2014 ready to roll and log!';
             }
         }
     }
@@ -529,7 +677,11 @@ document.addEventListener('DOMContentLoaded', function() {
         cupResult.textContent = '🎰';
         cupStats.textContent = '';
         cupRacerDetails.innerHTML = '';
+        cupMhInfo.innerHTML = '';
         cupResult.classList.remove('revealed');
+        // Reset the log button until the fresh pick settles.
+        cupLogBtn.hidden = true;
+        cupLastPicked = null;
 
         // Build URL with optional racer params
         let url = '/pick-cup';
@@ -551,6 +703,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     cupStats.textContent = 'Raced ' + data.seasonRaceCount + ' time' + (data.seasonRaceCount !== 1 ? 's' : '') + ' this season';
                     cupPickBtn.disabled = false;
 
+                    // Show MONSTER HUNT roles if applicable
+                    if (data.is_monster_hunt && data.monster) {
+                        let mhHtml = '<div class="cup-mh-panel">';
+                        mhHtml += '<div class="cup-mh-label">⚔️ MONSTER HUNT — Role Assignment</div>';
+                        const crBgColors = { 1: '#8a6d00', 2: '#8a4000', 3: '#7a1a1a', 4: '#4a0010' };
+                        const crTier = data.monster.cr_tier || 1;
+                        mhHtml += '<div class="cup-mh-row cup-mh-monster-row">';
+                        mhHtml += '👹 <span class="cup-mh-monster-name">' + data.monster.name + '</span>';
+                        if (data.monster.cr_tier) {
+                            mhHtml += '<span class="cup-mh-cr-badge" style="background:' + (crBgColors[crTier] || '#555') + '">CR' + crTier + '</span>';
+                            mhHtml += '<em class="cup-mh-epithet">' + data.monster.cr_epithet + '</em>';
+                        }
+                        mhHtml += '<span class="cup-mh-elo">ELO ' + data.monster.elo + '</span>';
+                        mhHtml += '</div>';
+                        if (data.adventurers && data.adventurers.length > 0) {
+                            data.adventurers.forEach(adv => {
+                                mhHtml += '<div class="cup-mh-row cup-mh-adventurer-row">';
+                                mhHtml += '🗡️ ' + adv.name;
+                                mhHtml += '<span class="cup-mh-elo">ELO ' + adv.elo + '</span>';
+                                mhHtml += '</div>';
+                            });
+                        }
+                        mhHtml += '</div>';
+                        cupMhInfo.innerHTML = mhHtml;
+                    }
+
                     // Show per-racer details if available
                     if (data.racerDetails && data.racerDetails.length > 0) {
                         let html = '';
@@ -562,6 +740,19 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         });
                         cupRacerDetails.innerHTML = html;
+                    }
+
+                    // Remember what got picked, then reveal the "Log this GP"
+                    // shortcut. Logging requires at least 3 racers \u2014 the
+                    // system rejects GPs with fewer entries \u2014 so the button
+                    // only shows up when that threshold is met.
+                    if (cupSelectedRacers.size >= 3) {
+                        cupLastPicked = {
+                            cup:       data.cup,
+                            racerIds:  Array.from(cupSelectedRacers),
+                            monsterId: (data.is_monster_hunt && data.monster) ? data.monster.id : null,
+                        };
+                        cupLogBtn.hidden = false;
                     }
                 }, 3000);
             })

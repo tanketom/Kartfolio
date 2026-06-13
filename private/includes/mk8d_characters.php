@@ -1,22 +1,11 @@
 <?php
 /**
- * Mario Kart 8 Deluxe Character List
+ * Mario Kart 8 Deluxe character list — back-compat forwarder.
+ *
+ * The canonical data now lives in mk_data.php (cups + characters together).
+ * This file remains so existing callers (e.g. admin/tournament_bracket.php)
+ * continue to work; new code should require_once mk_data.php directly.
+ *
  * Path: /cdnmk/private/includes/mk8d_characters.php
  */
-
-function getMK8DCharacters() {
-    return [
-        // Base Game Characters
-        'Mario', 'Luigi', 'Peach', 'Daisy', 'Rosalina', 'Tanooki Mario', 'Cat Peach', 'Yoshi',
-        'Toad', 'Koopa Troopa', 'Shy Guy', 'Lakitu', 'Toadette', 'King Boo', 'Baby Mario',
-        'Baby Luigi', 'Baby Peach', 'Baby Daisy', 'Baby Rosalina', 'Metal Mario', 'Pink Gold Peach',
-        'Wario', 'Waluigi', 'Donkey Kong', 'Bowser', 'Dry Bones', 'Bowser Jr.', 'Dry Bowser',
-        'Lemmy', 'Larry', 'Wendy', 'Ludwig', 'Iggy', 'Roy', 'Morton',
-        'Inkling Girl', 'Inkling Boy', 'Link', 'Villager (Male)', 'Villager (Female)',
-        'Isabelle', 'Mii', 'Gold Mario',
-
-        // Booster Pass Characters
-        'Birdo', 'Diddy Kong', 'Funky Kong', 'Pauline', 'Peachette', 'Kamek',
-        'Wiggler', 'Petey Piranha'
-    ];
-}
+require_once __DIR__ . '/mk_data.php';

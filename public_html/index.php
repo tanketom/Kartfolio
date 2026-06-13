@@ -13,10 +13,7 @@ include __DIR__ . '/../private/templates/header.php';
 $seasonId = getCurrentSeasonNumber();
 
 // 1. Fetch Rules and Scoring System Info
-$ruleStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$ruleStmt->execute([$seasonId]);
-$rules = $ruleStmt->fetch(PDO::FETCH_ASSOC);
-$minThreshold = isset($rules['min_races_threshold']) ? (int)$rules['min_races_threshold'] : 1;
+$rules = getSeasonRules($pdo, $seasonId);
 
 // Get scoring system info for display
 $scoringInfo = getScoringSystemInfo($pdo, $seasonId);
@@ -46,303 +43,106 @@ $newsStmt = $pdo->prepare("SELECT * FROM recap_archive ORDER BY created_at DESC 
 $newsStmt->execute();
 $latestNews = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Mikkoliiga top 3 — internal-points standings for the casual sub-league.
+$mikkoliigaStandings = getMikkoliigaStandings($pdo, $seasonId);
+$mikkoliigaTop3 = array_slice($mikkoliigaStandings, 0, 3);
+
+// Per-racer Mikkoliiga lookup: id → ['score', 'rank']. Used to badge
+// Mikkoliiga members on the main leaderboard.
+$mikkoliigaByRacer = [];
+foreach ($mikkoliigaStandings as $idx => $row) {
+    $mikkoliigaByRacer[$row['id']] = [
+        'rank'  => $idx + 1,
+        'score' => $row['score'],
+        'gps'   => $row['gps_counted'],
+    ];
+}
+$mikkoliigaTotalMembers = count($mikkoliigaStandings);
+
+// Teams — if this season has teams configured, it's a "teams season" and the
+// homepage surfaces constructor cards. (Empty array = not a teams season.)
+$teamStandings = getTeamStandings($pdo, $seasonId);
+
+// 4. On This Day — GPs from this calendar date in past seasons
+$onThisDayStmt = $pdo->prepare("
+    SELECT res.gpid, res.race_date, res.cup_name,
+           r.name AS winner_name, res.gp_points,
+           SUBSTR(res.gpid, 1, 3) AS season_id
+    FROM results res
+    JOIN racers r ON res.racer_id = r.id
+    WHERE strftime('%m-%d', res.race_date) = strftime('%m-%d', 'now')
+      AND res.rank = 1
+      AND SUBSTR(res.gpid, 1, 3) != ?
+    GROUP BY res.gpid
+    ORDER BY res.race_date DESC
+    LIMIT 5
+");
+$onThisDayStmt->execute([$seasonId]);
+$onThisDay = $onThisDayStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Build a gpid → recap_id map (linked_gpids is a comma-separated list)
+$otdRecapMap = [];
+if (!empty($onThisDay)) {
+    $recapLinksStmt = $pdo->query("SELECT id, linked_gpids FROM recap_archive WHERE linked_gpids IS NOT NULL AND linked_gpids != ''");
+    foreach ($recapLinksStmt->fetchAll(PDO::FETCH_ASSOC) as $rec) {
+        foreach (explode(',', $rec['linked_gpids']) as $gid) {
+            $gid = trim($gid);
+            if ($gid !== '') $otdRecapMap[$gid] = $rec['id'];
+        }
+    }
+}
+
 // Prepare Ticker Data
 $tickerLines = [];
 if ($nemesisTicker) $tickerLines[] = ['headline' => 'RIVALRY', 'key_quote' => $nemesisTicker];
 foreach ($latestNews as $item) $tickerLines[] = $item;
 
-// Program Definitions (For Icons)
-$programs = [
-    "core_team" => ["label" => "Kart Core Team", "img" => "program_core_team.png"],
-    "reef_dispatch" => ["label" => "Reef’s Dispatch", "img" => "program_reef_dispatch.png"],
-    "meta_report" => ["label" => "The Meta Report", "img" => "program_meta_report.png"],
-    "the_rant" => ["label" => "The Rant", "img" => "program_the_rant.png"],
-    "ghost_racer" => ["label" => "The Ghost Racer", "img" => "program_ghost_racer.png"],
-    "situated_spectator" => ["label" => "Situated Spectator", "img" => "program_situated_spectator.png"],
-    "viberacing" => ["label" => "Viberacing", "img" => "program_viberacing.png"],
-    "random" => ["label" => "Special Broadcast", "img" => "program_default.png"]
-];
-
-// Helper to get GPScore breakdown for tooltip (system-aware)
-function getScoreBreakdown($pdo, $racer_id, $season_id) {
-    $stmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-    $stmt->execute([$season_id]);
-    $rules = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-
-    // For top_12_unique, return cup-style breakdown
-    // Black Box: reveal nothing
-    if ($scoringSystem === 'black_box') {
-        $stmt2 = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'");
-        $stmt2->execute([$racer_id, $season_id . '%']);
-        $totalGPs = $stmt2->fetchColumn();
-
-        return [
-            'avg' => 0,
-            'att' => 0,
-            'drop' => 0,
-            'counted' => $totalGPs,
-            'system' => 'black_box'
-        ];
-    }
-
-    if ($scoringSystem === 'top_12_unique') {
-        $allCups = getMK8DCups();
-        $cupsPlayed = 0;
-        $perfectCount = 0;
-        foreach ($allCups as $cupName) {
-            $cStmt = $pdo->prepare("SELECT MAX(gp_points) as best FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' AND cup_name = ?");
-            $cStmt->execute([$racer_id, $season_id . '%', $cupName]);
-            $cResult = $cStmt->fetch(PDO::FETCH_ASSOC);
-            if ($cResult && $cResult['best']) {
-                $cupsPlayed++;
-                if ((int)$cResult['best'] === 60) $perfectCount++;
-            }
-        }
-
-        return [
-            'avg' => 0,
-            'att' => 0,
-            'drop' => max(0, $cupsPlayed - 12),
-            'counted' => min($cupsPlayed, 12),
-            'system' => $scoringSystem,
-            'cups_completed' => $cupsPlayed,
-            'cups_required' => 12,
-            'perfects' => $perfectCount
-        ];
-    }
-
-    // For cup-based systems, get cup completion info
-    if (in_array($scoringSystem, ['cup_based', 'drop_worst', 'perfect_hunt'])) {
-        $cupsRequired = $rules['cups_required'] ?? 12;
-        $progress = getCupProgress($pdo, $racer_id, $season_id, $cupsRequired);
-        $cupsCompleted = count(array_filter($progress, fn($c) => $c['completed']));
-
-        return [
-            'avg' => 0,
-            'att' => 0,
-            'drop' => 0,
-            'counted' => $cupsCompleted,
-            'system' => $scoringSystem,
-            'cups_completed' => $cupsCompleted,
-            'cups_required' => $cupsRequired
-        ];
-    }
-
-    // For best_n_gps
-    if ($scoringSystem === 'best_n_gps') {
-        $bestN = $rules['best_n_count'] ?? 15;
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'");
-        $stmt->execute([$racer_id, $season_id . '%']);
-        $totalGPs = $stmt->fetchColumn();
-
-        return [
-            'avg' => 0,
-            'att' => 0,
-            'drop' => max(0, $totalGPs - $bestN),
-            'counted' => min($totalGPs, $bestN),
-            'system' => $scoringSystem,
-            'best_n' => $bestN,
-            'total_gps' => $totalGPs
-        ];
-    }
-
-    // For preseason
-    if ($scoringSystem === 'preseason') {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'");
-        $stmt->execute([$racer_id, $season_id . '%']);
-        $totalGPs = $stmt->fetchColumn();
-        $dropped = floor($totalGPs * 0.1);
-
-        return [
-            'avg' => 0,
-            'att' => 0,
-            'drop' => $dropped,
-            'counted' => $totalGPs - $dropped,
-            'system' => $scoringSystem
-        ];
-    }
-
-    // Default: average_attendance (legacy)
-    $attWeight = $rules['attendance_weight'] ?? 1.0;
-    $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-    $dropRate = $rules['drop_rate'] ?? 10;
-
-    $stmt = $pdo->prepare("SELECT gp_points, race_date FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' ORDER BY gp_points ASC");
-    $stmt->execute([$racer_id, $season_id . "%"]);
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $totalRaces = count($results);
-    $numToDrop = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-
-    $pointsOnly = array_column($results, 'gp_points');
-    $filteredPoints = array_slice($pointsOnly, $numToDrop);
-    $average = (count($filteredPoints) > 0) ? array_sum($filteredPoints) / count($filteredPoints) : 0;
-
-    $attendanceBonus = 0;
-    $weeklyTracker = [];
-    foreach ($results as $res) {
-        $weekKey = date('Y-W', strtotime($res['race_date']));
-        if (!isset($weeklyTracker[$weekKey])) {
-            $weeklyTracker[$weekKey] = 0;
-        }
-        if ($weeklyTracker[$weekKey] < $weeklyCap) {
-            $attendanceBonus += $attWeight;
-            $weeklyTracker[$weekKey] += $attWeight;
-        }
-    }
-
-    return [
-        'avg' => $average,
-        'att' => $attendanceBonus,
-        'drop' => $numToDrop,
-        'counted' => count($filteredPoints),
-        'system' => $scoringSystem
-    ];
-}
+// Program Definitions — shared catalog (includes OMK Press Office)
+require_once __DIR__ . '/../private/includes/programs.php';
+$programs = getProgramsCatalog();
 
 // 4. Fetch Latest Grand Prix Results
-// Get the most recent race date
-$latestDateStmt = $pdo->prepare("SELECT MAX(race_date) as latest_date FROM results WHERE gpid LIKE ?");
-$latestDateStmt->execute([$seasonId . "%"]);
-$latestDateRow = $latestDateStmt->fetch(PDO::FETCH_ASSOC);
-$latestDate = $latestDateRow['latest_date'];
+$latestDate = getLatestRaceDate($pdo, $seasonId);
 
 $latestGPs = [];
 if ($latestDate) {
-    // Get all GPs from the latest date (could be multiple)
     $gpStmt = $pdo->prepare("
-        SELECT gpid, cup_name, race_date
-        FROM results
+        SELECT gpid, cup_name, race_date FROM results
         WHERE gpid LIKE ? AND race_date = ?
-        GROUP BY gpid
-        ORDER BY id DESC
+        GROUP BY gpid ORDER BY id DESC
     ");
-    $gpStmt->execute([$seasonId . "%", $latestDate]);
+    $gpStmt->execute([$seasonId . '%', $latestDate]);
     $latestGPs = $gpStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // If fewer than 6, get additional recent GPs to reach 6 total
     if (count($latestGPs) < 6) {
         $additionalStmt = $pdo->prepare("
-            SELECT gpid, cup_name, race_date
-            FROM results
+            SELECT gpid, cup_name, race_date FROM results
             WHERE gpid LIKE ? AND race_date < ?
-            GROUP BY gpid
-            ORDER BY race_date DESC, id DESC
-            LIMIT ?
+            GROUP BY gpid ORDER BY race_date DESC, id DESC LIMIT ?
         ");
-        $additionalStmt->execute([$seasonId . "%", $latestDate, 6 - count($latestGPs)]);
+        $additionalStmt->execute([$seasonId . '%', $latestDate, 6 - count($latestGPs)]);
         $latestGPs = array_merge($latestGPs, $additionalStmt->fetchAll(PDO::FETCH_ASSOC));
     }
 }
 
-// 5. Calculate Previous Standings (before latest race date)
-$previousStandings = [];
-if ($latestDate) {
-    // Get second-most recent date
-    $prevDateStmt = $pdo->prepare("SELECT MAX(race_date) as prev_date FROM results WHERE gpid LIKE ? AND race_date < ?");
-    $prevDateStmt->execute([$seasonId . "%", $latestDate]);
-    $prevDateRow = $prevDateStmt->fetch(PDO::FETCH_ASSOC);
-    $prevDate = $prevDateRow['prev_date'];
-
-    if ($prevDate) {
-        // Calculate standings as of the previous date
-        $prevRacerStmt = $pdo->prepare("SELECT DISTINCT r.* FROM racers r JOIN results res ON r.id = res.racer_id WHERE res.gpid LIKE ? AND res.race_date <= ?");
-        $prevRacerStmt->execute([$seasonId . "%", $prevDate]);
-        $prevActiveRacers = $prevRacerStmt->fetchAll();
-
-        $prevStandingsTemp = [];
-        foreach ($prevActiveRacers as $r) {
-            // Calculate score excluding races after prevDate
-            $stmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-            $stmt->execute([$seasonId]);
-            $rules = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $attWeight = $rules['attendance_weight'] ?? 1.0;
-            $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-            $dropRate = $rules['drop_rate'] ?? 10;
-
-            $stmt = $pdo->prepare("SELECT gp_points, race_date FROM results WHERE racer_id = ? AND gpid LIKE ? AND race_date <= ? ORDER BY gp_points ASC");
-            $stmt->execute([$r['id'], $seasonId . "%", $prevDate]);
-            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $totalRaces = count($results);
-            if ($totalRaces > 0) {
-                $numToDrop = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-                $pointsOnly = array_column($results, 'gp_points');
-                $filteredPoints = array_slice($pointsOnly, $numToDrop);
-                $average = (count($filteredPoints) > 0) ? array_sum($filteredPoints) / count($filteredPoints) : 0;
-
-                $attendanceBonus = 0;
-                $weeklyTracker = [];
-                foreach ($results as $res) {
-                    $weekKey = date('Y-W', strtotime($res['race_date']));
-                    if (!isset($weeklyTracker[$weekKey])) {
-                        $weeklyTracker[$weekKey] = 0;
-                    }
-                    if ($weeklyTracker[$weekKey] < $weeklyCap) {
-                        $attendanceBonus += $attWeight;
-                        $weeklyTracker[$weekKey] += $attWeight;
-                    }
-                }
-
-                $score = $average + $attendanceBonus;
-                $prevStandingsTemp[] = ['id' => $r['id'], 'score' => $score];
-            }
-        }
-
-        // Sort and create rank map
-        usort($prevStandingsTemp, fn($a, $b) => $b['score'] <=> $a['score']);
-        foreach ($prevStandingsTemp as $index => $racer) {
-            $previousStandings[$racer['id']] = $index + 1;
-        }
-    }
-}
+// 5. Previous standings for rank-change arrows
+$previousStandings = calculatePreviousStandings($pdo, $seasonId, $latestDate, $rules);
 
 // 6. Fetch Leaderboard
-$racerStmt = $pdo->prepare("SELECT DISTINCT r.* FROM racers r JOIN results res ON r.id = res.racer_id WHERE res.gpid LIKE ?");
-$racerStmt->execute([$seasonId . "%"]);
-$activeRacers = $racerStmt->fetchAll();
-
 $standings = [];
-foreach ($activeRacers as $r) {
-    $score = calculateGPScore($pdo, $r['id'], $seasonId);
-    $breakdown = getScoreBreakdown($pdo, $r['id'], $seasonId);
-
-    $charStmt = $pdo->prepare("SELECT character_used FROM results WHERE racer_id = ? AND gpid LIKE ? GROUP BY character_used ORDER BY COUNT(*) DESC LIMIT 1");
-    $charStmt->execute([$r['id'], $seasonId . "%"]);
-    $char = $charStmt->fetchColumn() ?: 'Mii';
-
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE ?");
-    $countStmt->execute([$r['id'], $seasonId . "%"]);
-    $raceCount = (int)$countStmt->fetchColumn();
-
+foreach (getActiveRacers($pdo, $seasonId) as $r) {
+    $raceCount = getRaceCount($pdo, $r['id'], $seasonId);
     $standings[] = [
         'id'        => $r['id'],
         'name'      => $r['name'],
-        'score'     => $score,
-        'breakdown' => $breakdown,
-        'char'      => $char,
+        'score'     => calculateGPScore($pdo, $r['id'], $seasonId),
+        'breakdown' => getScoringBreakdown($pdo, $r['id'], $seasonId),
+        'char'      => getMostUsedCharacter($pdo, $r['id'], $seasonId),
         'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $seasonId) : [],
-        'raceCount' => $raceCount
+        'raceCount' => $raceCount,
     ];
 }
-// Sort standings: by score DESC, then tiebreaker for top_12_unique (most unique 60s), then name
-if ($scoringInfo['system'] === 'top_12_unique') {
-    // Add tiebreaker data
-    foreach ($standings as &$s) {
-        $s['tiebreaker'] = getTop12UniqueTiebreaker($pdo, $s['id'], $seasonId);
-    }
-    unset($s);
-    usort($standings, function($a, $b) {
-        if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-} else {
-    usort($standings, fn($a, $b) => ($b['score'] == $a['score']) ? strcmp($a['name'], $b['name']) : $b['score'] <=> $a['score']);
-}
+sortStandingsByScoring($standings, $scoringInfo['system'], $pdo, $seasonId);
 
 // Calculate rank changes
 foreach ($standings as $index => &$racer) {
@@ -404,29 +204,34 @@ unset($racer);
     <div class="leaderboard-grid">
         <?php foreach ($standings as $index => $row):
             $rank = $index + 1;
-            $isQualifying = ($row['raceCount'] >= $minThreshold);
+            $isQualifying = racerQualifies($row['raceCount'], $rules);
             $rankClass = ($isQualifying && $rank <= 3) ? ['gold', 'silver', 'bronze'][$rank-1] : "";
             $bd = $row['breakdown'];
+            $c  = $bd['components'] ?? [];
 
             // Generate system-aware tooltip
             $bdSystem = $bd['system'] ?? 'average_attendance';
             if ($bdSystem === 'black_box') {
-                $tooltip = sprintf("⬛ Black Box Score: %.2f (%d GPs)", $row['score'], $bd['counted']);
+                $tooltip = sprintf("⬛ Black Box Score: %.2f (%d GPs)", $row['score'], $c['gps_played'] ?? 0);
             } elseif ($bdSystem === 'top_12_unique') {
                 $tooltip = sprintf("Top 12 Unique: %d cups played, best %d counted, %d perfects (tiebreaker) • Score: %d",
-                    $bd['cups_completed'], $bd['counted'], $bd['perfects'] ?? 0, (int)$row['score']);
+                    $c['cups_played'] ?? 0, $c['cups_counted'] ?? 0, $c['unique_60s'] ?? 0, (int)$row['score']);
             } elseif ($bdSystem === 'cup_based' || $bdSystem === 'drop_worst' || $bdSystem === 'perfect_hunt') {
                 $tooltip = sprintf("Cups: %d/%d completed • Score: %.2f",
-                    $bd['cups_completed'], $bd['cups_required'], $row['score']);
+                    $c['cups_completed'] ?? 0, $c['cups_required'] ?? 0, $row['score']);
             } elseif ($bdSystem === 'best_n_gps') {
                 $tooltip = sprintf("Best %d GPs: %.2f (%d total GPs, %d dropped)",
-                    $bd['best_n'], $row['score'], $bd['total_gps'], $bd['drop']);
+                    $c['best_n_count'] ?? 0, $row['score'], $c['total_gps_played'] ?? 0, $c['gps_dropped'] ?? 0);
             } elseif ($bdSystem === 'preseason') {
                 $tooltip = sprintf("Average: %.2f (%d GPs, %d dropped)",
-                    $row['score'], $bd['counted'] + $bd['drop'], $bd['drop']);
+                    $row['score'], $c['total_races'] ?? 0, $c['races_dropped'] ?? 0);
+            } elseif ($bdSystem === 'monster_hunt') {
+                $tooltip = sprintf("👹 %s (lv. %d) · Best %d hunts: %d XP · %.1f avg XP/GP · %d total XP · %d GPs played",
+                    $c['title'] ?? '', $c['level'] ?? 0, $c['best_x_used'] ?? 0, $c['best_x_sum'] ?? 0,
+                    $c['avg_xp'] ?? 0, $c['total_xp'] ?? 0, $c['gps'] ?? 0);
             } else {
                 $tooltip = sprintf("Avg: %.2f (%d GPs counted, %d dropped) + Attendance: %.2f = %.2f",
-                    $bd['avg'], $bd['counted'], $bd['drop'], $bd['att'], $row['score']);
+                    $c['avg'] ?? 0, $c['races_counted'] ?? 0, $c['races_dropped'] ?? 0, $c['att'] ?? 0, $row['score']);
             }
         ?>
         <div class="racer-card <?= $rankClass ?><?= !$isQualifying ? ' racer-card--ineligible' : '' ?>">
@@ -450,6 +255,15 @@ unset($racer);
                     <a href="/racer/<?= $row['id'] ?>" class="racer-name racer-name-link">
                         <?= htmlspecialchars($row['name']) ?>
                     </a>
+                    <?php if (isset($mikkoliigaByRacer[$row['id']])):
+                        $mk = $mikkoliigaByRacer[$row['id']];
+                        $mkTip = sprintf('Mikkoliiga member · #%d of %d · %d internal pts (best %d GPs)',
+                            $mk['rank'], $mikkoliigaTotalMembers, $mk['score'], $mk['gps']);
+                    ?>
+                    <a href="/mikkoliiga" class="mikko-leaderboard-badge" data-tooltip="<?= htmlspecialchars($mkTip) ?>">
+                        🌟 <span class="mikko-leaderboard-rank">#<?= $mk['rank'] ?></span>
+                    </a>
+                    <?php endif; ?>
                 </div>
                 <?php if (!empty($row['badges'])): ?>
                 <div class="badge-container">
@@ -467,16 +281,21 @@ unset($racer);
                 <?php if ($bdSystem === 'top_12_unique'): ?>
                     <?= (int)$row['score'] ?>
                     <div class="cup-completion">
-                        <?= $bd['counted'] ?> of 12 cups counted
-                        <?php if (($bd['perfects'] ?? 0) > 0): ?>
-                            &middot; <?= $bd['perfects'] ?> 🌟
+                        <?= $c['cups_counted'] ?? 0 ?> of 12 cups counted
+                        <?php if (($c['unique_60s'] ?? 0) > 0): ?>
+                            &middot; <?= $c['unique_60s'] ?> 🌟
                         <?php endif; ?>
+                    </div>
+                <?php elseif ($bdSystem === 'monster_hunt'): ?>
+                    <?= number_format($row['score'], 0) ?>
+                    <div class="cup-completion">
+                        <?= htmlspecialchars($c['title'] ?? '') ?> &middot; <span style="opacity:0.6">lv.&nbsp;<?= $c['level'] ?? 0 ?></span>
                     </div>
                 <?php else: ?>
                     <?= number_format($row['score'], 2) ?>
                 <?php endif; ?>
                 <?php if (in_array($bdSystem, ['cup_based', 'drop_worst', 'perfect_hunt'])): ?>
-                    <?php $cupsCompleted = $bd['cups_completed']; $cupsRequired = $bd['cups_required']; ?>
+                    <?php $cupsCompleted = $c['cups_completed'] ?? 0; $cupsRequired = $c['cups_required'] ?? 0; ?>
                     <div class="cup-completion <?= $cupsCompleted >= $cupsRequired ? 'cup-completion--done' : 'cup-completion--pending' ?>">
                         <?= $cupsCompleted ?>/<?= $cupsRequired ?>
                         <?= $cupsCompleted < $cupsRequired ? '⚠️' : '✓' ?>
@@ -513,7 +332,7 @@ unset($racer);
             <?php foreach ($latestGPs as $gp):
                 // Fetch results for this GP
                 $resStmt = $pdo->prepare("
-                    SELECT r.name, res.gp_points, res.rank
+                    SELECT r.id AS racer_id, r.name, res.gp_points, res.rank
                     FROM results res
                     JOIN racers r ON res.racer_id = r.id
                     WHERE res.gpid = ?
@@ -567,6 +386,300 @@ unset($racer);
         </div>
     </section>
     <?php endif; ?>
+
+    <?php if (!empty($teamStandings)): ?>
+    <section class="team-home-section">
+        <div class="section-header">
+            <h3 class="section-title">🤝 Team Standings</h3>
+            <span class="section-meta">Constructor scoring · best <?= teamBestN($pdo, $seasonId) ?> per GP · <a href="/teams" class="mikko-full-link">all teams →</a></span>
+        </div>
+        <div class="team-home-grid">
+            <?php foreach ($teamStandings as $tIdx => $t):
+                $tMedals = ['🥇', '🥈', '🥉'];
+            ?>
+            <a href="/teams?season=<?= htmlspecialchars($seasonId) ?>" class="team-home-card" style="--team-color: <?= htmlspecialchars($t['color']) ?>;">
+                <div class="team-home-top">
+                    <span class="team-home-medal"><?= $tMedals[$tIdx] ?? ('#' . ($tIdx + 1)) ?></span>
+                    <span class="team-home-name"><?= htmlspecialchars($t['name']) ?></span>
+                    <span class="team-home-score"><?= (int)$t['score'] ?></span>
+                </div>
+                <div class="team-home-members">
+                    <?php foreach (array_values($t['members']) as $mi => $mname): if ($mi >= 6) { echo '<span class="team-home-more">+' . (count($t['members']) - 6) . '</span>'; break; } ?>
+                        <span class="team-home-chip"><?= htmlspecialchars($mname) ?></span>
+                    <?php endforeach; ?>
+                    <?php if (empty($t['members'])): ?><span class="team-home-chip team-home-chip--empty">no members</span><?php endif; ?>
+                </div>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if (!empty($mikkoliigaTop3)): ?>
+    <section class="mikko-section">
+        <div class="section-header">
+            <h3 class="section-title">🌟 Mikkoliiga Top 3</h3>
+            <span class="section-meta">Casual sub-league · <a href="/mikkoliiga" class="mikko-full-link">full standings →</a></span>
+        </div>
+        <div class="mikko-grid">
+            <?php foreach ($mikkoliigaTop3 as $idx => $m):
+                $mainChar = getMostUsedCharacter($pdo, $m['id'], $seasonId);
+                $medals = ['🥇', '🥈', '🥉'];
+            ?>
+            <a href="/racer/<?= $m['id'] ?>" class="mikko-card">
+                <div class="mikko-medal"><?= $medals[$idx] ?? '' ?></div>
+                <img src="/assets/img/<?= htmlspecialchars($mainChar) ?>.png" class="mikko-portrait" onerror="this.src='/assets/img/Mii.png'">
+                <div class="mikko-card-body">
+                    <div class="mikko-name"><?= htmlspecialchars($m['name']) ?></div>
+                    <div class="mikko-score"><?= $m['score'] ?> pts</div>
+                    <div class="mikko-meta"><?= $m['gps_counted'] ?> of best <?= MIKKOLIIGA_BEST_X ?> counted</div>
+                </div>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if (!empty($onThisDay)): ?>
+    <section class="otd-section">
+        <div class="section-header">
+            <h3 class="section-title">🗓️ On This Day</h3>
+            <span class="section-meta"><?= date('F j') ?> in league history</span>
+        </div>
+        <div class="otd-grid">
+            <?php foreach ($onThisDay as $otd):
+                $yearDiff = (int)date('Y') - (int)date('Y', strtotime($otd['race_date']));
+                $yearLabel = $yearDiff === 1 ? '1 year ago' : $yearDiff . ' years ago';
+            ?>
+            <div class="otd-card">
+                <div class="otd-meta">
+                    <span class="otd-season"><?= strtoupper($otd['season_id']) ?></span>
+                    <span class="otd-age"><?= $yearLabel ?></span>
+                </div>
+                <div class="otd-cup"><?= htmlspecialchars($otd['cup_name']) ?> Cup</div>
+                <div class="otd-winner">
+                    🥇 <?= htmlspecialchars($otd['winner_name']) ?>
+                    <span class="otd-score">&middot; <?= $otd['gp_points'] ?> pts</span>
+                </div>
+                <?php if (isset($otdRecapMap[$otd['gpid']])): ?>
+                <a href="/view-recap/<?= $otdRecapMap[$otd['gpid']] ?>" class="otd-recap-link">Read recap →</a>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+
 </div>
+
+<style>
+/* ── On This Day ──────────────────────────────────────────────────── */
+.otd-section {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--gray-200);
+}
+.section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.section-meta {
+    font-size: 0.75rem;
+    color: var(--gray-700);
+    font-style: italic;
+}
+.otd-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.otd-card {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 14px 18px;
+    flex: 1;
+    min-width: 150px;
+    max-width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.otd-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+.otd-season {
+    font-size: 0.65rem;
+    font-weight: 900;
+    color: var(--nintendo-red);
+    letter-spacing: 1px;
+}
+.otd-age {
+    font-size: 0.62rem;
+    color: var(--gray-700);
+}
+.otd-cup {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    line-height: 1.2;
+}
+.otd-winner {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--gray-500);
+}
+.otd-score {
+    color: var(--gray-600);
+    font-weight: 400;
+}
+.otd-recap-link {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 0.68rem;
+    color: var(--nintendo-red);
+    text-decoration: none;
+    font-weight: 700;
+}
+.otd-recap-link:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+    .otd-card { max-width: 100%; }
+}
+
+/* ── Mikkoliiga Top 3 ─────────────────────────────────────────────── */
+.team-home-section {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--gray-200);
+}
+.team-home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+}
+.team-home-card {
+    display: block;
+    background: color-mix(in srgb, var(--team-color) 14%, #ffffff);
+    border: 2px solid var(--dark-bg);
+    border-left: 6px solid var(--team-color, #e60012);
+    border-radius: 14px;
+    box-shadow: 3px 3px 0 var(--dark-bg);
+    padding: 16px 18px;
+    text-decoration: none;
+    color: var(--gray-900);
+    transition: transform .15s;
+}
+.team-home-card:hover { transform: translateY(-3px); }
+.team-home-top { display: flex; align-items: center; gap: 10px; }
+.team-home-medal { font-size: 1.3rem; min-width: 1.6em; }
+.team-home-name { font-weight: 900; text-transform: uppercase; font-size: 1.15rem; flex: 1; min-width: 0; }
+.team-home-score { font-size: 1.8rem; font-weight: 900; color: color-mix(in srgb, var(--team-color, #b3000e) 75%, #1a1a1a); }
+.team-home-members { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.team-home-chip { background: rgba(26,26,26,.07); color: var(--gray-700); border-radius: 999px; padding: 2px 9px; font-size: .78rem; }
+.team-home-chip--empty { color: #b3261e; }
+.team-home-more { color: var(--gray-500); font-size: .78rem; align-self: center; }
+
+.mikko-section {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--gray-200);
+}
+.mikko-full-link {
+    color: var(--nintendo-red);
+    text-decoration: none;
+}
+.mikko-full-link:hover { text-decoration: underline; }
+.mikko-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+.mikko-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff6dc;
+    border: 2.5px solid var(--ink);
+    border-radius: 14px;
+    box-shadow: 4px 4px 0 var(--ink);
+    padding: 14px 18px;
+    text-decoration: none;
+    color: var(--gray-900);
+    transition: transform .22s var(--ease-pop), box-shadow .22s var(--ease-pop);
+}
+.mikko-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--ink);
+}
+.mikko-medal {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+.mikko-portrait {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+}
+.mikko-card-body { flex: 1; min-width: 0; }
+.mikko-name {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mikko-score {
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: var(--gold-deep, #9a7b00);
+    line-height: 1.1;
+}
+.mikko-meta {
+    font-size: 0.7rem;
+    color: var(--gray-600);
+    font-style: italic;
+}
+
+/* ── Mikkoliiga marker on main leaderboard cards ──────────────────── */
+.mikko-leaderboard-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #FFD700;
+    color: #3a2c00;
+    font-size: 0.7rem;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.mikko-leaderboard-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(255, 200, 0, 0.4);
+}
+.mikko-leaderboard-rank {
+    font-weight: 700;
+    color: #5a3a00;
+    font-size: 0.68rem;
+}
+</style>
 
 <?php include __DIR__ . '/../private/templates/footer.php'; ?>

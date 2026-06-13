@@ -11,17 +11,25 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) { header("Location: ../arch
 $id = (int)$_GET['id'];
 $message = "";
 
-// 0. Program Definitions (For the dropdown)
-$programs = [
-    "core_team" => "🎙️ Kart Core Team",
-    "reef_dispatch" => "🚬 Reef’s Dispatch",
-    "meta_report" => "📊 The Meta Report",
-    "the_rant" => "🤬 The Rant",
-    "ghost_racer" => "👻 The Ghost Racer’s Ascent",
-    "situated_spectator" => "🎓 The Situated Spectator",
-    "viberacing" => "✨ Viberacing",
-    "random" => "🎲 Special Broadcast"
+// 0. Program Definitions for the dropdown — emoji-prefixed labels, kept
+// in sync with the shared catalog by reading from it.
+require_once __DIR__ . '/../../private/includes/programs.php';
+$programEmojis = [
+    'press_office'       => '📰',
+    'core_team'          => '🎙️',
+    'reef_dispatch'      => '🚬',
+    'meta_report'        => '📊',
+    'the_rant'           => '🤬',
+    'ghost_racer'        => '👻',
+    'situated_spectator' => '🎓',
+    'viberacing'         => '✨',
+    'random'             => '🎲',
 ];
+$programs = [];
+foreach (getProgramsCatalog() as $key => $info) {
+    $emoji = $programEmojis[$key] ?? '🎙️';
+    $programs[$key] = $emoji . ' ' . $info['label'];
+}
 
 // 1. Handle Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

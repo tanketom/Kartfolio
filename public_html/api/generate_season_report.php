@@ -6,13 +6,19 @@
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/gp_logic.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
+require_once __DIR__ . '/../../private/includes/gemini_client.php';
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_admin();
 
+@set_time_limit(300);
+ignore_user_abort(true);
+
 $config = require __DIR__ . '/../../private/config/config.php';
 $apiKey = $config['gemini_api_key'] ?? '';
-$model  = $config['model_name'] ?? 'gemini-1.5-flash';
+// gemini-1.5-flash has been retired from v1beta; default to the current
+// flash so a missing config key doesn't always 404 on the first attempt.
+$model  = $config['model_name'] ?? 'gemini-2.5-flash';
 
 $seasonId = $_GET['season'] ?? null;
 if (!$seasonId) {
@@ -21,9 +27,7 @@ if (!$seasonId) {
 }
 
 // 1. Fetch Season Rules
-$metaStmt = $pdo->prepare("SELECT * FROM season_meta WHERE season_id = ?");
-$metaStmt->execute([$seasonId]);
-$rules = $metaStmt->fetch(PDO::FETCH_ASSOC);
+$rules = getSeasonRules($pdo, $seasonId);
 
 // 2. Identify the Champion (Ranking logic)
 $racerStmt = $pdo->prepare("SELECT DISTINCT r.id, r.name FROM racers r JOIN results res ON r.id = res.racer_id WHERE res.gpid LIKE ?");
@@ -75,28 +79,19 @@ Final Standings:
 $standingsText
 Tone: Professional, nostalgic, slightly eccentric.";
 
-// 4. Gemini API Call
-$url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
-$data = ["contents" => [["parts" => [["text" => $prompt]]]]];
+// 4. Gemini API Call (shared client: retry + model fallback)
+$payload = ["contents" => [["parts" => [["text" => $prompt]]]]];
+[$response, $httpCode, $lastError, $modelUsed] =
+    callGeminiWithRetry(geminiDefaultModelChain($model), $apiKey, $payload);
 
-$jsonBody = json_encode($data);
-if ($jsonBody === false) {
-    $jsonBody = json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE);
-    if ($jsonBody === false) {
-        die("Error: Failed to encode API payload as JSON — " . json_last_error_msg());
-    }
+if ($response === null) {
+    // Don't block the archive on AI failure — log a placeholder and move on.
+    $aiReport = "Historical report unavailable (Gemini error: " . $lastError . ").";
+} else {
+    $result   = json_decode($response, true);
+    $aiReport = $result['candidates'][0]['content']['parts'][0]['text']
+        ?? "Historical report pending archive retrieval.";
 }
-
-$ch = curl_init($url);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonBody);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-$response = curl_exec($ch);
-curl_close($ch);
-
-$result = json_decode($response, true);
-$aiReport = $result['candidates'][0]['content']['parts'][0]['text'] ?? "Historical report pending archive retrieval.";
 
 // 5. Update Metadata with Final Snapshot
 $update = $pdo->prepare("

@@ -5,6 +5,8 @@
  */
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
+require_once __DIR__ . '/../private/includes/mk_data.php';
+require_once __DIR__ . '/../private/includes/track_ranking.php';
 
 $currentSeason = getCurrentSeasonNumber();
 
@@ -20,21 +22,31 @@ $pageTitle = "Cup Analysis - Kartfolio";
 $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';
 include __DIR__ . '/../private/templates/header.php';
 
-// 1. Track Intelligence Mapping
-$cupTracks = [
-    "Mushroom" => ["Mario Kart Stadium", "Water Park", "Sweet Sweet Canyon", "Thwomp Ruins"],
-    "Flower" => ["Mario Circuit", "Toad Harbor", "Twisted Mansion", "Shy Guy Falls"],
-    "Star" => ["Sunshine Airport", "Dolphin Shoals", "Electrodrome", "Mount Wario"],
-    "Special" => ["Cloudtop Cruise", "Bone-Dry Dunes", "Bowser's Castle", "Rainbow Road"],
-    "Egg" => ["GCN Yoshi Circuit", "Excitebike Arena", "Dragon Driftway", "Mute City"],
-    "Triforce" => ["Wii Wario's Gold Mine", "SNES Rainbow Road", "Ice Ice Outpost", "Hyrule Circuit"],
-    "Crossing" => ["GCN Baby Park", "GBA Cheese Land", "Wild Woods", "Animal Crossing"],
-    "Bell" => ["3DS Neo Bowser City", "GBA Ribbon Road", "Super Bell Subway", "Big Blue"],
-    "Shell" => ["Wii Moo Moo Meadows", "GBA Mario Circuit", "DS Cheep Cheep Beach", "N64 Toad's Turnpike"],
-    "Banana" => ["GCN Dry Dry Desert", "SNES Donut Plains 3", "N64 Royal Raceway", "3DS DK Jungle"],
-    "Leaf" => ["DS Wario Stadium", "GCN Sherbet Land", "3DS Music Park", "N64 Yoshi Valley"],
-    "Lightning" => ["DS Tick-Tock Clock", "3DS Piranha Plant Slide", "Wii Grumble Volcano", "N64 Rainbow Road"]
-];
+// 1. Track Intelligence — canonical 24-cup catalog from mk_data.php.
+$cupTracks = getMKTracksByCup();
+
+// Per-track preference Elo from track_favourites votes.
+$trackRankings = trackRankings($pdo);
+
+// Per-cup rollup: average track Elo + total preference votes across the
+// cup's 4 tracks. Feeds the "Fan Favourite Cups" panel below.
+$cupPreferences = [];
+foreach ($cupTracks as $cup => $tracks) {
+    $eloSum = 0;
+    $voteSum = 0;
+    foreach ($tracks as $t) {
+        $r = $trackRankings[$t] ?? null;
+        if (!$r) continue;
+        $eloSum  += $r['elo'];
+        $voteSum += $r['votes_total'];
+    }
+    $cupPreferences[$cup] = [
+        'avg_elo'      => count($tracks) > 0 ? (int)round($eloSum / count($tracks)) : 1500,
+        'votes_total'  => $voteSum,
+    ];
+}
+uasort($cupPreferences, fn($a, $b) => $b['avg_elo'] <=> $a['avg_elo']);
+$totalTrackVotes = trackPrefTotalVotes($pdo);
 
 // 2. Fetch Aggregated Cup Data
 $seasonFilter = $isAllTime ? "%" : ($selectedSeason . "%");
@@ -53,21 +65,42 @@ $stmt = $pdo->prepare("
 $stmt->execute([$seasonFilter]);
 $cupStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 3. Fetch Podium Records per Cup
+// 2b. Single fetch of every in-scope result row, grouped by cup. Feeds the
+// podium, variance, and unique-winner computations below — replacing the
+// ~3-queries-per-cup N+1 loops with one query plus PHP grouping.
+$allRowsStmt = $pdo->prepare("
+    SELECT res.cup_name, res.racer_id, r.name, res.gp_points, res.rank
+    FROM results res
+    JOIN racers r ON res.racer_id = r.id
+    WHERE res.gpid LIKE ?
+");
+$allRowsStmt->execute([$seasonFilter]);
+$rowsByCup = [];
+foreach ($allRowsStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $rowsByCup[$r['cup_name']][] = $r;
+}
+
+// 3. Podium Records per Cup (top-3 by per-cup PPG), computed from $rowsByCup.
 $cupPodiums = [];
 foreach ($cupStats as $cup) {
     $cName = $cup['cup_name'];
-    $pStmt = $pdo->prepare("
-        SELECT r.name, AVG(res.gp_points) as ppg
-        FROM results res
-        JOIN racers r ON res.racer_id = r.id
-        WHERE res.cup_name = ? AND res.gpid LIKE ?
-        GROUP BY res.racer_id
-        ORDER BY ppg DESC
-        LIMIT 3
-    ");
-    $pStmt->execute([$cName, $seasonFilter]);
-    $cupPodiums[$cName] = $pStmt->fetchAll();
+    $perRacer = []; // racer_id => ['name', 'sum', 'count']
+    foreach ($rowsByCup[$cName] ?? [] as $r) {
+        $rid = $r['racer_id'];
+        if (!isset($perRacer[$rid])) {
+            $perRacer[$rid] = ['name' => $r['name'], 'sum' => 0, 'count' => 0];
+        }
+        $perRacer[$rid]['sum'] += (int)$r['gp_points'];
+        $perRacer[$rid]['count']++;
+    }
+    $podium = [];
+    foreach ($perRacer as $p) {
+        $podium[] = ['name' => $p['name'], 'ppg' => $p['sum'] / $p['count']];
+    }
+    // PPG DESC; ties broken by name ASC. (The old SQL had no tiebreak, so its
+    // tie order was query-plan dependent — this is deterministic instead.)
+    usort($podium, fn($a, $b) => ($b['ppg'] <=> $a['ppg']) ?: strcmp($a['name'], $b['name']));
+    $cupPodiums[$cName] = array_slice($podium, 0, 3);
 }
 
 // 4. Prepare Heatmap Chart Data
@@ -85,17 +118,9 @@ $cupDifficulty = [];
 foreach ($cupStats as $row) {
     $cName = $row['cup_name'];
 
-    // Get all individual scores for this cup to compute variance
-    $scoresStmt = $pdo->prepare("
-        SELECT gp_points, rank, racer_id
-        FROM results
-        WHERE cup_name = ? AND gpid LIKE ?
-        ORDER BY gp_points ASC
-    ");
-    $scoresStmt->execute([$cName, $seasonFilter]);
-    $allScores = $scoresStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $scores = array_map('intval', array_column($allScores, 'gp_points'));
+    // All individual scores for this cup, from the single fetch above.
+    $cupRows = $rowsByCup[$cName] ?? [];
+    $scores = array_map('intval', array_column($cupRows, 'gp_points'));
     $totalGPs = (int)$row['races_run'];
     $avgScore = (float)$row['avg_score'];
     $lolRate = $totalGPs > 0 ? (int)$row['total_lols'] / max(count($scores), 1) * 100 : 0;
@@ -108,14 +133,12 @@ foreach ($cupStats as $row) {
     }
     $stdDev = sqrt($variance);
 
-    // Win concentration: how many unique winners vs total GPs
-    $winnersStmt = $pdo->prepare("
-        SELECT COUNT(DISTINCT racer_id) as unique_winners
-        FROM results
-        WHERE cup_name = ? AND gpid LIKE ? AND rank = 1
-    ");
-    $winnersStmt->execute([$cName, $seasonFilter]);
-    $uniqueWinners = (int)$winnersStmt->fetchColumn();
+    // Win concentration: how many unique winners vs total GPs, from $cupRows.
+    $winnerIds = [];
+    foreach ($cupRows as $r) {
+        if ((int)$r['rank'] === 1) $winnerIds[$r['racer_id']] = true;
+    }
+    $uniqueWinners = count($winnerIds);
     $winSpread = $totalGPs > 0 ? $uniqueWinners / $totalGPs : 0; // Higher = more competitive
 
     // Perfect 60 rate
@@ -210,6 +233,58 @@ foreach ($radarCups as $rc) {
             </div>
         </div>
 
+        <!-- Fan Favourite Cups (from /track-favourites preference voting) -->
+        <div class="racer-card difficulty-analysis-card fav-cups-card">
+            <h3 class="telemetry-label">Fan Favourite Cups</h3>
+            <?php if ($totalTrackVotes > 0): ?>
+            <p class="diff-description">
+                Average Elo across each cup's four tracks, derived from <strong><?= $totalTrackVotes ?></strong> head-to-head votes on
+                <a href="/track-favourites">Track Favourites</a>. Cups with no votes sit at the 1500 baseline.
+            </p>
+            <?php else: ?>
+            <p class="diff-description">
+                No votes yet — every cup sits at the 1500 baseline.
+                <a href="/track-favourites"><strong>Head over to Track Favourites</strong></a> and vote on head-to-head matchups to populate this ranking.
+            </p>
+            <?php endif; ?>
+
+            <div class="difficulty-ranking">
+                <?php
+                    $maxElo = max(array_column($cupPreferences, 'avg_elo'));
+                    $minElo = min(array_column($cupPreferences, 'avg_elo'));
+                    $eloSpan = max(1, $maxElo - $minElo);
+                    $rank = 1;
+                    foreach ($cupPreferences as $cupName => $pref):
+                    $pctFromBottom = (($pref['avg_elo'] - $minElo) / $eloSpan) * 100;
+                    $eloDelta = $pref['avg_elo'] - 1500;
+                    // Tier coloring: gold for top quartile, then descending.
+                    if      ($pctFromBottom >= 80) { $color = '#FFD700'; $tier = '★★★'; }
+                    elseif  ($pctFromBottom >= 60) { $color = '#e8a82a'; $tier = '★★';  }
+                    elseif  ($pctFromBottom >= 40) { $color = '#b8b8b8'; $tier = '★';   }
+                    elseif  ($pctFromBottom >= 20) { $color = '#888';    $tier = '·';   }
+                    else                           { $color = '#5a5a5a'; $tier = '·';   }
+                ?>
+                <div class="diff-row" title="<?= htmlspecialchars($cupName) ?> Cup — <?= $pref['votes_total'] ?> votes across its four tracks">
+                    <div class="diff-rank">#<?= $rank ?></div>
+                    <div class="diff-tier" style="background: <?= $color ?>;"><?= $tier ?></div>
+                    <div class="diff-cup-name">
+                        <?= getMKCupEmoji($cupName) ?> <?= htmlspecialchars($cupName) ?> Cup
+                    </div>
+                    <div class="diff-bar-wrap">
+                        <div class="diff-bar" style="width: <?= max(2, $pctFromBottom) ?>%; background: <?= $color ?>;"></div>
+                    </div>
+                    <div class="diff-score" style="color: <?= $color ?>;">
+                        <?= $pref['avg_elo'] ?>
+                        <small style="color:#888; font-weight:400;"><?= $eloDelta >= 0 ? '+' : '' ?><?= $eloDelta ?></small>
+                    </div>
+                </div>
+                <?php $rank++; endforeach; ?>
+            </div>
+            <p class="diff-description" style="margin-top:10px; font-size:0.8rem;">
+                💡 Use the top of this list as a seed for tournament cup pools.
+            </p>
+        </div>
+
         <!-- Cup Difficulty Analysis -->
         <?php if (!empty($cupDifficulty)): ?>
         <div class="racer-card difficulty-analysis-card">
@@ -275,12 +350,26 @@ foreach ($radarCups as $rc) {
                         <span class="difficulty-badge" style="background: <?= $diffColor ?>"><?= $diffLabel ?></span>
                         <span class="run-tag"><?= $row['races_run'] ?> GPs Run</span>
                     </div>
-                    <h4><?= htmlspecialchars($cName) ?> Cup</h4>
+                    <h4>
+                        <a href="/cup/<?= htmlspecialchars(getMKCupSlug($cName)) ?>" class="cup-card-link">
+                            <?= htmlspecialchars($cName) ?> Cup →
+                        </a>
+                    </h4>
                 </div>
 
                 <div class="track-intel-list">
-                    <?php foreach ($tracks as $t): ?>
-                        <span class="track-chip"><?= $t ?></span>
+                    <?php foreach ($tracks as $t):
+                        $tr   = $trackRankings[$t] ?? null;
+                        $slug = getMKTrackImageSlug($t);
+                    ?>
+                        <span class="track-chip" title="<?= htmlspecialchars($t) ?><?= $tr ? ' · ' . $tr['elo'] . ' Elo · ' . $tr['votes_total'] . ' votes' : '' ?>">
+                            <img class="track-chip-thumb" src="/assets/img/tracks/<?= htmlspecialchars($slug) ?>.png"
+                                 alt="" onerror="this.style.display='none';">
+                            <span class="track-chip-name"><?= htmlspecialchars($t) ?></span>
+                            <?php if ($tr && $tr['votes_total'] > 0): ?>
+                                <span class="track-chip-elo"><?= $tr['elo'] ?></span>
+                            <?php endif; ?>
+                        </span>
                     <?php endforeach; ?>
                 </div>
 
@@ -318,6 +407,7 @@ foreach ($radarCups as $rc) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js" integrity="sha384-hfkuqrKeWFmnTMWN31VWyoe8xgdTADD11kgxmdpx2uyE6j5Az5uZq6u6AKYYmAOw" crossorigin="anonymous"></script>
+<script>Chart.defaults.color = "#6b6453"; Chart.defaults.borderColor = "#e8e0cc";</script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const ctx = document.getElementById('telemetryChart').getContext('2d');
@@ -330,7 +420,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     label: 'Avg Points per Racer',
                     data: <?= json_encode($chartPPG) ?>,
                     backgroundColor: 'rgba(230, 0, 18, 0.8)',
-                    borderColor: '#e60012',
+                    borderColor: 'var(--nintendo-red)',
                     borderWidth: 2,
                     yAxisID: 'y',
                     borderRadius: 5

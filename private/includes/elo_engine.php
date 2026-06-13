@@ -49,6 +49,15 @@ function eloKFactor($gamesPlayed) {
  * ]
  */
 function calculateAllELORatings($pdo) {
+    // Per-request memoization. This is a pure function of the results table,
+    // but it's heavy (walks every row), and several pages call it more than
+    // once per request via different helpers. Cache keyed on a cheap table
+    // signature so the result auto-invalidates if a row is inserted/edited
+    // mid-request (e.g. add_result.php logs a GP, then renders standings).
+    static $cache = [];
+    $sig = $pdo->query("SELECT COUNT(*) || ':' || COALESCE(MAX(id),0) FROM results")->fetchColumn();
+    if (isset($cache[$sig])) return $cache[$sig];
+
     // 1. Fetch ALL Race Results (chronologically - ELO is always all-time)
     $stmt = $pdo->query("
         SELECT res.gpid, res.race_date, res.racer_id, r.name, res.rank, res.gp_points, res.cup_name
@@ -209,7 +218,7 @@ function calculateAllELORatings($pdo) {
     $timeline = array_values(array_unique($timeline));
     sort($timeline);
 
-    return [
+    return $cache[$sig] = [
         'ratings'      => $ratings,
         'games_played' => $games_played,
         'history'      => $rating_history,

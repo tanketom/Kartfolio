@@ -101,7 +101,10 @@ $tournaments = $tournamentsStmt->fetchAll(PDO::FETCH_ASSOC);
                 'single_elim' => 'Single Elimination',
                 'double_elim' => 'Double Elimination',
                 'gauntlet' => 'Gauntlet',
-                'team_relay' => 'Team Relay'
+                'team_relay' => 'Team Relay',
+                'survivor' => 'Survivor',
+                'team_scramble' => 'Team Scramble',
+                'world_cup' => 'World Cup'
             ];
             foreach ($tournaments as $t):
                 $formatLabel = $formatLabels[$t['format']] ?? $t['format'];
