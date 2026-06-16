@@ -93,7 +93,7 @@ include __DIR__ . '/../private/templates/header.php';
         <!-- Season Filter -->
         <form method="GET" style="display:flex;gap:8px;align-items:center;">
             <label style="font-size:0.8rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:1px;">Season</label>
-            <select name="season" onchange="this.form.submit()" style="padding:6px 12px;border-radius:6px;border:1px solid #333;background:#111;color:#fff;font-weight:700;">
+            <select name="season" onchange="this.form.submit()" style="padding:6px 12px;border-radius:6px;border:1px solid var(--gray-300);background:var(--gray-50);color:var(--gray-900);font-weight:700;">
                 <?php foreach ($availableSeasons as $s): ?>
                     <option value="<?= htmlspecialchars($s) ?>" <?= $s === $selectedSeason ? 'selected' : '' ?>>
                         <?= strtoupper($s) ?>
@@ -227,8 +227,8 @@ include __DIR__ . '/../private/templates/header.php';
 
 .mastery-scroll-wrapper {
     overflow-x: auto;
-    border-radius: 12px;
-    border: 1px solid #2a2a2a;
+    border-radius: 14px;
+    border: 2.5px solid var(--ink);
     margin-bottom: 30px;
 }
 
@@ -240,7 +240,7 @@ include __DIR__ . '/../private/templates/header.php';
 
 .mastery-table th,
 .mastery-table td {
-    border: 1px solid #1e1e1e;
+    border: 1px solid var(--gray-200);
     text-align: center;
     white-space: nowrap;
 }
@@ -251,20 +251,20 @@ include __DIR__ . '/../private/templates/header.php';
     position: sticky;
     left: 0;
     z-index: 2;
-    background: #111;
+    background: var(--gray-100);
     text-align: left !important;
     padding: 8px 14px;
     font-weight: 700;
     color: var(--gray-600);
-    border-right: 2px solid #333 !important;
+    border-right: 2px solid var(--gray-300) !important;
     min-width: 120px;
 }
 
-.mc-cup-col { z-index: 3; background: #0d0d0d; color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; }
+.mc-cup-col { z-index: 3; background: var(--gray-200); color: var(--gray-600); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; }
 
 /* Racer column headers */
 .mc-racer-col {
-    background: #0d0d0d;
+    background: var(--gray-200);
     padding: 10px 6px 6px;
     min-width: 54px;
     max-width: 80px;
@@ -283,7 +283,7 @@ include __DIR__ . '/../private/templates/header.php';
     transform: rotate(180deg);
     font-size: 0.8rem;
     font-weight: 900;
-    color: #eee;
+    color: var(--gray-900);
     letter-spacing: 0.5px;
     max-height: 90px;
     overflow: hidden;
@@ -298,20 +298,20 @@ include __DIR__ . '/../private/templates/header.php';
 
 /* Group header rows */
 .mc-group-row td {
-    background: #181818;
+    background: var(--gray-200);
     color: var(--gray-600);
     font-size: 0.7rem;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 2px;
     padding: 6px 14px;
-    border-top: 2px solid #2a2a2a !important;
+    border-top: 2px solid var(--gray-300) !important;
 }
 .mc-group-row td:first-child {
     position: sticky;
     left: 0;
     z-index: 2;
-    background: #181818;
+    background: var(--gray-200);
 }
 
 /* Data cells */
@@ -324,24 +324,24 @@ include __DIR__ . '/../private/templates/header.php';
     position: relative;
     transition: filter 0.1s;
 }
-.mc-cell:hover { filter: brightness(1.25); }
+.mc-cell:hover { filter: brightness(0.96); }
 .mc-star { font-size: 0.6rem; vertical-align: super; margin-left: 1px; }
 
 /* Colour brackets */
 .mc-unplayed { background: var(--gray-200); color: var(--gray-500); }
-.mc-low      { background: #3d0a0a; color: #ff9999; }
-.mc-mid      { background: #3d2600; color: #ffbb66; }
-.mc-good     { background: #0d380d; color: #88ee88; }
-.mc-great    { background: #0b2240; color: #88ccff; }
-.mc-perfect  { background: #3a2a00; color: #ffd700; border: 1px solid #ffd700 !important; }
+.mc-low      { background: #fdecec; color: #b3261e; }
+.mc-mid      { background: #fff0e0; color: #b35a00; }
+.mc-good     { background: #e6f6ec; color: #157347; }
+.mc-great    { background: #e2f4fc; color: #0066aa; }
+.mc-perfect  { background: #fff6dc; color: #9a7b00; border: 1px solid #e0c040 !important; }
 
 /* Legend items mirror cell colours */
-.ml-item.mc-unplayed { background: #222; color: var(--gray-600); }
-.ml-item.mc-low      { background: #3d0a0a; color: #ff9999; }
-.ml-item.mc-mid      { background: #3d2600; color: #ffbb66; }
-.ml-item.mc-good     { background: #0d380d; color: #88ee88; }
-.ml-item.mc-great    { background: #0b2240; color: #88ccff; }
-.ml-item.mc-perfect  { background: #3a2a00; color: #ffd700; border: 1px solid #ffd700; }
+.ml-item.mc-unplayed { background: var(--gray-200); color: var(--gray-600); }
+.ml-item.mc-low      { background: #fdecec; color: #b3261e; }
+.ml-item.mc-mid      { background: #fff0e0; color: #b35a00; }
+.ml-item.mc-good     { background: #e6f6ec; color: #157347; }
+.ml-item.mc-great    { background: #e2f4fc; color: #0066aa; }
+.ml-item.mc-perfect  { background: #fff6dc; color: #9a7b00; border: 1px solid #e0c040; }
 
 /* Summary footer */
 .mastery-summary {
@@ -352,9 +352,10 @@ include __DIR__ . '/../private/templates/header.php';
 }
 
 .ms-stat {
-    background: #111;
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
+    background: var(--gray-50);
+    border: 2.5px solid var(--ink);
+    border-radius: 14px;
+    box-shadow: 4px 4px 0 var(--ink);
     padding: 14px 24px;
     text-align: center;
     min-width: 140px;
@@ -368,7 +369,7 @@ include __DIR__ . '/../private/templates/header.php';
 
 .ms-label {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--gray-600);
     margin-top: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;

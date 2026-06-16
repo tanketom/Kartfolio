@@ -184,15 +184,15 @@ $sections = [
 .map-card:hover {
     transform: translateY(-2px);
     border-color: #FFD700;
-    background: #1a1408;
+    background: #fff6dc;
 }
 .map-card-row { display: flex; align-items: center; gap: 10px; }
 .map-icon { font-size: 1.5rem; line-height: 1; }
-.map-name { font-weight: 800; color: #fff; font-size: 1rem; }
+.map-name { font-weight: 800; color: var(--gray-900); font-size: 1rem; }
 .map-url {
     font-family: ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace;
     font-size: 0.72rem;
-    color: #FFD700;
+    color: var(--boost);
     word-break: break-all;
 }
 .map-desc { color: var(--gray-500); font-size: 0.82rem; line-height: 1.4; margin-top: 2px; }

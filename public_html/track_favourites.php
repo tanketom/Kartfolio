@@ -109,7 +109,7 @@ include __DIR__ . '/../private/templates/header.php';
 .tf-intro p { margin:0 0 8px; line-height:1.5; }
 .tf-intro p:last-child { margin:0; }
 .tf-counts { font-size:0.9rem; color:#888; }
-.tf-counts strong { color:#FFD700; }
+.tf-counts strong { color:var(--nintendo-red); }
 
 .tf-vote-card { background:#fff6dc; border:1px solid #f0c040; border-radius:12px; padding:24px; margin-bottom:32px; box-shadow:0 6px 16px rgba(255,200,0,0.12); }
 .tf-vs { display:flex; align-items:stretch; justify-content:center; gap:16px; }
@@ -127,11 +127,11 @@ include __DIR__ . '/../private/templates/header.php';
 .tf-status { margin-top:8px; text-align:center; font-size:0.9rem; }
 
 .tf-rankings { background:var(--gray-50); border:1px solid var(--gray-200); border-radius:10px; padding:20px 24px; }
-.tf-rankings-title { color:#fff; margin:0; font-size:1.3rem; }
+.tf-rankings-title { color:var(--gray-900); margin:0; font-size:1.3rem; }
 .tf-rankings-sub { color:var(--gray-600); font-size:0.85rem; margin:4px 0 16px; font-style:italic; }
 .tf-rankings-list { display:flex; flex-direction:column; gap:3px; }
 .tf-row { display:grid; grid-template-columns:48px 28px 1fr 100px 70px 50px 50px; align-items:center; gap:10px; padding:6px 12px; background:var(--gray-200); border-radius:5px; border-left:3px solid transparent; transition:background 0.2s ease; font-size:0.88rem; }
-.tf-row:nth-child(1) { border-left-color:#FFD700; background:#1a1408; }
+.tf-row:nth-child(1) { border-left-color:#FFD700; background:#fff6dc; }
 .tf-row:nth-child(2) { border-left-color:#C0C0C0; }
 .tf-row:nth-child(3) { border-left-color:#CD7F32; }
 .tf-row.tf-row-flash { background:#fff6dc; }
@@ -139,9 +139,9 @@ include __DIR__ . '/../private/templates/header.php';
 .tf-thumb { display:flex; align-items:center; justify-content:center; width:28px; height:28px; }
 .tf-thumb-img { width:28px; height:28px; object-fit:cover; border-radius:4px; }
 .tf-thumb-emoji { font-size:1.2rem; line-height:1; }
-.tf-name { color:#fff; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tf-name { color:var(--gray-900); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tf-cup-tag { color:#888; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; text-align:right; }
-.tf-elo { color:#FFD700; font-weight:900; font-variant-numeric:tabular-nums; text-align:right; }
+.tf-elo { color:#9a7b00; font-weight:900; font-variant-numeric:tabular-nums; text-align:right; }
 .tf-votes { color:#888; font-size:0.78rem; text-align:right; }
 .tf-winpct { color:var(--gray-500); font-size:0.8rem; text-align:right; font-variant-numeric:tabular-nums; }
 @media (max-width:700px) {

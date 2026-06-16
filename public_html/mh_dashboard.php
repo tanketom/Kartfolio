@@ -29,7 +29,7 @@ include __DIR__ . '/../private/templates/header.php';
 if (empty($mhSeasons)) {
     echo '<div class="stats-container" style="text-align:center;padding:80px 20px;color:var(--gray-600);">
         <div style="font-size:4rem;margin-bottom:20px;">👹</div>
-        <h2 style="color:#888;">No MONSTER HUNT Seasons Found</h2>
+        <h2 style="color:var(--gray-800);">No MONSTER HUNT Seasons Found</h2>
         <p>This dashboard activates when a season uses the MONSTER HUNT scoring system.</p>
     </div>';
     include __DIR__ . '/../private/templates/footer.php';
@@ -222,7 +222,7 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
         <?php if (count($mhSeasons) > 1): ?>
         <form method="GET" style="display:flex;gap:8px;align-items:center;">
             <label style="font-size:0.8rem;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:1px;">Season</label>
-            <select name="season" onchange="this.form.submit()" style="padding:6px 12px;border-radius:6px;border:1px solid #333;background:#111;color:#fff;font-weight:700;">
+            <select name="season" onchange="this.form.submit()" style="padding:6px 12px;border-radius:6px;border:1px solid var(--gray-300);background:var(--gray-50);color:var(--gray-900);font-weight:700;">
                 <?php foreach ($mhSeasons as $s): ?>
                     <option value="<?= htmlspecialchars($s['season_id']) ?>" <?= $s['season_id'] === $selectedSeason ? 'selected' : '' ?>>
                         <?= htmlspecialchars($s['season_name'] ?: strtoupper($s['season_id'])) ?>
@@ -441,29 +441,30 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
 }
 
 .mhd-pill {
-    background: #111;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
+    background: var(--gray-50);
+    border: 2.5px solid var(--ink);
+    border-radius: 14px;
+    box-shadow: 4px 4px 0 var(--ink);
     padding: 14px 22px;
     text-align: center;
     min-width: 120px;
     flex: 1;
 }
-.mhd-pill--red   { border-color: #5a1010; }
-.mhd-pill--green { border-color: #0a4a1a; }
-.mhd-pill--gold  { border-color: #5a4a00; }
+.mhd-pill--red   { background: #fdecec; }
+.mhd-pill--green { background: #e6f6ec; }
+.mhd-pill--gold  { background: #fff6dc; }
 
 .mhd-pill-num {
     font-size: 2rem;
     font-weight: 900;
     color: var(--nintendo-red);
 }
-.mhd-pill--green .mhd-pill-num { color: #4ec96c; }
-.mhd-pill--gold  .mhd-pill-num { color: #ffd700; }
+.mhd-pill--green .mhd-pill-num { color: #157347; }
+.mhd-pill--gold  .mhd-pill-num { color: #9a7b00; }
 
 .mhd-pill-label {
     font-size: 0.72rem;
-    color: #777;
+    color: var(--gray-600);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-top: 4px;
@@ -481,8 +482,9 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
 
 /* Monster card */
 .mhd-monster-card {
-    background: #1a0808;
-    border: 2px solid #5a0000;
+    background: #fdecec;
+    border: 2.5px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--ink);
     border-radius: 16px;
     padding: 24px 20px;
     text-align: center;
@@ -493,14 +495,14 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 2px;
-    color: #888;
+    color: var(--gray-600);
     margin-bottom: 10px;
 }
 
 .mhd-monster-name {
     font-size: 1.5rem;
     font-weight: 900;
-    color: #ff6666;
+    color: var(--nintendo-red);
     margin-bottom: 12px;
 }
 
@@ -520,11 +522,11 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
     display: flex;
     justify-content: space-between;
     padding: 5px 0;
-    border-bottom: 1px solid #3a1010;
+    border-bottom: 1px solid var(--gray-200);
     font-size: 0.83rem;
 }
-.mhd-ms-row span { color: #888; }
-.mhd-ms-row strong { color: #eee; }
+.mhd-ms-row span { color: var(--gray-600); }
+.mhd-ms-row strong { color: var(--gray-900); }
 
 /* Notable grid */
 .mhd-notable-grid {
@@ -535,27 +537,28 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
 }
 
 .mhd-notable-card {
-    background: #111;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
+    background: var(--gray-50);
+    border: 2.5px solid var(--ink);
+    border-radius: 14px;
+    box-shadow: 4px 4px 0 var(--ink);
     padding: 16px 14px;
     text-align: center;
 }
 
 .mhd-notable-icon  { font-size: 1.6rem; margin-bottom: 8px; }
-.mhd-notable-title { font-size: 0.68rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #777; margin-bottom: 6px; }
-.mhd-notable-name  { font-size: 1rem; font-weight: 900; color: #eee; }
-.mhd-notable-sub   { font-size: 0.75rem; color: #888; margin-top: 3px; }
+.mhd-notable-title { font-size: 0.68rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: var(--gray-600); margin-bottom: 6px; }
+.mhd-notable-name  { font-size: 1rem; font-weight: 900; color: var(--gray-900); }
+.mhd-notable-sub   { font-size: 0.75rem; color: var(--gray-600); margin-top: 3px; }
 
 /* Section headers */
 .mhd-section { margin-bottom: 48px; }
 .mhd-section-title {
-    font-size: 1.1rem;
-    font-weight: 900;
-    color: #eee;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 2px solid #2a2a2a;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    letter-spacing: -0.01em;
+    border-bottom: 3px solid var(--ink);
     padding-bottom: 10px;
     margin-bottom: 18px;
 }
@@ -568,28 +571,28 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
     font-size: 0.88rem;
 }
 .mhd-table th {
-    background: #0d0d0d;
-    color: #888;
+    background: var(--gray-100);
+    color: var(--gray-600);
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 1px;
     padding: 10px 14px;
     text-align: left;
-    border-bottom: 2px solid #2a2a2a;
+    border-bottom: 2px solid var(--gray-200);
 }
 .mhd-table td {
     padding: 10px 14px;
-    border-bottom: 1px solid #1e1e1e;
+    border-bottom: 1px solid var(--gray-200);
     color: var(--gray-600);
 }
 .mhd-row-leader td { background: rgba(230,0,18,0.06); }
 .mhd-rank { font-weight: 900; color: var(--gray-600); width: 30px; }
-.mhd-racer-cell { font-weight: 700; color: #eee; }
+.mhd-racer-cell { font-weight: 700; color: var(--gray-900); }
 .mhd-monster-indicator { margin-right: 6px; }
-.mhd-xp-val { font-weight: 900; color: #ffd700; }
+.mhd-xp-val { font-weight: 900; color: #9a7b00; }
 .mhd-elo-badge {
-    background: #1a2a3a;
-    color: #88ccff;
+    background: #e2f4fc;
+    color: #0066aa;
     padding: 3px 8px;
     border-radius: 6px;
     font-size: 0.78rem;
@@ -606,8 +609,9 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
 
 .mhd-hunt-row {
     background: var(--gray-50);
-    border: 1px solid #1e1e1e;
-    border-radius: 10px;
+    border: 2px solid var(--ink);
+    border-radius: 12px;
+    box-shadow: 3px 3px 0 var(--ink);
     padding: 14px 18px;
     display: grid;
     grid-template-columns: 160px 220px auto 1fr;
@@ -629,14 +633,14 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
 }
 .mhd-gpid   { font-size: 0.72rem; font-weight: 900; color: var(--gray-600); letter-spacing: 1px; font-family: monospace; }
 .mhd-gp-date { font-size: 0.8rem; font-weight: 700; color: var(--gray-500); }
-.mhd-gp-cup  { font-size: 0.78rem; color: #888; }
+.mhd-gp-cup  { font-size: 0.78rem; color: var(--gray-600); }
 
 .mhd-hunt-monster {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
-.mhd-hunt-monster-name { font-size: 0.92rem; font-weight: 900; color: #ff6666; }
+.mhd-hunt-monster-name { font-size: 0.92rem; font-weight: 900; color: var(--nintendo-red); }
 .mhd-hunt-cr-badge {
     display: inline-block;
     padding: 2px 10px;
@@ -661,10 +665,10 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
     font-weight: 800;
     align-self: flex-start;
 }
-.mhd-outcome-wipe    { background: #0d3d1a; color: #4ec96c; }
-.mhd-outcome-monster { background: #3d0a0a; color: #ff7777; }
-.mhd-outcome-mixed   { background: #2a2200; color: #ccaa00; }
-.mhd-slayers { font-size: 0.78rem; color: #88cc88; }
+.mhd-outcome-wipe    { background: #e6f6ec; color: #157347; }
+.mhd-outcome-monster { background: #fdecec; color: #b3261e; }
+.mhd-outcome-mixed   { background: #fff6dc; color: #9a7b00; }
+.mhd-slayers { font-size: 0.78rem; color: #157347; }
 
 .mhd-hunt-xp {
     display: flex;
@@ -679,8 +683,8 @@ $mixedGPs = $totalGPs - $tpkCount - $fullSlayCount;
     font-weight: 700;
     font-family: monospace;
 }
-.mhd-xp-pos { background: #0d2a0d; color: #88ee88; }
-.mhd-xp-neg { background: #2a0d0d; color: #ee8888; }
+.mhd-xp-pos { background: #e6f6ec; color: #157347; }
+.mhd-xp-neg { background: #fdecec; color: #b3261e; }
 </style>
 
 <?php include __DIR__ . '/../private/templates/footer.php'; ?>

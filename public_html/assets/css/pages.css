@@ -1463,9 +1463,11 @@
 
 .rivals-nemesis-card {
     margin-bottom: 40px;
-    background: #111;
-    color: white;
-    border: none;
+    background: var(--gray-50);
+    color: var(--gray-900);
+    border: 2.5px solid var(--ink);
+    border-radius: 22px;
+    box-shadow: 6px 6px 0 var(--ink);
     padding: 40px;
     display: block;
     text-align: center;
@@ -1481,9 +1483,9 @@
     color: white;
     padding: 5px 15px;
     font-weight: 900;
-    font-style: italic;
     font-size: 0.8rem;
-    border-radius: 4px;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
 }
 
 .rivals-nemesis-label {
@@ -1495,9 +1497,10 @@
 }
 
 .rivals-nemesis-names {
+    font-family: var(--font-display);
     font-size: 2.5rem;
-    font-weight: 900;
-    font-style: italic;
+    font-weight: 700;
+    letter-spacing: -0.01em;
 }
 
 .rivals-nemesis-names .vs-text {
@@ -1505,7 +1508,7 @@
 }
 
 .rivals-nemesis-subtext {
-    color: #aaa;
+    color: var(--gray-600);
     margin-top: 15px;
     font-weight: bold;
 }
