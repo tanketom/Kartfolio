@@ -164,6 +164,29 @@ function getScoringSystemRegistry(): array {
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
+        'positional_points' => [
+            'name'                   => 'Positional Points',
+            'icon'                   => '🏁',
+            'description'            => fn($rules) => 'Finish-position points · '
+                                          . (($rules['pos_mode'] ?? 'best_n') === 'best_n'
+                                                ? 'best ' . ($rules['best_n_count'] ?? 15)
+                                                : (($rules['pos_mode'] ?? 'best_n') === 'average' ? 'per-GP average' : 'season sum')),
+            'long_description'       => 'Relative scoring: each GP awards points by finish position on a fixed Mario Kart ladder (1st=15, 2nd=12, 3rd=10, 4th=9, …), so a win always banks the same regardless of margin. Season aggregation is configurable — best-N nights, per-GP average, or straight sum — with a minimum-GPs eligibility gate.',
+            'calculate'              => 'calculatePositionalScore',
+            'breakdown'              => 'breakdownPositional',
+            'qualifies_by_threshold' => true,
+            'sort'                   => null,
+        ],
+        'head_to_head' => [
+            'name'                   => 'Head-to-Head',
+            'icon'                   => '🤺',
+            'description'            => 'Win rate across every head-to-head matchup',
+            'long_description'       => 'Relative scoring built for small fields: in each GP you beat everyone you finish above and lose to everyone above you. Your score is your win rate across every head-to-head matchup all season — completely margin-blind and attendance-fair. A minimum-GPs threshold filters small-sample flukes; ties break on total wins.',
+            'calculate'              => 'calculateHeadToHeadScore',
+            'breakdown'              => 'breakdownHeadToHead',
+            'qualifies_by_threshold' => true,
+            'sort'                   => 'sortStandingsHeadToHead',
+        ],
     ];
     return $registry;
 }
@@ -924,6 +947,149 @@ function breakdownParimutuel($pdo, $racer_id, $season_id, $rules) {
         'ante'        => (int)($rules['pm_ante'] ?? 100),
         'preset'      => $rules['pm_payout_preset'] ?? 'steep',
     ];
+}
+
+// ============================================================================
+// POSITIONAL POINTS  ("Podium League")  — RELATIVE
+//
+// Each GP awards points by FINISH POSITION on a fixed Mario-Kart ladder
+// (1st=15, 2nd=12, 3rd=10, 4th=9, …), NOT by raw GP points — so a win always
+// banks the same regardless of margin. Season aggregation is a per-season knob
+// (pos_mode): 'best_n' (sum of top N nights, reuses best_n_count), 'average'
+// (points ÷ GPs played), or 'sum' (every night). Eligibility uses the shared
+// min_races_threshold gate (qualifies_by_threshold = true).
+// ============================================================================
+
+const POSITIONAL_POINTS_SCALE = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
+/** Positional points for a 1-based finish rank. 0 past the scale. */
+function positionalPointsForRank(int $rank): int {
+    return POSITIONAL_POINTS_SCALE[$rank - 1] ?? 0;
+}
+
+/**
+ * Per-GP positional points for a racer. Reads the per-request season-results
+ * cache (the season prefix already excludes tournament 't…' GPIDs).
+ * Returns ['per_gp' => [gpid => pts], 'sorted_desc' => [pts…], 'gps' => n].
+ */
+function positionalPointsRaw(PDO $pdo, int $racer_id, string $season_id): array {
+    static $cache = [];
+    $key = "$racer_id|$season_id";
+    if (isset($cache[$key])) return $cache[$key];
+
+    $perGP = [];
+    foreach (getRacerSeasonRows($pdo, $racer_id, $season_id) as $row) {
+        $perGP[$row['gpid']] = positionalPointsForRank((int)$row['rank']);
+    }
+    $sorted = array_values($perGP);
+    rsort($sorted); // best nights first, for best-N
+    return $cache[$key] = ['per_gp' => $perGP, 'sorted_desc' => $sorted, 'gps' => count($perGP)];
+}
+
+function calculatePositionalScore($pdo, $racer_id, $season_id, $rules) {
+    $raw  = positionalPointsRaw($pdo, (int)$racer_id, $season_id);
+    $vals = $raw['sorted_desc'];
+    if (empty($vals)) return 0;
+
+    switch ($rules['pos_mode'] ?? 'best_n') {
+        case 'sum':
+            return array_sum($vals);
+        case 'average':
+            return round(array_sum($vals) / max(1, $raw['gps']), 1);
+        case 'best_n':
+        default:
+            $n = (int)($rules['best_n_count'] ?? 15);
+            if ($n < 1) $n = 15;
+            return array_sum(array_slice($vals, 0, $n));
+    }
+}
+
+function breakdownPositional($pdo, $racer_id, $season_id, $rules) {
+    $raw  = positionalPointsRaw($pdo, (int)$racer_id, $season_id);
+    $vals = $raw['sorted_desc'];
+    $wins = 0;
+    foreach ($raw['per_gp'] as $pts) {
+        if ($pts === POSITIONAL_POINTS_SCALE[0]) $wins++; // top of the ladder = a GP win
+    }
+    $mode = $rules['pos_mode'] ?? 'best_n';
+    return [
+        'mode'         => $mode,
+        'gps_played'   => $raw['gps'],
+        'total_points' => array_sum($vals),
+        'best_night'   => !empty($vals) ? $vals[0] : 0,
+        'best_n'       => (int)($rules['best_n_count'] ?? 15),
+        'counted'      => $mode === 'best_n' ? min((int)($rules['best_n_count'] ?? 15), $raw['gps']) : $raw['gps'],
+        'wins'         => $wins,
+        'score'        => calculatePositionalScore($pdo, $racer_id, $season_id, $rules),
+    ];
+}
+
+// ============================================================================
+// HEAD-TO-HEAD  ("Duels")  — RELATIVE
+//
+// In each GP you "beat" everyone you finish above and "lose" to everyone above
+// you. Season score is your WIN RATE across every head-to-head matchup —
+// margin-blind and attendance-fair (a ratio). The min_races_threshold gate
+// filters small-sample flukes; ties break on absolute wins then name.
+// ============================================================================
+
+/**
+ * Aggregate head-to-head record for a racer in a season.
+ * Returns ['wins','losses','matchups','gps','rate'(0-100, 1dp)].
+ */
+function headToHeadRaw(PDO $pdo, int $racer_id, string $season_id): array {
+    static $cache = [];
+    $key = "$racer_id|$season_id";
+    if (isset($cache[$key])) return $cache[$key];
+
+    $stmt = $pdo->prepare("
+        SELECT (SELECT COUNT(*) FROM results WHERE gpid = res.gpid) AS participants,
+               res.rank
+        FROM results res
+        WHERE res.racer_id = ? AND res.gpid LIKE ? AND res.gpid LIKE 's%'
+    ");
+    $stmt->execute([$racer_id, $season_id . '%']);
+
+    $wins = 0; $losses = 0; $gps = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $n = (int)$row['participants'];
+        if ($n < 2) continue; // a solo GP has no duels
+        $rank    = (int)$row['rank'];
+        $wins   += ($n - $rank);   // everyone you finished above
+        $losses += ($rank - 1);    // everyone above you
+        $gps++;
+    }
+    $matchups = $wins + $losses;
+    $rate = $matchups > 0 ? round($wins / $matchups * 100, 1) : 0.0;
+    return $cache[$key] = compact('wins', 'losses', 'matchups', 'gps') + ['rate' => $rate];
+}
+
+function calculateHeadToHeadScore($pdo, $racer_id, $season_id, $rules) {
+    return headToHeadRaw($pdo, (int)$racer_id, $season_id)['rate'];
+}
+
+function breakdownHeadToHead($pdo, $racer_id, $season_id, $rules) {
+    $raw = headToHeadRaw($pdo, (int)$racer_id, $season_id);
+    return [
+        'wins'       => $raw['wins'],
+        'losses'     => $raw['losses'],
+        'matchups'   => $raw['matchups'],
+        'gps_played' => $raw['gps'],
+        'win_rate'   => $raw['rate'],
+    ];
+}
+
+/** Custom sort for head_to_head — win rate desc, then absolute wins, then name. */
+function sortStandingsHeadToHead(array &$standings, PDO $pdo, string $season_id): void {
+    foreach ($standings as &$s) {
+        $s['tiebreaker'] = headToHeadRaw($pdo, (int)$s['id'], $season_id)['wins'];
+    }
+    unset($s);
+    usort($standings, function ($a, $b) {
+        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
+        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
+        return strcmp($a['name'], $b['name']);
+    });
 }
 
 /**

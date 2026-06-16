@@ -43,3 +43,7 @@ TODO_*.md
 *.log
 *.tmp
 *.bak
+
+# Deprecated unauthenticated season editor — deleted in the security pass.
+# Ignored so a stray local copy can never be committed again.
+public_html/admin_season.php

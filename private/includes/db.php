@@ -144,6 +144,12 @@ try {
     try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN team_best_n INTEGER DEFAULT 2"); }
     catch (PDOException $e) {}
 
+    // Positional Points aggregation mode: 'best_n' (reuses best_n_count),
+    // 'average' (points ÷ GPs), or 'sum'. (best_n_count + min_races_threshold
+    // already exist and are reused by the Positional + Head-to-Head systems.)
+    try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN pos_mode TEXT DEFAULT 'best_n'"); }
+    catch (PDOException $e) {}
+
     // Sticker Packs — Panini-style collection. Packs are granted (1 per GP
     // raced from the stickers_epoch setting onward + a one-time Founders
     // pack) with DETERMINISTIC contents via `seed`; opening only reveals.

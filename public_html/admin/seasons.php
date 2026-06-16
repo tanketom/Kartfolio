@@ -202,6 +202,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateFields['pm_ante']          = max(1, (int)($_POST['pm_ante'] ?? 100));
                 $preset = $_POST['pm_payout_preset'] ?? 'steep';
                 $updateFields['pm_payout_preset'] = in_array($preset, ['steep', 'medium', 'flat'], true) ? $preset : 'steep';
+            } elseif ($scoringSystem === 'positional_points') {
+                $mode = $_POST['pos_mode'] ?? 'best_n';
+                $updateFields['pos_mode']            = in_array($mode, ['best_n', 'average', 'sum'], true) ? $mode : 'best_n';
+                $updateFields['best_n_count']        = max(1, (int)($_POST['pos_best_n'] ?? 15));
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['pos_thresh'] ?? 3));
+            } elseif ($scoringSystem === 'head_to_head') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['h2h_thresh'] ?? 3));
             }
 
             // Build SQL
@@ -756,6 +763,46 @@ include __DIR__ . '/../../private/templates/header.php';
                                     <option value="flat"   <?= $pmPreset === 'flat'   ? 'selected' : '' ?>>Flat (top 9 paid)</option>
                                 </select>
                                 <small>Steep = winner-takes-most. Flat = everyone breaks even.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="fields-<?= $sid ?>-positional_points" class="scoring-fields" style="<?= $meta['scoring_system'] === 'positional_points' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🏁 Positional Points Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['positional_points']['long_description']) ?></p>
+                        <p class="info-text">Ladder: 1st=15 · 2nd=12 · 3rd=10 · 4th=9 · 5th=8 … 12th=1.</p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Aggregation</label>
+                                <?php $posMode = $meta['pos_mode'] ?? 'best_n'; ?>
+                                <select name="pos_mode">
+                                    <option value="best_n"  <?= $posMode === 'best_n'  ? 'selected' : '' ?>>Best N nights</option>
+                                    <option value="average" <?= $posMode === 'average' ? 'selected' : '' ?>>Per-GP average</option>
+                                    <option value="sum"     <?= $posMode === 'sum'     ? 'selected' : '' ?>>Season sum</option>
+                                </select>
+                                <small>Average + a min-GP gate is the fairest across uneven attendance</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Best N (for Best-N mode)</label>
+                                <input type="number" name="pos_best_n" value="<?= $meta['best_n_count'] ?? 15 ?>" min="1" max="100">
+                                <small>How many of your best nights count</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="pos_thresh" value="<?= $meta['min_races_threshold'] ?? 3 ?>" min="0" max="50">
+                                <small>Below this, a racer is shown but ineligible</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="fields-<?= $sid ?>-head_to_head" class="scoring-fields" style="<?= $meta['scoring_system'] === 'head_to_head' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🤺 Head-to-Head Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['head_to_head']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="h2h_thresh" value="<?= $meta['min_races_threshold'] ?? 3 ?>" min="0" max="50">
+                                <small>Filters one-GP flukes from the win-rate board</small>
                             </div>
                         </div>
                     </div>

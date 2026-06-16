@@ -1,6 +1,6 @@
 # Kartfolio
 
-A self-hosted Mario Kart 8 Deluxe league management system. Turns a casual office racing habit into a sports universe — twelve configurable scoring systems, AI-narrated broadcasts, Elo ratings, tournaments, fantasy predictions, archived seasons, and edge-to-edge signage for the lounge screen.
+A self-hosted Mario Kart 8 Deluxe league management system. Turns a casual office racing habit into a sports universe — fourteen configurable scoring systems, AI-narrated broadcasts, Elo ratings, tournaments, fantasy predictions, archived seasons, and edge-to-edge signage for the lounge screen.
 
 Built with PHP, SQLite, and vanilla JavaScript. No frameworks, no build step — clone, drop in a config file, point Apache at it, and race.
 
@@ -11,7 +11,7 @@ Built with PHP, SQLite, and vanilla JavaScript. No frameworks, no build step —
 ### Core engine
 
 - **GP result logging** with auto-incrementing GPID (`s03gp14`), smart character/kart auto-fill from each racer's last result, and a four-digit wall code that has to be entered at the Gameslab to prevent remote submissions
-- **Twelve scoring systems**, picked per-season — GPScore™ (avg + attendance), Pre-Season, Cup-Based, Best-N GPs, Drop Worst, Perfect Hunt, Top 12 Unique Cups, Random Cup Draw, Black Box, **MONSTER HUNT** (XP-based RPG mode), **Bounty Hunter** (Elo-above-median collection), and **Pari-Mutuel** (zero-sum ante and payout)
+- **Fourteen scoring systems**, picked per-season — GPScore™ (avg + attendance), Pre-Season, Cup-Based, Best-N GPs, Drop Worst, Perfect Hunt, Top 12 Unique Cups, Random Cup Draw, Black Box, **MONSTER HUNT** (XP-based RPG mode), **Bounty Hunter** (Elo-above-median collection), **Pari-Mutuel** (zero-sum ante and payout), and the relative **Positional Points** and **Head-to-Head** systems
 - **Season management** with start/end dates, status (upcoming → active → archived), per-system rule knobs, and finals weeks
 - **Elo ratings** computed across all-time race history with K-factor curves for newer racers
 - **Mikkoliiga** — opt-in casual sub-league that races in the same GPs but scores internally with a Mario Kart 12-position scale, best 20 GPs counted. Membership is admin-flagged per racer and snapshotted at season close so historical standings stay frozen.
@@ -134,7 +134,7 @@ Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/
 │   ├── admin/                         # Admin panel
 │   │   ├── settings.php               # League identity, features, colors
 │   │   ├── racers.php                 # Roster management (with Mikkoliiga flag)
-│   │   ├── seasons.php                # Season config (12 scoring systems)
+│   │   ├── seasons.php                # Season config (14 scoring systems)
 │   │   ├── close_season.php           # Season-close wizard (snapshots Mikkoliiga + awards)
 │   │   ├── season_awards.php          # AI-assisted awards ceremony
 │   │   ├── results_manage.php         # Result editing
@@ -198,7 +198,7 @@ Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/
 
 ## Scoring systems
 
-Every season picks one of the twelve. New systems plug into a registry in `gp_logic.php::getScoringSystemRegistry()` — one entry per system, no edits required to the dispatch sites.
+Every season picks one of the fourteen. New systems plug into a registry in `gp_logic.php::getScoringSystemRegistry()` — one entry per system, no edits required to the dispatch sites.
 
 | Key | Display | Mechanics |
 |---|---|---|
@@ -214,6 +214,8 @@ Every season picks one of the twelve. New systems plug into a registry in `gp_lo
 | `monster_hunt` | MONSTER HUNT | XP per GP; the highest-Elo participant is the Monster each GP (alphabetical tiebreak; admins can override per-result), others slay them for CR-scaled XP. Best 20 hunts counted. |
 | `bounty_hunter` | Bounty Hunter | Every racer above field Elo median carries a bounty (= Elo above median). Beat them in a GP to collect (full, per beater). Configurable carrying-cost penalty. |
 | `pari_mutuel` | Pari-Mutuel | All participants pay an ante; pot redistributes by finish. Net per GP = winnings − ante (can go negative). Three payout curves: steep/medium/flat. |
+| `positional_points` | Positional Points | **Relative.** Each GP awards points by finish position on a fixed MK ladder (1st=15, 2nd=12, 3rd=10, 4th=9 …) — a win always banks the same regardless of margin. Aggregation knob: best-N nights / per-GP average / season sum. Min-GP eligibility gate. |
+| `head_to_head` | Head-to-Head | **Relative.** Score = win rate across every pairwise matchup (you beat everyone you finish above each GP). Margin-blind and attendance-fair; min-GP threshold filters small-sample flukes; ties break on total wins. |
 
 ---
 

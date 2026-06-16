@@ -73,8 +73,13 @@ foreach ($standings as $i => $s) {
     $standingsText .= "#$rank: {$s['name']} ({$s['score']} pts)\n";
 }
 
+$scoringInfo = getScoringSystemInfo($pdo, $seasonId);
 $prompt = "Act as a Mushroom Kingdom sports historian. Write an archival report for Season $seasonId.
 The champion is $winnerName.
+
+This season was scored under {$scoringInfo['name']} {$scoringInfo['icon']} — {$scoringInfo['long_description']}
+Read the final standings through THIS system (the 'pts' below are its scores); don't assume Average + Attendance / GPScore™ unless that's the named system.
+
 Final Standings:
 $standingsText
 Tone: Professional, nostalgic, slightly eccentric.";

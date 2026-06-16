@@ -104,7 +104,10 @@ CREATE TABLE IF NOT EXISTS season_meta (
     mh_monster_loss_xp INTEGER DEFAULT -40,
     mh_min_gps INTEGER DEFAULT 6,
     mh_best_x INTEGER DEFAULT 20,
-    team_best_n INTEGER DEFAULT 2
+    team_best_n INTEGER DEFAULT 2,
+
+    -- Positional Points aggregation: 'best_n' | 'average' | 'sum'
+    pos_mode TEXT DEFAULT 'best_n'
 );
 
 -- AI Broadcast Archive

@@ -63,6 +63,11 @@ $groups = [
         'blurb' => 'Zero-sum formats where every GP redistributes points among the participants.',
         'keys'  => ['pari_mutuel'],
     ],
+    [
+        'title' => 'Relative / Position-Based',
+        'blurb' => 'Score where you finish, not how many points you scored — so a win always feels like a win, regardless of margin. Built to stay fair when racers attend wildly different numbers of GPs.',
+        'keys'  => ['positional_points', 'head_to_head'],
+    ],
 ];
 
 $pageTitle = "Scoring Systems - Kartfolio";

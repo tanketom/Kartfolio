@@ -87,15 +87,25 @@ $gpidList = []; // New: Capture IDs for linking
 
 $dataContext = "SEASON: $currentSeason.\n";
 
-// Add season rules if available
-if ($seasonRules) {
-    $dataContext .= "\n*** SEASON RULES & PARAMETERS ***\n";
-    $dataContext .= "Attendance Weight: {$seasonRules['attendance_weight']}x (encourages consistent participation)\n";
-    $dataContext .= "Weekly Bonus Cap: {$seasonRules['weekly_bonus_cap']} races max count toward attendance bonuses\n";
-    $dataContext .= "Minimum Races Threshold: {$seasonRules['min_races_threshold']} races required before averaging kicks in\n";
-    $dataContext .= "Drop Rate: Bottom {$seasonRules['drop_rate']}% of scores dropped for final GPScore calculation\n";
-    $dataContext .= "Scoring System: GPScore™ uses average performance + attendance bonuses, not just raw placement\n\n";
+// Scoring-system overview — pulled live from the registry so the broadcast
+// always describes the ACTUAL system in play, not a hardcoded GPScore™ blurb.
+$scoringInfo = getScoringSystemInfo($pdo, $currentSeason);
+$dataContext .= "\n*** SCORING SYSTEM IN PLAY — READ THIS FIRST ***\n";
+$dataContext .= "This season runs on: {$scoringInfo['name']} {$scoringInfo['icon']}\n";
+$dataContext .= "How it works: {$scoringInfo['long_description']}\n";
+$dataContext .= "Frame the standings, the leader, and any \"who's winning / by how much\" narrative around "
+             . "THIS system. Do NOT assume it's Average + Attendance / GPScore™ unless the name above says so.\n";
+
+// Only surface the Average+Attendance tuning knobs when that system is actually
+// active — they're meaningless (and misleading) under MONSTER HUNT, Bounty
+// Hunter, Pari-Mutuel, and the rest.
+if (($scoringInfo['system'] ?? '') === 'average_attendance' && $seasonRules) {
+    $dataContext .= "Tuning: attendance weight {$seasonRules['attendance_weight']}x · "
+                 . "weekly bonus cap {$seasonRules['weekly_bonus_cap']} · "
+                 . "min races {$seasonRules['min_races_threshold']} · "
+                 . "drop bottom {$seasonRules['drop_rate']}%.\n";
 }
+$dataContext .= "\n";
 
 // Organize data by GPID to make it clearer for the AI
 $groupedRaces = [];
