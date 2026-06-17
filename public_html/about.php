@@ -37,7 +37,7 @@ include __DIR__ . '/../private/templates/header.php';
                 The platform tracks everything that matters: signature character and kart combos, personal bests, head-to-head records against specific rivals, even the dreaded <strong>Ludwig Obstruction</strong> moments when NPCs derail an otherwise perfect run. <strong>Elo ratings</strong> chart each racer's trajectory in real numbers, the <strong>Nemesis Index</strong> surfaces the tightest rivalries, a <strong>badge system</strong> marks milestones as they happen, and a <strong>fantasy layer</strong> lets the audience pick weekly MVPs, head-to-head matchups, and prop bets — now with a <strong>confidence picker</strong> that multiplies both hits and misses.
             </p>
             <p>
-                Beyond the web UI, the league runs on real hardware. Dedicated <strong>signage displays</strong> broadcast live standings to lounge screens in both vertical (2048×2560) and horizontal (1920×1080) formats, with an auto-rotating variant for longer attention spans, and an <strong>OBS overlay</strong> with seven hotkey-switchable views for streaming. Tournaments support five formats including the attrition-driven <strong>Survivor</strong> mode (one big multi-player race per round, last finisher out, deathboard view). Season winners get immortalized in the <strong>Hall of Fame</strong>, and any standing can be exported as a shareable graphic for Discord.
+                Beyond the web UI, the league runs on real hardware. Dedicated <strong>signage displays</strong> broadcast live standings to lounge screens in both vertical (2048×2560) and horizontal (1920×1080) formats, with an auto-rotating variant for longer attention spans, and an <strong>OBS overlay</strong> with seven hotkey-switchable views for streaming. Tournaments support eight formats — Single &amp; Double Elimination, Gauntlet, Team Relay, the attrition-driven <strong>Survivor</strong> (one big multi-player race per round, last finisher out), <strong>Team Scramble</strong>, the group-stage <strong>World Cup</strong>, and <strong>Snakes &amp; Ladders</strong> (rotating heats climb a drawn board; first token to land exactly on the final square wins). The setup screen recommends the formats that best fit your racer count, and any live tournament shows a public board linked from the top of the front page. Season winners get immortalized in the <strong>Hall of Fame</strong>, and any standing can be exported as a shareable graphic for Discord.
             </p>
             <p>
                 This isn't just a leaderboard. It is an archive that captures the drama, the statistics, and the stories that emerge when competitive racing meets serious data infrastructure. Every Grand Prix contributes to an expanding narrative universe where performance metrics and media commentary intertwine. The <?= htmlspecialchars($leagueName) ?> League proves that even a party game can become the foundation for compelling storytelling and genuine competitive depth — one blue shell at a time.
@@ -103,8 +103,8 @@ include __DIR__ . '/../private/templates/header.php';
 
                 <div class="feature-card">
                     <div class="feature-icon">🥊</div>
-                    <h3>Tournament Brackets</h3>
-                    <p>Five formats: Single Elimination, Double Elimination, Gauntlet, Team Relay, and Survivor (one big multi-player race per round, last finisher out, deathboard view).</p>
+                    <h3>Tournament Formats</h3>
+                    <p>Eight formats: Single &amp; Double Elimination, Gauntlet, Team Relay, Survivor, Team Scramble, World Cup, and Snakes &amp; Ladders. Setup recommends the best fit for your racer count; running tournaments get a public live board linked from the front page.</p>
                 </div>
 
                 <div class="feature-card">

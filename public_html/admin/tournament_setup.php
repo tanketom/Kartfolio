@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $elimPerRound = max(1, (int)($_POST['eliminations_per_round'] ?? 1));
     $numTeams = max(2, min(6, (int)($_POST['num_teams'] ?? 2))); // team scramble
     $groupGps = max(1, min(6, (int)($_POST['group_gps'] ?? 3))); // world cup matchdays
+    $snlBoardLen = max(12, min(120, (int)($_POST['snl_board_len'] ?? 30))); // snakes & ladders
+    $snlChaos    = in_array($_POST['snl_chaos'] ?? 'medium', ['low','medium','high'], true) ? $_POST['snl_chaos'] : 'medium';
 
     if (empty($tournamentName) || empty($participantIds) || count($participantIds) < 2) {
         die("Invalid tournament data. Please go back and try again.");
@@ -161,6 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($format === 'world_cup') {
         require_once __DIR__ . '/../../private/includes/worldcup_tournament.php';
         generateWorldCupGroups($pdo, $tournamentId, $participants, $groupGps);
+    } elseif ($format === 'snakes_ladders') {
+        require_once __DIR__ . '/../../private/includes/snl_tournament.php';
+        generateSnlBracket($pdo, $tournamentId, $participants, $snlBoardLen, $snlChaos);
     }
 
     // Redirect to bracket view

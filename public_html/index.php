@@ -156,7 +156,44 @@ foreach ($standings as $index => &$racer) {
     }
 }
 unset($racer);
+
+// Live tournament(s) — any not-yet-completed tournament gets a banner at the
+// very top linking to its public view. Newest first; extras roll into a count.
+$liveTournaments = $pdo->query("
+    SELECT id, name, format FROM tournaments
+    WHERE status != 'completed' ORDER BY id DESC
+")->fetchAll(PDO::FETCH_ASSOC);
+$liveTournament  = $liveTournaments[0] ?? null;
+$liveFormatLabels = [
+    'single_elim' => 'Single Elimination', 'double_elim' => 'Double Elimination',
+    'gauntlet' => 'Gauntlet', 'team_relay' => 'Team Relay', 'survivor' => 'Survivor',
+    'team_scramble' => 'Team Scramble', 'world_cup' => 'World Cup', 'snakes_ladders' => '🐍 Snakes & Ladders',
+];
 ?>
+
+<?php if ($liveTournament): ?>
+<a class="live-tourney-banner" href="/view-tournament-report?id=<?= (int)$liveTournament['id'] ?>">
+    <span class="ltb-live">🔴 LIVE</span>
+    <span class="ltb-text">
+        <strong><?= htmlspecialchars($liveTournament['name']) ?></strong> is underway — follow it live
+        <?php if (count($liveTournaments) > 1): ?>
+            <span class="ltb-more">+<?= count($liveTournaments) - 1 ?> more</span>
+        <?php endif; ?>
+    </span>
+    <span class="ltb-fmt"><?= $liveFormatLabels[$liveTournament['format']] ?? htmlspecialchars($liveTournament['format']) ?></span>
+    <span class="ltb-go">Watch →</span>
+</a>
+<style>
+.live-tourney-banner { display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:var(--nintendo-red); color:#fff; border-bottom:4px solid var(--ink); padding:11px 22px; text-decoration:none; font-weight:700; }
+.live-tourney-banner:hover { background:var(--nintendo-red-dark); opacity:1; }
+.ltb-live { background:#fff; color:var(--nintendo-red); border:2px solid var(--ink); border-radius:999px; padding:2px 12px; font-weight:900; font-size:0.8rem; letter-spacing:0.5px; }
+.ltb-text { flex:1; min-width:200px; font-weight:600; }
+.ltb-text strong { font-family:var(--font-display); font-weight:700; }
+.ltb-more { background:rgba(255,255,255,0.22); border-radius:999px; padding:1px 9px; font-size:0.78rem; margin-left:6px; }
+.ltb-fmt { font-size:0.82rem; opacity:0.9; }
+.ltb-go { background:var(--ink); color:#fff; border-radius:999px; padding:4px 14px; font-weight:800; font-size:0.85rem; }
+</style>
+<?php endif; ?>
 
 <?php if (!empty($tickerLines)): ?>
 <div class="news-ticker-wrap">

@@ -68,6 +68,12 @@ try {
     try { $pdo->exec("ALTER TABLE tournaments ADD COLUMN eliminations_per_round INTEGER DEFAULT 1"); }
     catch (PDOException $e) {}
 
+    // Snakes & Ladders tournaments — board length + hazard density ('chaos').
+    try { $pdo->exec("ALTER TABLE tournaments ADD COLUMN snl_board_len INTEGER DEFAULT 30"); }
+    catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE tournaments ADD COLUMN snl_chaos TEXT DEFAULT 'medium'"); }
+    catch (PDOException $e) {}
+
     // Track head-to-head preferences — feeds /track-favourites ranking.
     $pdo->exec("CREATE TABLE IF NOT EXISTS track_preferences (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

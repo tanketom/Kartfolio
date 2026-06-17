@@ -160,6 +160,46 @@ include __DIR__ . '/../private/templates/header.php';
             </div>
         </section>
 
+        <section class="about-section">
+            <h2>🏆 Tournament Formats (one-off events)</h2>
+            <p>
+                Separate from season scoring, the league can run <strong>tournaments</strong> — bounded
+                events with their own bracket or board. The setup screen recommends the formats that
+                best fit your racer count, and any live tournament shows a public board linked from the
+                top of the front page.
+            </p>
+            <div class="ss-grid">
+                <article class="ss-card">
+                    <div class="ss-card-head"><span class="ss-card-icon">🐍</span><h3 class="ss-card-name">Snakes &amp; Ladders</h3></div>
+                    <p class="ss-card-oneliner">Climb a drawn board in rotating heats of four.</p>
+                    <p class="ss-card-long">Each round the field splits into heats; your finish is your roll (1st = +4 … 4th = +1). Ladders climb, snakes slide, and the first token to land <em>exactly</em> on the final square is champion. Board length and chaos are configurable.</p>
+                    <p class="ss-card-config">⚙️ Configurable per tournament</p>
+                </article>
+                <article class="ss-card">
+                    <div class="ss-card-head"><span class="ss-card-icon">🌍</span><h3 class="ss-card-name">World Cup</h3></div>
+                    <p class="ss-card-oneliner">Group stage of fours → knockout, hosted by Kartificial.</p>
+                    <p class="ss-card-long">A pot-seeded draw into groups; top two per group plus the best third-placers advance to a head-to-head knockout. Bracket Pick'em opens automatically.</p>
+                </article>
+                <article class="ss-card">
+                    <div class="ss-card-head"><span class="ss-card-icon">💀</span><h3 class="ss-card-name">Survivor</h3></div>
+                    <p class="ss-card-oneliner">One big race each round; the bottom finisher is out.</p>
+                    <p class="ss-card-long">Pure attrition with a deathboard view. Eliminations-per-round is configurable for larger fields.</p>
+                </article>
+                <article class="ss-card">
+                    <div class="ss-card-head"><span class="ss-card-icon">🤝</span><h3 class="ss-card-name">Team Scramble</h3></div>
+                    <p class="ss-card-oneliner">Snake-drafted into balanced teams, one GP, most combined points wins.</p>
+                </article>
+                <article class="ss-card">
+                    <div class="ss-card-head"><span class="ss-card-icon">⚔️</span><h3 class="ss-card-name">Single / Double Elimination</h3></div>
+                    <p class="ss-card-oneliner">Classic knockout brackets — lose once (or twice) and you're out.</p>
+                </article>
+                <article class="ss-card">
+                    <div class="ss-card-head"><span class="ss-card-icon">👑</span><h3 class="ss-card-name">Gauntlet &amp; Team Relay</h3></div>
+                    <p class="ss-card-oneliner">A Boss defending against all challengers, or team-leg relays.</p>
+                </article>
+            </div>
+        </section>
+
         <section class="about-section about-cta-section">
             <h2>See It In Action</h2>
             <p>

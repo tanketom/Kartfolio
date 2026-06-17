@@ -18,14 +18,19 @@ $stmt = $pdo->prepare("
     SELECT t.*, r.name as winner_name, r.id as winner_id
     FROM tournaments t
     LEFT JOIN racers r ON t.winner_id = r.id
-    WHERE t.id = ? AND t.status = 'completed'
+    WHERE t.id = ?
 ");
 $stmt->execute([$tournamentId]);
 $tournament = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$tournament) {
-    die("<h3>Tournament Not Found</h3><p>This tournament does not exist or has not been completed yet.</p><a href='/tournaments_hall_of_fame'>Back to Hall of Fame</a>");
+    die("<h3>Tournament Not Found</h3><p>This tournament does not exist.</p><a href='/tournaments_hall_of_fame'>Back to Hall of Fame</a>");
 }
+
+// A tournament is "live" until it's marked completed — the public view now
+// covers both: a running event shows its live board / standings, a finished
+// one shows the full report.
+$isComplete = ($tournament['status'] === 'completed');
 
 // Fetch Participants with their seeds and final placements
 $participantsStmt = $pdo->prepare("
@@ -69,7 +74,8 @@ $formatLabels = [
     'team_relay' => 'Team Relay',
     'survivor' => 'Survivor',
     'team_scramble' => 'Team Scramble',
-    'world_cup' => 'World Cup'
+    'world_cup' => 'World Cup',
+    'snakes_ladders' => 'Snakes & Ladders'
 ];
 $formatLabel = $formatLabels[$tournament['format']] ?? $tournament['format'];
 
@@ -102,6 +108,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <?php endif; ?>
             </div>
 
+            <?php if ($isComplete && $tournament['winner_name']): ?>
             <div class="tourney-champion-box">
                 <div class="tourney-champion-label">
                     🏆 Champion
@@ -111,6 +118,13 @@ include __DIR__ . '/../private/templates/header.php';
                 </div>
                 <div class="tourney-champion-medal">🏅</div>
             </div>
+            <?php else: ?>
+            <div class="tourney-champion-box" style="background:#fff6dc;border-color:var(--ink);">
+                <div class="tourney-champion-label">🔴 LIVE</div>
+                <div class="tourney-champion-name" style="font-size:1.3rem;">In progress</div>
+                <div class="tourney-champion-medal">🏁</div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <div class="tourney-stat-row">
@@ -129,9 +143,14 @@ include __DIR__ . '/../private/templates/header.php';
         </div>
     </div>
 
+    <?php if ($tournament['format'] === 'snakes_ladders'):
+        require_once __DIR__ . '/../private/includes/snl_tournament.php';
+        echo snlBoardHtml($pdo, (int)$tournamentId, $isComplete ? null : 'Live board — every recorded heat moves the tokens.');
+    endif; ?>
+
     <!-- Tournament Bracket/Results -->
     <div class="racer-card tourney-results-card">
-        <h2 class="tourney-section-title">Tournament Results</h2>
+        <h2 class="tourney-section-title"><?= $isComplete ? 'Tournament Results' : 'Rounds so far' ?></h2>
 
         <?php
         function formatRoundName($round, $bracket) {

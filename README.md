@@ -31,7 +31,7 @@ All AI features use the shared Gemini client (`private/includes/gemini_client.ph
 
 ### Competition layers
 
-- **Tournament system** — five formats: Single Elimination, Double Elimination, Gauntlet, Team Relay, and **Survivor** (one big multi-player GP per round, last finisher out, deathboard view, configurable eliminations-per-round for big fields)
+- **Tournament system** — eight formats: Single & Double Elimination, Gauntlet, Team Relay, **Survivor** (last finisher out each round), **Team Scramble**, the group-stage **World Cup**, and **Snakes & Ladders** (rotating heats climb a drawn board; first token to land exactly on the final square wins). The setup picker recommends formats by racer count; running tournaments get a public live board linked from the front page.
 - **Fantasy predictions** — weekly MVP picks, head-to-head matchups, prop bets, with a **confidence picker** (Light ×1 / Medium ×2 / 🔒 Lock ×3) that multiplies both hits and misses. Leaderboard shows points, accuracy %, and locks-hit ratio.
 - **Rivalry tracking** — pairwise head-to-head records, Nemesis Index (the tightest 50/50 matchups), rivalry web visualization
 - **Badge system** — 27+ career milestone badges auto-awarded (first podium, perfect cups, base/booster cup completion, streak records, character variety, and more), with unlock alerts on the racer page
@@ -139,7 +139,7 @@ Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/
 │   │   ├── season_awards.php          # AI-assisted awards ceremony
 │   │   ├── results_manage.php         # Result editing
 │   │   ├── tournaments.php            # Tournament index
-│   │   ├── tournament_create.php      # New tournament (5 formats)
+│   │   ├── tournament_create.php      # New tournament (8 formats, count-first picker)
 │   │   ├── tournament_setup.php       # Bracket generation
 │   │   ├── tournament_bracket.php     # Bracket viewer + match recording
 │   │   ├── edit_recap.php             # Broadcast editor
@@ -189,6 +189,7 @@ Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/
     │   ├── season_awards_logic.php    # Awards generation pipeline
     │   ├── coaching_stats.php         # Per-racer stats gathering for coaching
     │   ├── survivor_tournament.php    # Survivor format engine
+    │   ├── snl_tournament.php          # Snakes & Ladders tournament engine + board
     │   ├── mk_data.php                # MK character/cup constants
     │   └── programs.php               # News program catalog (AI + hand-written)
     └── templates/                     # Header/footer partials
@@ -221,13 +222,18 @@ Every season picks one of the fourteen. New systems plug into a registry in `gp_
 
 ## Tournament formats
 
-Created at `/admin/tournaments` → `/admin/tournament-create`. Five formats, all wired through the same recording flow (`api/record_tournament_match.php`):
+Created at `/admin/tournaments` → `/admin/tournament-create`. The create screen is **count-first**: pick the racers, and the format cards re-rank live by how well each fits the field size (with "Perfect fit / Workable / Needs N+" badges). Eight formats, all wired through the same recording flow (`api/record_tournament_match.php`):
 
 - **Single Elimination** — Match-based; 4 per match → top 2 advance (or 2-3 player matches with top 1 advancing)
 - **Double Elimination** — Winners + Losers brackets; lose twice and you're out
 - **Gauntlet** — One Boss defends against all challengers in sequence
 - **Team Relay** — Snake-drafted teams race legs; cumulative wins advance
 - **Survivor** — One big multi-player GP per round, bottom finisher(s) eliminated each round, deathboard view, configurable eliminations-per-round for big fields
+- **Team Scramble** — Field snake-drafted into balanced teams; one GP; highest combined points wins
+- **World Cup** — Pot-seeded groups of ~4 → knockout (top 2 + best thirds), hosted by Kartificial, with auto-opening Bracket Pick'em
+- **Snakes & Ladders** — Rotating heats of ≤4 each round; finish = board roll (1st=+4 … 4th=+1). Ladders climb, snakes slide (drawn on a serpentine board), exact-landing endgame; first token home wins. Board length + hazard "chaos" configurable; deterministic board seeded from the tournament id
+
+Any **running** tournament surfaces a public live view (`/view-tournament-report?id=N`) — the S&L board and standings render for spectators — and is linked from a banner at the **top of the front page**.
 
 ---
 

@@ -249,6 +249,9 @@ if ($tournament['format'] === 'gauntlet') {
     // Survivor is complete when the tournament row itself is closed
     // (advanceSurvivor() sets status='completed' once one racer remains).
     $tournamentComplete = ($tournament['status'] === 'completed');
+} elseif ($tournament['format'] === 'snakes_ladders') {
+    // S&L closes when advanceSnl() sees a token land home.
+    $tournamentComplete = ($tournament['status'] === 'completed');
 } elseif ($tournament['format'] === 'team_scramble') {
     // One mega-match — done as soon as it's recorded.
     $tournamentComplete = true;
@@ -356,6 +359,12 @@ function advanceToNextRound($pdo, $tournamentId, $format) {
     if ($format === 'survivor') {
         require_once __DIR__ . '/../../private/includes/survivor_tournament.php';
         advanceSurvivor($pdo, (int)$tournamentId);
+        return;
+    }
+
+    if ($format === 'snakes_ladders') {
+        require_once __DIR__ . '/../../private/includes/snl_tournament.php';
+        advanceSnl($pdo, (int)$tournamentId);
         return;
     }
 
@@ -783,6 +792,11 @@ include __DIR__ . '/../../private/templates/header.php';
     .scramble-mpts { color:#888; font-weight:700; }
     </style>
     <?php endif; ?>
+
+    <?php if ($tournament['format'] === 'snakes_ladders'):
+        require_once __DIR__ . '/../../private/includes/snl_tournament.php';
+        echo snlBoardHtml($pdo, (int)$tournamentId, "Record each heat's finishes below; tokens advance once the whole round is in.");
+    endif; ?>
 
     <?php if ($tournament['format'] === 'world_cup'):
         require_once __DIR__ . '/../../private/includes/worldcup_tournament.php';

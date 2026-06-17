@@ -163,6 +163,8 @@ CREATE TABLE IF NOT EXISTS tournaments (
     winner_id INTEGER,
     season_id TEXT,
     eliminations_per_round INTEGER DEFAULT 1, -- Survivor only: bottom N out per round
+    snl_board_len INTEGER DEFAULT 30,  -- Snakes & Ladders: squares to the finish
+    snl_chaos TEXT DEFAULT 'medium',   -- Snakes & Ladders: hazard density (low|medium|high)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (winner_id) REFERENCES racers(id)
 );

@@ -2,6 +2,7 @@
 *.db
 *.db-journal
 *.db-wal
+*.db-shm
 # Timestamped DB backups (league.db.bak-YYYYMMDD-HHMMSS) — these end in the
 # date, so neither *.db nor *.bak catches them
 *.db.bak-*
