@@ -26,7 +26,7 @@
 require_once __DIR__ . '/mk_data.php';
 
 /** Packs only drop for GPs logged on/after this date (override via settings key stickers_epoch). */
-const STICKERS_EPOCH_DEFAULT = '2026-06-21';
+const STICKERS_EPOCH_DEFAULT = '2026-06-20';
 
 const STICKER_PACK_SIZE    = 3;
 const STICKER_FOUNDERS_SIZE = 5;
@@ -52,11 +52,11 @@ function stickerCatalog(PDO $pdo): array {
         ['wall_code',          'The Wall Code',       'uncommon', '🔢'],
         ['the_monster',        'The Monster',         'rare',     '👹'],
         ['mac',                'Mac',                 'rare',     '🚩'],
-        ['pippin',             'Pippin',              'foil',     '🌭'],
+        ['honk',             'Honk!',              'foil',     '🪿'],
         ['gpscore',            'GPScore™',            'common',   '™️'],
         ['mikkoliiga_star',    'Mikkoliiga Star',     'uncommon', '🌟'],
-        ['gameslab_wall',      'The Gameslab Wall',   'common',   '🧱'],
-        ['press_office_stamp', 'Press Office Stamp',  'common',   '📰'],
+        ['gameslab',      'The Games Lab',   'common',   '🧱'],
+        ['glhf', 'GLHF Pledge',  'common',   '📰'],
         ['blue_shell_survivor','Blue Shell Survivor', 'rare',     '🩹'],
     ];
     foreach ($lore as $row) {
@@ -103,7 +103,7 @@ function stickerCatalog(PDO $pdo): array {
         ['triple_banana',   'Triple Banana',    'common',   '🍌'],
         ['green_shell',     'Green Shell',      'common',   '🐢'],
         ['red_shell',       'Red Shell',        'common',   '🔴'],
-        ['blue_shell',      'Spiny Shell',      'rare',     '🔵'],
+        ['spiny_shell',      'Spiny Shell',      'rare',     '🔵'],
         ['mushroom',        'Mushroom',         'common',   '🍄'],
         ['triple_mushroom', 'Triple Mushroom',  'common',   '🍄'],
         ['golden_mushroom', 'Golden Mushroom',  'uncommon', '✨'],
@@ -157,12 +157,12 @@ function stickerCatalog(PDO $pdo): array {
         ['wc_champion',         'World Cup Champion',     'foil',     '🌍'],
         ['comeback',            'The Comeback',           'rare',     '🎪'],
         ['photo_finish',        'Photo Finish',           'rare',     '📸'],
-        ['wooden_spoon',        'Wooden Spoon',           'common',   '🥄'],
+        ['wooden_spoon',        'Crazy Eight',            'common',   '🥄'],
         ['giant_killer',        'Giant Killer',           'uncommon', '🥊'],
-        ['death_group_survivor','Group of Death Survivor','rare',     '💀'],
-        ['pickem_oracle',       "Pick'em Oracle",         'rare',     '🔮'],
-        ['season_champion',     'Season Champion',        'foil',     '👑'],
-        ['tournament_champion', 'Tournament Champion',    'rare',     '🏆'],
+        ['finnish',             'Finnish Line',           'rare',     '💀'],
+        ['what_cup',            'What cup? What cup.',    'rare',     '🔮'],
+        ['tim',                 'Just Tim Things',        'foil',     '👑'],
+        ['blue_shell',          'Last Straight Shelling', 'rare',     '🏆'],
         ['ascended',            'Ascended (2000 Elo)',    'rare',     '🧗'],
         ['on_a_roll',           'On a Roll',              'uncommon', '🌀'],
         ['first_win',           'First Win',              'common',   '🚩'],

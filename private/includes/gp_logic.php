@@ -175,7 +175,7 @@ function getScoringSystemRegistry(): array {
             'calculate'              => 'calculatePositionalScore',
             'breakdown'              => 'breakdownPositional',
             'qualifies_by_threshold' => true,
-            'sort'                   => null,
+            'sort'                   => 'sortStandingsPositional',
         ],
         'head_to_head' => [
             'name'                   => 'Head-to-Head',
@@ -1022,6 +1022,52 @@ function breakdownPositional($pdo, $racer_id, $season_id, $rules) {
         'wins'         => $wins,
         'score'        => calculatePositionalScore($pdo, $racer_id, $season_id, $rules),
     ];
+}
+
+/**
+ * Positional Points standings sort. Tie-break chain:
+ *   1. score (the aggregated positional total) — highest first
+ *   2. count-back — most 1st-place finishes, then most 2nds, then 3rds … (the
+ *      F1 method: rewards the better peaks when totals are level)
+ *   3. fewest GPs to make the top score — i.e. fewest GPs that actually count
+ *      toward it (best-N → min(GPs, N); sum/average → all GPs). Banking the
+ *      same total off fewer counted nights ranks higher.
+ *   4. fewer GPs played overall — efficiency over total volume
+ *   5. name A→Z — deterministic final fallback
+ * Counts/GPs come from this season's results only (the season prefix already
+ * excludes tournament 't…' GPIDs).
+ */
+function sortStandingsPositional(array &$standings, PDO $pdo, string $season_id): void {
+    $rules = getSeasonRules($pdo, $season_id);
+    $mode  = $rules['pos_mode'] ?? 'best_n';
+    $n     = max(1, (int)($rules['best_n_count'] ?? 15));
+
+    foreach ($standings as &$s) {
+        $counts = array_fill(1, 12, 0);   // finishes by rank 1..12 (schema caps rank at 12)
+        $gps = 0;
+        foreach (getRacerSeasonRows($pdo, $s['id'], $season_id) as $row) {
+            $r = (int)$row['rank'];
+            if ($r >= 1 && $r <= 12) $counts[$r]++;
+            $gps++;
+        }
+        $s['_posCounts']  = $counts;
+        $s['_posGps']     = $gps;
+        // GPs that actually contribute to the score (the "N cups" that make it).
+        $s['_posCounted'] = ($mode === 'best_n') ? min($gps, $n) : $gps;
+    }
+    unset($s);
+
+    usort($standings, function ($a, $b) {
+        if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
+        for ($p = 1; $p <= 12; $p++) {                       // count-back
+            if ($a['_posCounts'][$p] !== $b['_posCounts'][$p]) {
+                return $b['_posCounts'][$p] <=> $a['_posCounts'][$p];
+            }
+        }
+        if ($a['_posCounted'] !== $b['_posCounted']) return $a['_posCounted'] <=> $b['_posCounted']; // fewest counted GPs
+        if ($a['_posGps']     !== $b['_posGps'])     return $a['_posGps']     <=> $b['_posGps'];     // fewer total GPs
+        return strcmp($a['name'], $b['name']);
+    });
 }
 
 // ============================================================================
