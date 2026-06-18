@@ -15,6 +15,8 @@ initializeSettings($pdo);
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
 $primaryColor = getSetting($pdo, 'primary_color', '#E60012');
 $currentSeasonTag = strtoupper(getCurrentSeasonNumber());
+// "Tournament mode" — when on, the Tournaments hub is open to all players.
+$tournamentsOn = (bool) getSetting($pdo, 'enable_tournaments', true);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -80,6 +82,10 @@ $currentSeasonTag = strtoupper(getCurrentSeasonNumber());
 
                 </div>
             </div>
+
+            <?php if ($tournamentsOn): ?>
+                <a href="/tournaments">🏆 Tournaments</a>
+            <?php endif; ?>
 
             <a href="/season-archives">Hall of Fame</a>
 

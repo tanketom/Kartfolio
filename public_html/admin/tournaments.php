@@ -5,15 +5,16 @@
  */
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
-require_admin();
+require_tournament_host($pdo);   // admins always; players when tournament mode is on
 
 // Initialize tournament tables if they don't exist
 $pdo->exec(file_get_contents(__DIR__ . '/../../private/data/tournament_schema.sql'));
 
 $message = "";
 
-// Handle tournament deletion
+// Deleting a tournament is destructive — admins only, even in tournament mode.
 if (isset($_GET['delete_id'])) {
+    if (!is_admin()) { header('Location: /login.php'); exit; }
     $stmt = $pdo->prepare("DELETE FROM tournaments WHERE id = ?");
     $stmt->execute([$_GET['delete_id']]);
     $message = "Tournament deleted.";
@@ -141,11 +142,13 @@ include __DIR__ . '/../../private/templates/header.php';
                                         View
                                     </a>
                                 <?php endif; ?>
+                                <?php if (is_admin()): ?>
                                 <a href="?delete_id=<?= $t['id'] ?>"
                                    class="btn-danger tournaments-btn-sm"
                                    onclick="event.preventDefault(); if(confirm('Delete this tournament? This will remove all bracket data.')) window.location.href = this.href;">
                                     Delete
                                 </a>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>

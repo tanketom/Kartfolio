@@ -5,7 +5,7 @@
  */
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
-require_admin();
+require_tournament_host($pdo);
 
 $message = "";
 $error = "";

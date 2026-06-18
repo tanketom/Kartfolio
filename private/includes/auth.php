@@ -25,6 +25,32 @@ function require_admin() {
     }
 }
 
+/** True if the current session is a logged-in admin. */
+function is_admin(): bool {
+    return isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
+}
+
+/** True if "tournament mode" is switched on in admin settings. */
+function tournamentsEnabled(PDO $pdo): bool {
+    require_once __DIR__ . '/settings.php';   // gate may run before header.php loads it
+    // 'enable_tournaments' is a boolean-typed setting → getSetting returns a real bool.
+    return (bool) getSetting($pdo, 'enable_tournaments', true);
+}
+
+/**
+ * Gate for the tournament pages. Admins always pass. When the admin has
+ * enabled tournament mode, ANY player (no login) may create and run
+ * tournaments — these write only to the isolated tournament_* tables, never
+ * to season results/Elo. Destructive management (delete) stays admin-only.
+ * If tournaments are off and you're not an admin, you go to the login page.
+ */
+function require_tournament_host(PDO $pdo) {
+    if (is_admin()) return;
+    if (tournamentsEnabled($pdo)) return;
+    header('Location: /login.php');
+    exit;
+}
+
 /**
  * Simple login check — throttled to 8 failures per IP per 15 minutes.
  */

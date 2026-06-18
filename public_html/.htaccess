@@ -120,6 +120,8 @@ RewriteRule ^underground$ underground.php [L,QSA]
 RewriteRule ^tournaments-hall-of-fame$ tournaments_hall_of_fame.php [L,QSA]
 RewriteRule ^view-tournament-report/([0-9]+)$ view_tournament_report.php?id=$1 [L,QSA]
 RewriteRule ^view-tournament-report$ view_tournament_report.php [L,QSA]
+# Player-facing tournament hub (gated by "tournament mode" in settings)
+RewriteRule ^tournaments$ admin/tournaments.php [L,QSA]
 
 # Head-to-head comparison (redirects to Nemesis Index)
 RewriteRule ^compare/([0-9]+)/([0-9]+)$ /rivalries?a=$1&b=$2 [R=301,L]
