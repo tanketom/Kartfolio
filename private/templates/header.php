@@ -97,6 +97,7 @@ $tournamentsOn = (bool) getSetting($pdo, 'enable_tournaments', true);
                             <a href="/admin/seasons">Seasons</a>
                             <a href="/admin/close-season">🏁 Close Season</a>
                             <a href="/admin/racers">Racers</a>
+                            <a href="/admin/sticker-board">🩹 Sticker Board</a>
                             <a href="/admin/results">Results</a>
                             <a href="/admin/commissioner-desk">🗒️ Commissioner's Desk</a>
                             <a href="/admin/settings">⚙️ Settings</a>

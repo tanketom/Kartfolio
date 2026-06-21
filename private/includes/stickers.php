@@ -306,3 +306,81 @@ function albumProgress(PDO $pdo, int $racer_id): array {
     $prog['_album'] = ['owned' => $allOwned, 'total' => $allTotal];
     return $prog;
 }
+
+// ============================================================================
+// ADMIN BOARD HELPERS
+// ============================================================================
+
+/** Filesystem dir holding bespoke sticker art. */
+function stickerArtDir(): string { return __DIR__ . '/../../public_html/assets/img/stickers/'; }
+
+/** Does a card have its bespoke art present? (img-backed cards count as covered.)
+ *  Accepts either a .png or .jpg file at the card's slug. */
+function stickerHasArt(array $s): bool {
+    if (!empty($s['img'])) return true;   // reuses an existing asset (portrait/track/etc.)
+    $d = stickerArtDir();
+    return is_file($d . $s['slug'] . '.png') || is_file($d . $s['slug'] . '.jpg');
+}
+
+/**
+ * Displayable image URL for a card: an explicit asset path if set, otherwise
+ * the bespoke art file (png OR jpg) if present, else the .png path so the
+ * onerror→emoji fallback still fires. One place, used by every render site.
+ */
+function stickerArtUrl(array $s): string {
+    if (!empty($s['img'])) return $s['img'];
+    $base = '/assets/img/stickers/' . $s['slug'];
+    $d = stickerArtDir();
+    if (is_file($d . $s['slug'] . '.png')) return $base . '.png';
+    if (is_file($d . $s['slug'] . '.jpg')) return $base . '.jpg';
+    return $base . '.png';
+}
+
+/** Grant N admin packs of a given size to a racer. Each gets a unique seed so
+ *  contents differ; the seed is stored, so the pack stays fixed once granted. */
+function grantAdminPacks(PDO $pdo, int $racer_id, int $count, int $size, string $source = 'gift'): int {
+    $ins = $pdo->prepare("INSERT INTO racer_packs (racer_id, source, gpid, seed, size) VALUES (?, ?, NULL, ?, ?)");
+    $n = 0;
+    for ($i = 0; $i < $count; $i++) {
+        $seed = crc32('admin:' . $racer_id . ':' . $source . ':' . $i . ':' . microtime(true) . ':' . mt_rand());
+        $ins->execute([$racer_id, $source, $seed, $size]);
+        $n++;
+    }
+    return $n;
+}
+
+/** Award one specific sticker straight into a racer's album (dupes stack). */
+function grantSticker(PDO $pdo, int $racer_id, string $sticker_key): bool {
+    if (!isset(stickerByKey($pdo)[$sticker_key])) return false;
+    $pdo->prepare("
+        INSERT INTO racer_stickers (racer_id, sticker_key, count) VALUES (?, ?, 1)
+        ON CONFLICT(racer_id, sticker_key) DO UPDATE SET count = count + 1
+    ")->execute([$racer_id, $sticker_key]);
+    return true;
+}
+
+/** League-wide ownership per card: sticker_key => ['owners'=>n, 'copies'=>n]. */
+function stickerOwnershipStats(PDO $pdo): array {
+    $map = [];
+    foreach ($pdo->query("SELECT sticker_key, COUNT(*) AS owners, SUM(count) AS copies
+                          FROM racer_stickers GROUP BY sticker_key")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $map[$r['sticker_key']] = ['owners' => (int)$r['owners'], 'copies' => (int)$r['copies']];
+    }
+    return $map;
+}
+
+/** Completion leaderboard: each racer's distinct-stickers-owned, best first. */
+function stickerCompletionBoard(PDO $pdo): array {
+    return $pdo->query("
+        SELECT r.id, r.name, COUNT(DISTINCT s.sticker_key) AS owned
+        FROM racers r LEFT JOIN racer_stickers s ON s.racer_id = r.id
+        GROUP BY r.id ORDER BY owned DESC, r.name ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** Unopened pack count per racer: racer_id => n. */
+function unopenedPackCounts(PDO $pdo): array {
+    return array_map('intval', $pdo->query("
+        SELECT racer_id, COUNT(*) FROM racer_packs WHERE opened_at IS NULL GROUP BY racer_id
+    ")->fetchAll(PDO::FETCH_KEY_PAIR));
+}

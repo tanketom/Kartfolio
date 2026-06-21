@@ -128,13 +128,8 @@ include __DIR__ . '/../private/templates/header.php';
             <?php foreach ($revealed as $i => $s): ?>
                 <div class="stk <?= $frameClass($s['rarity']) ?> stk-pop" style="animation-delay: <?= $i * 0.25 ?>s;">
                     <div class="stk-face">
-                        <?php if ($s['img']): ?>
-                            <img src="<?= htmlspecialchars($s['img']) ?>" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                            <span class="stk-emoji" style="display:none;"><?= $s['emoji'] ?></span>
-                        <?php else: ?>
-                            <img src="/assets/img/stickers/<?= htmlspecialchars($s['slug']) ?>.png" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                            <span class="stk-emoji" style="display:none;"><?= $s['emoji'] ?></span>
-                        <?php endif; ?>
+                        <img src="<?= htmlspecialchars(stickerArtUrl($s)) ?>" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <span class="stk-emoji" style="display:none;"><?= $s['emoji'] ?></span>
                         <?php if ($s['rarity'] === 'foil'): ?><span class="stk-sheen"></span><?php endif; ?>
                     </div>
                     <div class="stk-band">
@@ -187,7 +182,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <?php if ($have): ?>
                 <div class="stk <?= $frameClass($s['rarity']) ?>" title="<?= htmlspecialchars($s['title']) ?> · <?= $s['rarity'] ?>">
                     <div class="stk-face">
-                        <img src="<?= htmlspecialchars($s['img'] ?: '/assets/img/stickers/' . $s['slug'] . '.png') ?>" loading="lazy"
+                        <img src="<?= htmlspecialchars(stickerArtUrl($s)) ?>" loading="lazy"
                              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
                         <span class="stk-emoji" style="display:none;"><?= $s['emoji'] ?></span>
                         <?php if ($s['rarity'] === 'foil'): ?><span class="stk-sheen"></span><?php endif; ?>
