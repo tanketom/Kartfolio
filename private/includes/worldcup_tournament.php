@@ -321,6 +321,56 @@ function worldCupWinnerId(PDO $pdo, int $tournamentId): ?int {
     return $rid !== false ? (int)$rid : null;
 }
 
+/**
+ * Live Pick'em leaderboard for a World Cup tournament — the single source of
+ * truth for predictor scoring (used by /wc-pickem and the Pick'em Oracle badge).
+ * Scoring: +2 per correctly picked qualifier, +1 if that pick won its group,
+ * +10 for the correct champion. Returns rows best-first:
+ *   [ ['name' => ..., 'points' => int, 'champion' => name], ... ]
+ */
+function worldCupPickemBoard(PDO $pdo, int $tournamentId): array {
+    $tables         = worldCupGroupTables($pdo, $tournamentId);
+    $groupStageDone = worldCupGroupStageComplete($pdo, $tournamentId);
+    $championId     = worldCupWinnerId($pdo, $tournamentId);
+
+    $actualQualifiers = []; $actualWinners = [];
+    if ($groupStageDone) {
+        foreach ($tables as $gNum => $rows) {
+            foreach ($rows as $row) {
+                if ($row['rank'] <= 2) $actualQualifiers[$gNum][] = $row['racer_id'];
+                if ($row['rank'] === 1) $actualWinners[$gNum] = $row['racer_id'];
+            }
+        }
+    }
+
+    $names = $pdo->query("SELECT id, name FROM racers")->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    $predStmt = $pdo->prepare("SELECT predictor_name, picks_json FROM wc_predictions WHERE tournament_id = ?");
+    $predStmt->execute([$tournamentId]);
+    $board = [];
+    foreach ($predStmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $picks = json_decode($p['picks_json'], true) ?: [];
+        $pts = 0;
+        if ($groupStageDone) {
+            foreach (($picks['groups'] ?? []) as $gNum => $sel) {
+                foreach ($sel as $rid) {
+                    if (in_array((int)$rid, $actualQualifiers[$gNum] ?? [], true)) $pts += 2;
+                    if (($actualWinners[$gNum] ?? null) === (int)$rid) $pts += 1;
+                }
+            }
+        }
+        $champPick = (int)($picks['champion'] ?? 0);
+        if ($championId !== null && $champPick === $championId) $pts += 10;
+        $board[] = [
+            'name'     => $p['predictor_name'],
+            'points'   => $pts,
+            'champion' => $names[$champPick] ?? '—',
+        ];
+    }
+    usort($board, fn($a, $b) => ($b['points'] <=> $a['points']) ?: strcmp($a['name'], $b['name']));
+    return $board;
+}
+
 /** The Group of Death: highest average registration Elo. Returns [group#, avgElo]. */
 function worldCupGroupOfDeath(PDO $pdo, int $tournamentId): ?array {
     $groups = worldCupGroups($pdo, $tournamentId);

@@ -5,6 +5,8 @@
  */
 require_once __DIR__ . '/gp_logic.php';
 require_once __DIR__ . '/mk_data.php';
+require_once __DIR__ . '/stickers.php';
+require_once __DIR__ . '/worldcup_tournament.php';
 
 /**
  * Season- and career-wide data shared by every racer's badge computation,
@@ -99,17 +101,186 @@ function badgeSeasonContext($pdo, $season_id) {
     }
     $racerNames = $pdo->query("SELECT id, name FROM racers")->fetchAll(PDO::FETCH_KEY_PAIR);
 
+    // — Sticker holdings (career; album persists across seasons) —
+    //   One pass over racer_stickers + one over racer_packs, aggregated per
+    //   racer. stickerByKey() maps each owned key to its set + rarity.
+    //   $stickerSetTotals lets us tell when a set is fully collected.
+    $byKey = stickerByKey($pdo);                 // key => catalog entry
+    $stickerSetTotals = [];                      // set => total cards in that set
+    $stickerGrandTotal = 0;
+    foreach ($byKey as $s) { $stickerSetTotals[$s['set']] = ($stickerSetTotals[$s['set']] ?? 0) + 1; $stickerGrandTotal++; }
+
+    $stickerHoldings = [];  // racer_id => ['distinct','total','foil','maxDup','kart','sets'=>[set=>owned]]
+    try {
+        foreach ($pdo->query("SELECT racer_id, sticker_key, count FROM racer_stickers")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $key = $r['sticker_key'];
+            if (!isset($byKey[$key])) continue;  // ignore keys not in the live catalog
+            $rid = (int)$r['racer_id']; $cnt = max(1, (int)$r['count']); $e = $byKey[$key];
+            if (!isset($stickerHoldings[$rid])) {
+                $stickerHoldings[$rid] = ['distinct' => 0, 'total' => 0, 'foil' => 0, 'maxDup' => 0, 'kart' => false, 'sets' => []];
+            }
+            $h =& $stickerHoldings[$rid];
+            $h['distinct']++;
+            $h['total'] += $cnt;
+            if ($e['rarity'] === 'foil') $h['foil']++;
+            if ($cnt > $h['maxDup']) $h['maxDup'] = $cnt;
+            if ($key === 'lore_kartificial') $h['kart'] = true;
+            $h['sets'][$e['set']] = ($h['sets'][$e['set']] ?? 0) + 1;
+            unset($h);
+        }
+    } catch (PDOException $e) { /* sticker tables absent — no sticker badges */ }
+
+    $packsOpened = [];  // racer_id => packs opened all-time
+    try {
+        foreach ($pdo->query("SELECT racer_id, COUNT(*) AS c FROM racer_packs WHERE opened_at IS NOT NULL GROUP BY racer_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $packsOpened[(int)$r['racer_id']] = (int)$r['c'];
+        }
+    } catch (PDOException $e) { /* table absent */ }
+
+    // — Tournament wins (career), by format — for Tournament Champion / Board
+    //   Breaker / On Top of the World. Completed tournaments only. —
+    $tourneyWins = [];  // racer_id => ['total'=>n, 'formats'=>[format=>true]]
+    try {
+        foreach ($pdo->query("SELECT winner_id, format FROM tournaments WHERE status = 'completed' AND winner_id IS NOT NULL")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $rid = (int)$r['winner_id']; if (!$rid) continue;
+            if (!isset($tourneyWins[$rid])) $tourneyWins[$rid] = ['total' => 0, 'formats' => []];
+            $tourneyWins[$rid]['total']++;
+            $tourneyWins[$rid]['formats'][$r['format']] = true;
+        }
+    } catch (PDOException $e) { /* table absent */ }
+
+    // — Pick'em Oracle: top predictor of each completed World Cup, matched to a
+    //   racer by name (case-insensitive). Only completed WCs are scored. —
+    $pickemOracleIds = [];  // racer_id => true
+    try {
+        $nameToId = [];
+        foreach ($racerNames as $rid => $rn) $nameToId[mb_strtolower(trim((string)$rn))] = (int)$rid;
+        $wcStmt = $pdo->query("SELECT id FROM tournaments WHERE format = 'world_cup' AND status = 'completed'");
+        foreach ($wcStmt->fetchAll(PDO::FETCH_COLUMN) as $wcId) {
+            $board = worldCupPickemBoard($pdo, (int)$wcId);
+            if (empty($board) || $board[0]['points'] <= 0) continue;
+            $topPts = $board[0]['points'];
+            foreach ($board as $row) {
+                if ($row['points'] < $topPts) break;   // board is sorted desc; tied leaders all win
+                $rid = $nameToId[mb_strtolower(trim((string)$row['name']))] ?? null;
+                if ($rid) $pickemOracleIds[$rid] = true;
+            }
+        }
+    } catch (PDOException $e) { /* WC/predictions tables absent */ }
+
+    // — Mikkoliiga leader for this season (Mikkoligan) — standings[0], score>0. —
+    $mikkoLeaderId = null;
+    $ms = getMikkoliigaStandings($pdo, $season_id);
+    if (!empty($ms) && ($ms[0]['score'] ?? 0) > 0) $mikkoLeaderId = (int)$ms[0]['id'];
+
+    // — Racers who have crossed 2000 Elo (Ascended). Ratings are memoised. —
+    $elo2000 = [];  // racer_id => true
+    if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/elo_engine.php';
+    $eloData = calculateAllELORatings($pdo);
+    $ratings = $eloData['ratings'] ?? [];
+    if (!empty($ratings)) {
+        $nameToIdElo = [];
+        foreach ($racerNames as $rid => $rn) $nameToIdElo[(string)$rn] = (int)$rid;
+        foreach ($ratings as $rn => $rating) {
+            if ($rating >= 2000 && isset($nameToIdElo[$rn])) $elo2000[$nameToIdElo[$rn]] = true;
+        }
+    }
+
     return $cache[$season_id] = compact(
         'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader',
         'scoringSystem', 'bbLeaderId', 'careerCups', 'careerPerfectCups', 'careerChars',
-        'prevSeasonCount', 'seasonsPlayed', 'racerNames'
+        'prevSeasonCount', 'seasonsPlayed', 'racerNames',
+        'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened',
+        'tourneyWins', 'pickemOracleIds', 'mikkoLeaderId', 'elo2000'
     );
+}
+
+/**
+ * Sticker / collection badges (1–10). Reads only batched context — no queries.
+ * Set Sweeper is tiered (1 / 3 / 5 completed sets → Bronze / Silver / Gold).
+ */
+function appendCollectionBadges(array &$badges, array $ctx, int $racer_id) {
+    $h     = $ctx['stickerHoldings'][$racer_id] ?? null;
+    $packs = (int)($ctx['packsOpened'][$racer_id] ?? 0);
+    if (!$h && $packs <= 0) return; // never opened a pack, owns nothing
+
+    $distinct  = (int)($h['distinct'] ?? 0);
+    $total     = (int)($h['total'] ?? 0);
+    $foil      = (int)($h['foil'] ?? 0);
+    $maxDup    = (int)($h['maxDup'] ?? 0);
+    $grand     = max(1, (int)($ctx['stickerGrandTotal'] ?? 168));
+    $setTotals = $ctx['stickerSetTotals'] ?? [];
+    $owned     = $h['sets'] ?? [];
+    $pct       = $distinct / $grand;
+
+    $setsComplete = 0;
+    foreach ($setTotals as $set => $tot) {
+        if (($owned[$set] ?? 0) >= $tot) $setsComplete++;
+    }
+
+    // 1 · Wax Cracker — opened your first pack.
+    if ($packs >= 1)  $badges[] = ['icon' => '📦', 'title' => 'Wax Cracker', 'desc' => 'Cracked open your first sticker pack.'];
+    // 8 · Pack Rat — opened 25+ packs.
+    if ($packs >= 25) $badges[] = ['icon' => '🐀', 'title' => 'Pack Rat', 'desc' => 'Opened 25 or more sticker packs all-time.'];
+
+    // 3 · Full Album — own every card. 4 · Halfway Hero otherwise at 50%+.
+    if ($distinct >= $grand)        $badges[] = ['icon' => '📖', 'title' => 'Full Album', 'desc' => 'Collected every sticker in the album. Completionist!'];
+    elseif ($pct >= 0.5)            $badges[] = ['icon' => '🌗', 'title' => 'Halfway Hero', 'desc' => 'Collected at least half of the sticker album.'];
+
+    // 2 · Set Sweeper (tiered).
+    if ($setsComplete >= 5)     $badges[] = ['icon' => '🥇', 'title' => 'Set Sweeper, Gold',   'desc' => 'Completed 5 or more full sticker sets.'];
+    elseif ($setsComplete >= 3) $badges[] = ['icon' => '🥈', 'title' => 'Set Sweeper, Silver', 'desc' => 'Completed 3 full sticker sets.'];
+    elseif ($setsComplete >= 1) $badges[] = ['icon' => '🥉', 'title' => 'Set Sweeper, Bronze', 'desc' => 'Completed a full sticker set.'];
+
+    // 5 · Foil Hunter — 5+ foils.
+    if ($foil >= 5)         $badges[] = ['icon' => '✨', 'title' => 'Foil Hunter', 'desc' => 'Owns five or more shiny foil cards.'];
+    // 6 · Got the Bot — the Kartificial chase foil.
+    if (!empty($h['kart'])) $badges[] = ['icon' => '🍄', 'title' => 'Got the Bot', 'desc' => 'Pulled Kartificial #001 — the chase foil.'];
+    // 7 · Stuck With Dupes — 5+ of one card.
+    if ($maxDup >= 5)       $badges[] = ['icon' => '♻️', 'title' => 'Stuck With Dupes', 'desc' => 'Hoards 5+ copies of a single card. Got, got, need!'];
+    // 9 · Lore Keeper — completed the lore set.
+    if (($setTotals['lore'] ?? 0) > 0 && ($owned['lore'] ?? 0) >= $setTotals['lore'])
+        $badges[] = ['icon' => '📜', 'title' => 'Lore Keeper', 'desc' => 'Completed the Lore set — every in-joke catalogued.'];
+    // 10 · Whale — 250+ total copies.
+    if ($total >= 250)      $badges[] = ['icon' => '🐳', 'title' => 'Whale', 'desc' => 'Amassed 250+ total cards. A true sticker tycoon.'];
+}
+
+/** Competition badges (11–16) — tournament/Mikkoliiga/Elo honours, from context. */
+function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
+    $tw = $ctx['tourneyWins'][$racer_id] ?? null;
+    if ($tw) {
+        // 12 · Tournament Champion — any format.
+        if (($tw['total'] ?? 0) >= 1)
+            $badges[] = ['icon' => '🎖️', 'title' => 'Tournament Champion', 'desc' => 'Won a Kartfolio tournament.'];
+        // 11 · Board Breaker — Snakes & Ladders.
+        if (!empty($tw['formats']['snakes_ladders']))
+            $badges[] = ['icon' => '🐍', 'title' => 'Board Breaker', 'desc' => 'Won a Snakes & Ladders tournament.'];
+        // 13 · On Top of the World — World Cup.
+        if (!empty($tw['formats']['world_cup']))
+            $badges[] = ['icon' => '🌍', 'title' => 'On Top of the World', 'desc' => 'Lifted the World Cup trophy.'];
+    }
+    // 14 · Pick'em Oracle.
+    if (!empty($ctx['pickemOracleIds'][$racer_id]))
+        $badges[] = ['icon' => '🔮', 'title' => "Pick'em Oracle", 'desc' => "Topped a World Cup Pick'em leaderboard."];
+    // 15 · Mikkoligan — leads this season's Mikkoliiga.
+    if (($ctx['mikkoLeaderId'] ?? null) === $racer_id)
+        $badges[] = ['icon' => '🌟', 'title' => 'Mikkoligan', 'desc' => 'Tops the Mikkoliiga this season.'];
+    // 16 · Ascended — crossed 2000 Elo.
+    if (!empty($ctx['elo2000'][$racer_id]))
+        $badges[] = ['icon' => '🧗', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating.'];
 }
 
 function getRacerBadges($pdo, $racer_id, $season_id) {
     $badges = [];
     $racer_id = (int)$racer_id;
     $ctx = badgeSeasonContext($pdo, $season_id);
+
+    // ── Career badges (collection + competition) ────────────────────────────
+    //   These are season-independent achievements (the album persists, trophies
+    //   are forever), so they're computed BEFORE the "needs 3 races" gate and
+    //   survive it — a collector who skipped this season still keeps them.
+    appendCollectionBadges($badges, $ctx, $racer_id);
+    appendCompetitionBadges($badges, $ctx, $racer_id);
 
     // 1. Season results, sorted by date (streak logic needs chronological order).
     //    Served from the shared per-request season cache (gp_points ASC), so we
@@ -121,7 +292,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     });
 
     $totalRaces = count($results);
-    if ($totalRaces < 3) return []; // Minimum races required to earn badges
+    if ($totalRaces < 3) return $badges; // Minimum races for racing badges; career badges already added
 
     // Variables for calculation
     $lols = 0;

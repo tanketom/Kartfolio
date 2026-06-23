@@ -106,6 +106,28 @@ $allBadgeDefinitions = [
         ['icon' => '🌑', 'title' => 'The Underdog', 'desc' => 'Slew the Monster while being the lowest-Elo adventurer', 'key' => 'mh_underdog'],
         ['icon' => '🛡️', 'title' => 'Resilient', 'desc' => 'Survived without slaying the Monster in 5+ GPs', 'key' => 'mh_resilient'],
     ],
+    'collection' => [
+        ['icon' => '📦', 'title' => 'Wax Cracker', 'desc' => 'Cracked open your first sticker pack', 'key' => 'wax_cracker'],
+        ['icon' => '🐀', 'title' => 'Pack Rat', 'desc' => 'Opened 25 or more sticker packs all-time', 'key' => 'pack_rat'],
+        ['icon' => '🌗', 'title' => 'Halfway Hero', 'desc' => 'Collected at least half of the sticker album', 'key' => 'halfway_hero'],
+        ['icon' => '📖', 'title' => 'Full Album', 'desc' => 'Collected every sticker in the album', 'key' => 'full_album'],
+        ['icon' => '🥉', 'title' => 'Set Sweeper, Bronze', 'desc' => 'Completed a full sticker set', 'key' => 'set_sweeper_bronze'],
+        ['icon' => '🥈', 'title' => 'Set Sweeper, Silver', 'desc' => 'Completed 3 full sticker sets', 'key' => 'set_sweeper_silver'],
+        ['icon' => '🥇', 'title' => 'Set Sweeper, Gold', 'desc' => 'Completed 5 or more full sticker sets', 'key' => 'set_sweeper_gold'],
+        ['icon' => '✨', 'title' => 'Foil Hunter', 'desc' => 'Owns five or more shiny foil cards', 'key' => 'foil_hunter'],
+        ['icon' => '🍄', 'title' => 'Got the Bot', 'desc' => 'Pulled Kartificial #001, the chase foil', 'key' => 'got_the_bot'],
+        ['icon' => '♻️', 'title' => 'Stuck With Dupes', 'desc' => 'Hoards 5+ copies of a single card', 'key' => 'stuck_with_dupes'],
+        ['icon' => '📜', 'title' => 'Lore Keeper', 'desc' => 'Completed the Lore set', 'key' => 'lore_keeper'],
+        ['icon' => '🐳', 'title' => 'Whale', 'desc' => 'Amassed 250+ total cards', 'key' => 'whale'],
+    ],
+    'honours' => [
+        ['icon' => '🎖️', 'title' => 'Tournament Champion', 'desc' => 'Won a Kartfolio tournament', 'key' => 'tournament_champion'],
+        ['icon' => '🐍', 'title' => 'Board Breaker', 'desc' => 'Won a Snakes & Ladders tournament', 'key' => 'board_breaker'],
+        ['icon' => '🌍', 'title' => 'On Top of the World', 'desc' => 'Lifted the World Cup trophy', 'key' => 'on_top_of_the_world'],
+        ['icon' => '🔮', 'title' => "Pick'em Oracle", 'desc' => "Topped a World Cup Pick'em leaderboard", 'key' => 'pickem_oracle'],
+        ['icon' => '🌟', 'title' => 'Mikkoligan', 'desc' => 'Tops the Mikkoliiga this season', 'key' => 'mikkoligan'],
+        ['icon' => '🧗', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating', 'key' => 'ascended'],
+    ],
 ];
 
 // 3. Calculate badges and progress for all racers

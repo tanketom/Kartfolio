@@ -10,103 +10,29 @@ require_tournament_host($pdo);
 $message = "";
 $error = "";
 
-// Fetch all racers with their current ELO ratings
-// Calculate ELO ratings on-the-fly for seeding
+// Seed racers by their canonical, site-wide Elo. This page used to roll its
+// own Elo that scored each GP only against the humans present (no CPU-padded
+// 12-kart field), so its numbers disagreed with the Elo shown everywhere else
+// — racer profiles, all-time, MONSTER HUNT. The single source of truth lives
+// in elo_engine.php; seed from it so the picker always matches the rest of the
+// site. Result is memoised per request.
 require_once __DIR__ . '/../../private/includes/gp_logic.php';
+require_once __DIR__ . '/../../private/includes/elo_engine.php';
 
-// Get all racers
-$racersStmt = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC");
-$allRacers = $racersStmt->fetchAll(PDO::FETCH_ASSOC);
+$allRacers = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-// Calculate current ELO ratings for all racers
-$stmt = $pdo->query("
-    SELECT res.gpid, res.race_date, res.racer_id, r.name, res.rank
-    FROM results res
-    JOIN racers r ON res.racer_id = r.id
-    ORDER BY res.race_date ASC, res.gpid ASC, res.rank ASC
-");
-$all_results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$eloData     = calculateAllELORatings($pdo);
+$eloByName   = $eloData['ratings'] ?? [];
+$gamesByName = $eloData['games_played'] ?? [];
 
-// ELO calculation
-define('INITIAL_RATING', 1500);
-define('K_FACTOR_NEW', 40);
-define('K_FACTOR_MID', 30);
-define('K_FACTOR_VET', 20);
-
-function calculateExpectedScore($racerRating, $opponentRatings) {
-    $expected = 0;
-    foreach ($opponentRatings as $oppRating) {
-        $expected += 1 / (1 + pow(10, ($oppRating - $racerRating) / 400));
-    }
-    return $expected;
-}
-
-function getKFactor($gamesPlayed) {
-    if ($gamesPlayed < 10) return K_FACTOR_NEW;
-    if ($gamesPlayed < 30) return K_FACTOR_MID;
-    return K_FACTOR_VET;
-}
-
-// Group by GP and calculate ELO
-$gps = [];
-foreach ($all_results as $result) {
-    $gpid = $result['gpid'];
-    if (!isset($gps[$gpid])) {
-        $gps[$gpid] = ['date' => $result['race_date'], 'results' => []];
-    }
-    $gps[$gpid]['results'][] = $result;
-}
-
-$ratings = [];
-$games_played = [];
-
-foreach ($gps as $gpid => $gp) {
-    $results = $gp['results'];
-    $numRacers = count($results);
-
-    foreach ($results as $result) {
-        $racer = $result['name'];
-        $racerId = $result['racer_id'];
-        if (!isset($ratings[$racerId])) {
-            $ratings[$racerId] = INITIAL_RATING;
-            $games_played[$racerId] = 0;
-        }
-    }
-
-    $changes = [];
-    foreach ($results as $result) {
-        $racerId = $result['racer_id'];
-        $currentRating = $ratings[$racerId];
-        $k = getKFactor($games_played[$racerId]);
-        $actualScore = $numRacers - $result['rank'];
-
-        $opponentRatings = [];
-        foreach ($results as $opp) {
-            if ($opp['racer_id'] !== $racerId) {
-                $opponentRatings[] = $ratings[$opp['racer_id']];
-            }
-        }
-
-        $expectedScore = calculateExpectedScore($currentRating, $opponentRatings);
-        $ratingChange = $k * ($actualScore - $expectedScore);
-        $changes[$racerId] = ['new' => max(100, $currentRating + $ratingChange)];
-    }
-
-    foreach ($changes as $racerId => $change) {
-        $ratings[$racerId] = $change['new'];
-        $games_played[$racerId]++;
-    }
-}
-
-// Attach ELO to racers
 foreach ($allRacers as &$racer) {
-    $racer['elo'] = isset($ratings[$racer['id']]) ? round($ratings[$racer['id']]) : 1500;
-    $racer['games'] = $games_played[$racer['id']] ?? 0;
+    $racer['elo']   = isset($eloByName[$racer['name']]) ? (int) round($eloByName[$racer['name']]) : ELO_INITIAL_RATING;
+    $racer['games'] = (int) ($gamesByName[$racer['name']] ?? 0);
 }
 unset($racer);
 
-// Sort by ELO descending
-usort($allRacers, fn($a, $b) => $b['elo'] <=> $a['elo']);
+// Sort by Elo descending (seed #1 = highest), with a stable name tiebreak.
+usort($allRacers, fn($a, $b) => ($b['elo'] <=> $a['elo']) ?: strcmp($a['name'], $b['name']));
 
 // Fetch available seasons
 $seasonsStmt = $pdo->query("SELECT season_id FROM season_meta ORDER BY season_id DESC");

@@ -98,41 +98,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 // ── Score everyone (live) ───────────────────────────────────────────────
-$actualQualifiers = []; $actualWinners = [];
-if ($groupStageDone) {
-    foreach ($tables as $gNum => $rows) {
-        foreach ($rows as $row) {
-            if ($row['rank'] <= 2) $actualQualifiers[$gNum][] = $row['racer_id'];
-            if ($row['rank'] === 1) $actualWinners[$gNum] = $row['racer_id'];
-        }
-    }
-}
-
-$names = $pdo->query("SELECT id, name FROM racers")->fetchAll(PDO::FETCH_KEY_PAIR);
-
-$predStmt = $pdo->prepare("SELECT predictor_name, picks_json, created_at FROM wc_predictions WHERE tournament_id = ?");
-$predStmt->execute([$tournamentId]);
-$board = [];
-foreach ($predStmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
-    $picks = json_decode($p['picks_json'], true) ?: [];
-    $pts = 0;
-    if ($groupStageDone) {
-        foreach (($picks['groups'] ?? []) as $gNum => $sel) {
-            foreach ($sel as $rid) {
-                if (in_array((int)$rid, $actualQualifiers[$gNum] ?? [], true)) $pts += 2;
-                if (($actualWinners[$gNum] ?? null) === (int)$rid) $pts += 1;
-            }
-        }
-    }
-    $champPick = (int)($picks['champion'] ?? 0);
-    if ($championId !== null && $champPick === $championId) $pts += 10;
-    $board[] = [
-        'name'     => $p['predictor_name'],
-        'points'   => $pts,
-        'champion' => $names[$champPick] ?? '—',
-    ];
-}
-usort($board, fn($a, $b) => ($b['points'] <=> $a['points']) ?: strcmp($a['name'], $b['name']));
+// Scoring lives in worldcup_tournament.php so /wc-pickem and the Pick'em
+// Oracle badge can never drift apart.
+$board = worldCupPickemBoard($pdo, $tournamentId);
 
 $pageTitle = htmlspecialchars($tournament['name']) . " — Bracket Pick'em";
 $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
