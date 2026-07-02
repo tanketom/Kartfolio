@@ -78,8 +78,8 @@ response. For any Gemini-using admin action, prefer this shape:
   before calling the Gemini client.
 - JS shows a status div with progress / cumulative error.
 
-`/api/generate_season_awards.php`, `/api/generate_coaching_report.php`,
-and `/api/generate_gp_story.php` are templates.
+`/api/generate_season_awards.php` and `/api/generate_gp_story.php` are
+templates.
 
 ### 4. Gemini 2.5 thinking tokens eat the response budget
 
@@ -214,11 +214,10 @@ One word, one casing. It's the casual sub-league. Members are
 
 ### Routing conventions
 
-- Clean URLs use **kebab-case**: `/add-result`, `/coaching-report`,
-  `/press-release`, `/mh-dashboard`.
+- Clean URLs use **kebab-case**: `/add-result`, `/press-release`,
+  `/mh-dashboard`.
 - Underlying PHP files use **snake_case**: `add_result.php`,
-  `generate_coaching_report.php`, `publish_press_release.php`,
-  `mh_dashboard.php`.
+  `publish_press_release.php`, `mh_dashboard.php`.
 - The `.htaccess` rewrite map handles the mapping.
 - API endpoints live under `/api/`.
 - Admin pages live under `/admin/`.
@@ -243,12 +242,11 @@ deliberate and load-bearing.
 | `private/includes/mk_data.php` | Cups and characters. |
 | `private/includes/badges.php` | Badge unlock logic (~27 badges). |
 | `private/includes/survivor_tournament.php` | Survivor tournament engine. |
-| `private/includes/coaching_stats.php` | Per-racer stats payload for coaching reports + prompt builder. |
 | `private/includes/season_awards_logic.php` | Season awards generation pipeline. |
 | `public_html/admin/seasons.php` | Season config UI — scoring system per season, per-knob fields, Mikkoliiga re-snapshot button. |
 | `public_html/admin/tournament_setup.php` | Tournament bracket generation (5 formats). |
 | `public_html/admin/tournament_bracket.php` | Tournament viewer + match recording. |
-| `public_html/racer.php` | Per-racer profile (coaching report sits at the bottom). |
+| `public_html/racer.php` | Per-racer profile. |
 | `public_html/index.php` | Homepage standings + Mikkoliiga top-3 panel. |
 | `public_html/archive.php` | News feed + Generate Broadcast + OMK Press Office forms. |
 | `public_html/overlay.php` | OBS overlay (7 view modes, hotkeys, URL params, auto-rotate). |
@@ -332,7 +330,8 @@ Cross-reference if you find half-implemented work:
 - Bounty Hunter scoring (`bh_multiplier`, `bh_carrying_cost`)
 - Pari-Mutuel scoring (`pm_ante`, `pm_payout_preset`)
 - Survivor tournament format
-- Coaching reports (`coaching_reports` table)
+- Coaching reports — feature retired; code deleted in the dead-code sweep
+  (the `coaching_reports` table keeps its 7 historical rows)
 - Confidence picks in fantasy (`fantasy_bets.confidence`)
 - OBS overlay with 7 hotkey views
 - OMK Press Office (hand-written news, no AI)

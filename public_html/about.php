@@ -31,7 +31,7 @@ include __DIR__ . '/../private/templates/header.php';
                 For the slightly less avid players, <strong>Mikkoliiga</strong> runs as a parallel casual sub-league inside the same Grand Prix nights. Members race alongside everyone else but score on their own internal scale — the canonical Mario Kart 12-position points awarded among Mikkoliiga members only, with the best <?= MIKKOLIIGA_BEST_X ?> GPs counted. Membership is snapshotted at season close so the standings can't shift retroactively.
             </p>
             <p>
-                Numbers alone don't tell the full story. That's where the league's <strong>media ecology</strong> comes alive. The broadcast feature synthesizes recent race data, current form rankings, and emerging rivalries into AI-generated commentary through eight distinct personas — from the analytical Kart Core Team to the philosophical musings of The Situated Spectator. When the news demands sober copy instead of vibes, the <strong>OMK Press Office</strong> provides a hand-written publishing path that bypasses AI entirely. Dedicated pipelines also produce weekly power rankings, MONSTER HUNT Chronicles (medieval-bard post-GP stories), tournament recaps, end-of-season reports with personalized awards, and per-racer <strong>coaching reports</strong> that surface specific cups, characters, and rivalries to focus on.
+                Numbers alone don't tell the full story. That's where the league's <strong>media ecology</strong> comes alive. The broadcast feature synthesizes recent race data, current form rankings, and emerging rivalries into AI-generated commentary through eight distinct personas — from the analytical Kart Core Team to the philosophical musings of The Situated Spectator. When the news demands sober copy instead of vibes, the <strong>OMK Press Office</strong> provides a hand-written publishing path that bypasses AI entirely. Dedicated pipelines also produce weekly power rankings, MONSTER HUNT Chronicles (medieval-bard post-GP stories), tournament recaps, and end-of-season reports with personalized awards.
             </p>
             <p>
                 The platform tracks everything that matters: signature character and kart combos, personal bests, head-to-head records against specific rivals, even the dreaded <strong>Ludwig Obstruction</strong> moments when NPCs derail an otherwise perfect run. <strong>Elo ratings</strong> chart each racer's trajectory in real numbers, the <strong>Nemesis Index</strong> surfaces the tightest rivalries, a <strong>badge system</strong> marks milestones as they happen, and a <strong>fantasy layer</strong> lets the audience pick weekly MVPs, head-to-head matchups, and prop bets — now with a <strong>confidence picker</strong> that multiplies both hits and misses.
@@ -84,15 +84,9 @@ include __DIR__ . '/../private/templates/header.php';
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">📋</div>
-                    <h3>Coaching Reports</h3>
-                    <p>AI-generated personalized "what to work on" reports per racer, grounded in cup performance, character pairings, H2H Elo gaps, and recent form. Throttled to one per month.</p>
-                </div>
-
-                <div class="feature-card">
                     <div class="feature-icon">🏅</div>
                     <h3>Badges & Milestones</h3>
-                    <p>27+ career badges auto-awarded — first podium, perfect cups, rivalry flips, streaks, base/booster cup completion, character variety, and more — with unlock alerts on the racer page.</p>
+                    <p>60+ badges auto-awarded — first podium, perfect cups, rivalry flips, streaks, cup completion, sticker collecting, tournament honours, and more — with unlock alerts on the racer page.</p>
                 </div>
 
                 <div class="feature-card">
@@ -116,7 +110,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <div class="feature-card">
                     <div class="feature-icon">🎮</div>
                     <h3>Racer Profiles & Loadouts</h3>
-                    <p>Per-racer pages with career timelines, signature character and kart combos, cup mastery, record chasers, milestone alerts, and the latest coaching report.</p>
+                    <p>Per-racer pages with career timelines, signature character and kart combos, cup mastery, record chasers, milestone alerts, and earned badges.</p>
                 </div>
 
                 <div class="feature-card">

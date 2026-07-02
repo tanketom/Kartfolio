@@ -236,8 +236,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$sid]);
         // Freeze Mikkoliiga roster at archive time.
         snapshotMikkoliigaMembership($pdo, $sid);
-        header("Location: ../api/generate_season_report.php?season=$sid");
-        exit;
+        // Report generation is a POST+CSRF endpoint — a plain redirect can't
+        // reach it, so hand off through the auto-submitting token bridge.
+        csrf_bridge_post('/api/season-report', ['season' => $sid], 'Generate season report');
+    }
+
+    if ($action === 'generate_report') {
+        // (Re)generate an archived season's report — same POST bridge.
+        csrf_bridge_post('/api/season-report', ['season' => $_POST['season_id']], 'Generate season report');
     }
 
     if ($action === 'snapshot_mikkoliiga') {
@@ -820,9 +826,9 @@ include __DIR__ . '/../../private/templates/header.php';
                         📦 Finalize & Archive
                     </button>
                 <?php elseif($meta['status'] === 'archived'): ?>
-                    <a href="/api/season-report?season=<?= $sid ?>" class="btn btn-report">
+                    <button type="submit" name="action" value="generate_report" class="btn btn-report">
                         <?= $hasReport ? "🔄 Regenerate Report" : "📝 Generate Report" ?>
-                    </a>
+                    </button>
                     <button type="submit" name="action" value="activate" class="btn btn-secondary">
                         🔓 Re-Open Season
                     </button>

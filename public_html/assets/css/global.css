@@ -483,6 +483,7 @@ a:not(.btn):not(.racer-card):hover {
     cursor: pointer;
     display: inline-block;
     font-weight: 700;
+    font-family: inherit; /* rendered as a <button> too — don't fall back to the UA font */
     transition: all var(--transition-fast);
 }
 

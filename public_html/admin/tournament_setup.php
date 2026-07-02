@@ -53,89 +53,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute($participantIds);
     $participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Calculate ELO for seeding (same as in tournament_create.php)
+    // Seed by the canonical, site-wide Elo. This handler used to carry its
+    // own copy of the Elo loop (humans-only field, no CPU-padded 12-kart
+    // grid) — the same bug fixed in tournament_create.php — which mis-seeded
+    // brackets AND persisted the wrong number into elo_at_registration.
+    // elo_engine.php is the single source of truth; ratings are keyed by name.
     require_once __DIR__ . '/../../private/includes/gp_logic.php';
+    require_once __DIR__ . '/../../private/includes/elo_engine.php';
 
-    define('INITIAL_RATING', 1500);
-    define('K_FACTOR_NEW', 40);
-    define('K_FACTOR_MID', 30);
-    define('K_FACTOR_VET', 20);
+    $eloByName = calculateAllELORatings($pdo)['ratings'] ?? [];
 
-    function calculateExpectedScore($racerRating, $opponentRatings) {
-        $expected = 0;
-        foreach ($opponentRatings as $oppRating) {
-            $expected += 1 / (1 + pow(10, ($oppRating - $racerRating) / 400));
-        }
-        return $expected;
-    }
-
-    function getKFactor($gamesPlayed) {
-        if ($gamesPlayed < 10) return K_FACTOR_NEW;
-        if ($gamesPlayed < 30) return K_FACTOR_MID;
-        return K_FACTOR_VET;
-    }
-
-    $stmt = $pdo->query("
-        SELECT res.gpid, res.race_date, res.racer_id, res.rank
-        FROM results res
-        ORDER BY res.race_date ASC, res.gpid ASC, res.rank ASC
-    ");
-    $all_results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $gps = [];
-    foreach ($all_results as $result) {
-        $gpid = $result['gpid'];
-        if (!isset($gps[$gpid])) $gps[$gpid] = ['results' => []];
-        $gps[$gpid]['results'][] = $result;
-    }
-
-    $ratings = [];
-    $games_played = [];
-
-    foreach ($gps as $gp) {
-        $results = $gp['results'];
-        $numRacers = count($results);
-
-        foreach ($results as $result) {
-            $racerId = $result['racer_id'];
-            if (!isset($ratings[$racerId])) {
-                $ratings[$racerId] = INITIAL_RATING;
-                $games_played[$racerId] = 0;
-            }
-        }
-
-        $changes = [];
-        foreach ($results as $result) {
-            $racerId = $result['racer_id'];
-            $currentRating = $ratings[$racerId];
-            $k = getKFactor($games_played[$racerId]);
-            $actualScore = $numRacers - $result['rank'];
-
-            $opponentRatings = [];
-            foreach ($results as $opp) {
-                if ($opp['racer_id'] !== $racerId) {
-                    $opponentRatings[] = $ratings[$opp['racer_id']];
-                }
-            }
-
-            $expectedScore = calculateExpectedScore($currentRating, $opponentRatings);
-            $ratingChange = $k * ($actualScore - $expectedScore);
-            $changes[$racerId] = ['new' => max(100, $currentRating + $ratingChange)];
-        }
-
-        foreach ($changes as $racerId => $change) {
-            $ratings[$racerId] = $change['new'];
-            $games_played[$racerId]++;
-        }
-    }
-
-    // Attach ELO and sort by rating
     foreach ($participants as &$p) {
-        $p['elo'] = isset($ratings[$p['id']]) ? round($ratings[$p['id']]) : 1500;
+        $p['elo'] = isset($eloByName[$p['name']]) ? (int) round($eloByName[$p['name']]) : ELO_INITIAL_RATING;
     }
     unset($p);
 
-    usort($participants, fn($a, $b) => $b['elo'] <=> $a['elo']);
+    // Highest Elo = seed #1, stable name tiebreak.
+    usort($participants, fn($a, $b) => ($b['elo'] <=> $a['elo']) ?: strcmp($a['name'], $b['name']));
 
     // Insert participants with seeding
     foreach ($participants as $seed => $participant) {

@@ -246,18 +246,30 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
     }
 </style>
 
+<?php if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true): ?>
+<!-- Hidden POST form for broadcast deletion — the endpoint is POST+CSRF only. -->
+<form id="delete-recap-form" method="POST" action="/api/delete_recap.php" style="display:none;">
+    <?= csrf_field() ?>
+    <input type="hidden" name="id" id="delete-recap-id" value="">
+</form>
+<?php endif; ?>
+
 <script>
 function deleteBroadcast(id) {
+    const submit = () => {
+        const form = document.getElementById('delete-recap-form');
+        if (!form) return;
+        document.getElementById('delete-recap-id').value = id;
+        form.submit();
+    };
     if (typeof showConfirm === 'function') {
         showConfirm({
             icon: '🗑️',
             title: 'Delete Broadcast?',
             message: 'This will permanently remove this broadcast from the archive.'
-        }).then(ok => {
-            if (ok) window.location.href = '/api/delete_recap.php?id=' + id;
-        });
+        }).then(ok => { if (ok) submit(); });
     } else if (confirm('Delete this broadcast? This cannot be undone.')) {
-        window.location.href = '/api/delete_recap.php?id=' + id;
+        submit();
     }
 }
 </script>

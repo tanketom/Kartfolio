@@ -280,13 +280,12 @@ flowchart LR
     Vote([Track vote<br/>via /track-favourites]):::user
     Pick([What Cup? modal]):::user
     Press([OMK Press Office<br/>publish]):::user
-    AdminGen([Admin clicks<br/>Generate Awards / Coaching / Recap]):::user
+    AdminGen([Admin clicks<br/>Generate Awards / Recap]):::user
 
     %% Engines
     GpLogic[gp_logic.php<br/>12 scoring systems<br/>Mikkoliiga + MH + Bounty + Pari-Mutuel]:::engine
     Elo[elo_engine.php<br/>All-time Elo]:::engine
     Survivor[survivor_tournament.php<br/>Survivor format]:::engine
-    Coaching[coaching_stats.php<br/>per-racer signal]:::engine
     Awards[season_awards_logic.php<br/>fixed + AI awards]:::engine
     TrackRank[track_ranking.php<br/>Elo for tracks]:::engine
     GemClient[gemini_client.php<br/>retry + 4-model fallback]:::engine
@@ -295,7 +294,7 @@ flowchart LR
 
     %% Pages
     Index[/index.php<br/>standings/]:::page
-    Racer[/racer.php<br/>profile + coaching/]:::page
+    Racer[/racer.php<br/>profile + badges/]:::page
     Stats[/cup-stats / stats / power-rankings/]:::page
     Fantasy[/fantasy.php<br/>confidence picks/]:::page
     Overlay[/overlay.php<br/>7 hotkey views/]:::page
@@ -309,11 +308,9 @@ flowchart LR
     Pick --> AddGP
 
     AdminGen --> Awards
-    AdminGen --> Coaching
     AdminGen --> GemClient
 
     Awards --> GemClient
-    Coaching --> GemClient
     GemClient --> Gemini
     GemClient --> DB
 
@@ -321,7 +318,6 @@ flowchart LR
     DB --> GpLogic
     DB --> Elo
     DB --> TrackRank
-    DB --> Coaching
     DB --> Survivor
 
     GpLogic --> Index

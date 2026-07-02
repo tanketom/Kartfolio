@@ -11,6 +11,15 @@ require_once __DIR__ . '/../../private/includes/gemini_client.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_admin();
 
+// POST + CSRF only: this endpoint archives the season and overwrites the
+// champion snapshot — a forgeable GET could archive the live season. Callers
+// arrive via csrf_bridge_post() (redirects can only carry GET) or POST forms.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header("Location: ../admin/seasons.php");
+    exit;
+}
+verify_csrf();
+
 @set_time_limit(300);
 ignore_user_abort(true);
 
@@ -20,7 +29,7 @@ $apiKey = $config['gemini_api_key'] ?? '';
 // flash so a missing config key doesn't always 404 on the first attempt.
 $model  = $config['model_name'] ?? 'gemini-2.5-flash';
 
-$seasonId = $_GET['season'] ?? null;
+$seasonId = $_POST['season'] ?? null;
 if (!$seasonId) {
     header("Location: ../admin/seasons.php");
     exit;

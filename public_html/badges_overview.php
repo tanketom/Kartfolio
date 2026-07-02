@@ -143,14 +143,22 @@ foreach ($racers as $racer) {
     ];
 }
 
-// Helper function to calculate progress towards each badge
+// Helper function to calculate progress towards each badge.
+// All league-wide inputs read from badgeSeasonContext() and the shared
+// season-results cache — this used to run ~13 queries per racer (500+ for a
+// page of 36 racers); now the whole page shares one batched context.
 function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     $progress = [];
+    $racer_id = (int)$racer_id;
+    $ctx = badgeSeasonContext($pdo, $season_id);
 
-    // Fetch data
-    $stmt = $pdo->prepare("SELECT * FROM results WHERE racer_id = ? AND gpid LIKE ? ORDER BY race_date ASC, id ASC");
-    $stmt->execute([$racer_id, $season_id . "%"]);
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Season rows from the shared cache (gp_points ASC), re-sorted to the
+    // chronological order the old direct query used (race_date ASC, id ASC).
+    $results = getRacerSeasonRows($pdo, $racer_id, $season_id);
+    usort($results, function ($a, $b) {
+        if ($a['race_date'] !== $b['race_date']) return strcmp($a['race_date'], $b['race_date']);
+        return (int)$a['id'] <=> (int)$b['id'];
+    });
 
     $totalRaces = count($results);
     if ($totalRaces < 3) {
@@ -174,10 +182,13 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     $winning_chars = [];
     $standard_kart_count = 0;
 
-    $babies = ['Baby Mario', 'Baby Luigi', 'Baby Peach', 'Baby Daisy', 'Baby Rosalina'];
-    $heavies = ['Bowser', 'Dry Bowser', 'Morton', 'Wario', 'Donkey Kong', 'Funky Kong'];
-    $spooky = ['Boo', 'Dry Bones', 'King Boo'];
-    $og_stars = ['Mario', 'Luigi', 'Peach', 'Daisy'];
+    // Character groups from the canonical registry (gp_logic.php) — the same
+    // lists badges.php awards from, so progress can't drift from the badges.
+    $groups   = getCharacterGroups();
+    $babies   = $groups['babies'];
+    $heavies  = $groups['heavies'];
+    $spooky   = $groups['spooky'];
+    $og_stars = $groups['og_stars'];
     $baby_count = 0;
     $heavy_count = 0;
     $spooky_count = 0;
@@ -209,10 +220,14 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
         $chars[] = $r['character_used'];
         $ranks[] = $r['rank'];
 
-        if (in_array($r['character_used'], $babies)) $baby_count++;
-        if (in_array($r['character_used'], $heavies)) $heavy_count++;
-        if (in_array($r['character_used'], $spooky)) $spooky_count++;
-        if (in_array($r['character_used'], $og_stars)) $og_stars_count++;
+        // Normalise colour variants ("Yoshi (Orange)" → "Yoshi") before group
+        // checks — matches badges.php, which counted these correctly while
+        // this page's raw comparison missed them.
+        $charNorm = normalizeCharacterName($r['character_used']);
+        if (in_array($charNorm, $babies)) $baby_count++;
+        if (in_array($charNorm, $heavies)) $heavy_count++;
+        if (in_array($charNorm, $spooky)) $spooky_count++;
+        if (in_array($charNorm, $og_stars)) $og_stars_count++;
         if (stripos($r['kart_setup'] ?? '', 'Standard') !== false) $standard_kart_count++;
         if (stripos($r['kart_setup'] ?? '', 'Bike') !== false) $bike_count++;
     }
@@ -235,10 +250,8 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     }
     $pointStdDev = sqrt($pointVariance / $totalRaces);
 
-    // Attendance check
-    $maxAttStmt = $pdo->prepare("SELECT COUNT(*) as c FROM results WHERE gpid LIKE ? GROUP BY racer_id ORDER BY c DESC LIMIT 1");
-    $maxAttStmt->execute([$season_id . "%"]);
-    $highestAttendance = $maxAttStmt->fetchColumn();
+    // Attendance check — from the shared context.
+    $highestAttendance = $ctx['highestAttendance'];
 
     // Cup progress
     $baseCupsList    = MK_BASE_CUPS;
@@ -345,28 +358,12 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     // The Tortoise
     $progress['tortoise'] = ['current' => round($avgRank, 2) . ' avg rank, ' . $wins . ' win(s)', 'target' => 'Avg ≥8 + 1 win', 'percent' => ($avgRank >= 8.0 && $wins >= 1) ? 100 : 0];
 
-    // Early Bird — participated in the first GP of this season
-    $firstGpStmt = $pdo->prepare("SELECT gpid FROM results WHERE gpid LIKE ? ORDER BY race_date ASC, id ASC LIMIT 1");
-    $firstGpStmt->execute([$season_id . '%']);
-    $firstGpId = $firstGpStmt->fetchColumn();
-    $inFirstGp = false;
-    if ($firstGpId) {
-        $inFirstGpStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid = ?");
-        $inFirstGpStmt->execute([$racer_id, $firstGpId]);
-        $inFirstGp = (int)$inFirstGpStmt->fetchColumn() > 0;
-    }
+    // Early Bird — participated in the first GP of this season (from context).
+    $inFirstGp = isset($ctx['firstGpRacers'][$racer_id]);
     $progress['early_bird'] = ['current' => $inFirstGp ? 'Yes' : 'No', 'target' => 'Yes', 'percent' => $inFirstGp ? 100 : 0];
 
-    // Giant Killer (binary)
-    $leaderStmt = $pdo->prepare("SELECT racer_id FROM (SELECT racer_id, COUNT(*) as gp_count FROM results WHERE gpid LIKE ? GROUP BY racer_id HAVING gp_count >= 3) qualified ORDER BY (SELECT SUM(gp_points) FROM results WHERE racer_id = qualified.racer_id AND gpid LIKE ?) DESC LIMIT 1");
-    $leaderStmt->execute([$season_id . '%', $season_id . '%']);
-    $leaderId = (int)$leaderStmt->fetchColumn();
-    $giantKiller = false;
-    if ($leaderId && $leaderId !== (int)$racer_id) {
-        $killedStmt = $pdo->prepare("SELECT COUNT(*) FROM results a JOIN results b ON a.gpid = b.gpid WHERE a.racer_id = ? AND b.racer_id = ? AND a.gpid LIKE ? AND a.rank < b.rank");
-        $killedStmt->execute([$racer_id, $leaderId, $season_id . '%']);
-        $giantKiller = (int)$killedStmt->fetchColumn() > 0;
-    }
+    // Giant Killer (binary) — leader + beat-the-leader set from context.
+    $giantKiller = ($ctx['leaderId'] && $ctx['leaderId'] !== $racer_id) && isset($ctx['beatLeader'][$racer_id]);
     $progress['giant_killer'] = ['current' => $giantKiller ? 'Yes' : 'No', 'target' => 'Yes', 'percent' => $giantKiller ? 100 : 0];
 
     // Black Box — leader of the Black Box scoring system
@@ -390,37 +387,29 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     $bbPercent = ($topBBScore > 0 && $myBBScore > 0) ? min(100, round(($myBBScore / $topBBScore) * 100)) : 0;
     $progress['black_box'] = ['current' => $isBlackBoxLeader ? 'Leader' : round($myBBScore, 1), 'target' => 'Lead', 'percent' => $isBlackBoxLeader ? 100 : $bbPercent];
 
-    // Old Guard
-    $prevSeasonStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE 's00%'");
-    $prevSeasonStmt->execute([$racer_id]);
-    $hasPreseason = (int)$prevSeasonStmt->fetchColumn() > 0;
+    // Old Guard — pre-season attendance from context.
+    $hasPreseason = ($ctx['prevSeasonCount'][$racer_id] ?? 0) > 0;
     $progress['old_guard'] = ['current' => $hasPreseason ? 'Pre-season ✓' : 'No pre-season races', 'target' => 'Pre-season + active', 'percent' => ($hasPreseason && $season_id !== 's00') ? 100 : ($hasPreseason ? 50 : 0)];
 
-    // Cup Collector (career — all 24 cups raced)
+    // Cup Collector (career — all 24 cups raced) — from context.
     $allCupsList = getMKAllCups();
-    $careerCupsStmt = $pdo->prepare("SELECT DISTINCT cup_name FROM results WHERE racer_id = ?");
-    $careerCupsStmt->execute([$racer_id]);
-    $careerCupsRaced = $careerCupsStmt->fetchAll(PDO::FETCH_COLUMN);
+    $careerCupsRaced = $ctx['careerCups'][$racer_id] ?? [];
     $cupsRacedCount = count(array_intersect($allCupsList, $careerCupsRaced));
     $progress['cup_collector'] = ['current' => $cupsRacedCount, 'target' => 24, 'percent' => min(100, round(($cupsRacedCount / 24) * 100)), 'missing' => array_diff($allCupsList, $careerCupsRaced)];
 
-    // Perfectionist (career — perfect 60 in 3+ distinct cups)
-    $careerPerfectStmt = $pdo->prepare("SELECT DISTINCT cup_name FROM results WHERE racer_id = ? AND gp_points = 60");
-    $careerPerfectStmt->execute([$racer_id]);
-    $careerPerfectCups = $careerPerfectStmt->fetchAll(PDO::FETCH_COLUMN);
+    // Perfectionist (career — perfect 60 in 3+ distinct cups) — from context.
+    $careerPerfectCups = $ctx['careerPerfectCups'][$racer_id] ?? [];
     $progress['perfectionist'] = ['current' => count($careerPerfectCups), 'target' => 3, 'percent' => min(100, round((count($careerPerfectCups) / 3) * 100))];
 
     // Princess Protocol
-    $royalsList = ['Peach', 'Daisy', 'Rosalina'];
     $royalCount = 0;
-    foreach ($results as $r) { if (in_array($r['character_used'], $royalsList)) $royalCount++; }
+    foreach ($results as $r) { if (in_array(normalizeCharacterName($r['character_used']), $groups['royals'])) $royalCount++; }
     $progress['princess_protocol'] = ['current' => round(($royalCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($royalCount / $totalRaces) / 0.50) * 100))];
 
-    // Mushroom Kingdom (career — all 19 core chars)
+    // Mushroom Kingdom (career — all 19 core chars) — from context, with the
+    // same colour-variant normalisation badges.php awards with.
     $marioUniverse = ['Mario','Luigi','Peach','Daisy','Rosalina','Toad','Toadette','Yoshi','Birdo','Wario','Waluigi','Donkey Kong','Bowser','Bowser Jr.','Baby Mario','Baby Luigi','Baby Peach','Baby Daisy','Baby Rosalina'];
-    $careerCharsStmt = $pdo->prepare("SELECT DISTINCT character_used FROM results WHERE racer_id = ?");
-    $careerCharsStmt->execute([$racer_id]);
-    $careerChars = $careerCharsStmt->fetchAll(PDO::FETCH_COLUMN);
+    $careerChars = array_unique(array_map('normalizeCharacterName', $ctx['careerChars'][$racer_id] ?? []));
     $charsFound = count(array_intersect($marioUniverse, $careerChars));
     $progress['mushroom_kingdom'] = ['current' => $charsFound, 'target' => count($marioUniverse), 'percent' => min(100, round(($charsFound / count($marioUniverse)) * 100)), 'missing' => array_diff($marioUniverse, $careerChars)];
 
@@ -430,35 +419,29 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     $progress['link_main'] = ['current' => $linkCount, 'target' => 5, 'percent' => min(100, round(($linkCount / 5) * 100))];
 
     // What a Fun Guy! (Toad, Toadette, Peachette)
-    $fungiList = ['Toad', 'Toadette', 'Peachette'];
     $fungiCount = 0;
-    foreach ($results as $r) { if (in_array($r['character_used'], $fungiList)) $fungiCount++; }
+    foreach ($results as $r) { if (in_array(normalizeCharacterName($r['character_used']), $groups['fungi'])) $fungiCount++; }
     $progress['fun_guy'] = ['current' => round(($fungiCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($fungiCount / $totalRaces) / 0.50) * 100))];
 
     // That's Just a Person? (Mii, Inklings, Villager)
-    $humanList = ['Mii', 'Inkling Boy', 'Inkling Girl', 'Villager', 'Villager (M)', 'Villager (F)'];
     $humanCount = 0;
-    foreach ($results as $r) { if (in_array($r['character_used'], $humanList)) $humanCount++; }
+    foreach ($results as $r) { if (in_array(normalizeCharacterName($r['character_used']), $groups['humans'])) $humanCount++; }
     $progress['just_a_person'] = ['current' => round(($humanCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($humanCount / $totalRaces) / 0.50) * 100))];
 
     // Furcurious! (Tanooki Mario, Cat Peach)
-    $furryList = ['Tanooki Mario', 'Cat Peach'];
     $furryCount = 0;
-    foreach ($results as $r) { if (in_array($r['character_used'], $furryList)) $furryCount++; }
+    foreach ($results as $r) { if (in_array(normalizeCharacterName($r['character_used']), $groups['furry'])) $furryCount++; }
     $progress['furcurious'] = ['current' => round(($furryCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($furryCount / $totalRaces) / 0.50) * 100))];
 
     // Koopa Klan (Bowser, Dry Bowser, Bowser Jr., Koopa Troopa, Lakitu, Koopalings)
-    $koopaList = ['Bowser', 'Dry Bowser', 'Bowser Jr.', 'Koopa Troopa', 'Lakitu', 'Larry', 'Roy', 'Wendy', 'Ludwig', 'Iggy', 'Morton', 'Lemmy', 'Kamek', 'Dry Bones'];
     $koopaCount = 0;
-    foreach ($results as $r) { if (in_array($r['character_used'], $koopaList)) $koopaCount++; }
+    foreach ($results as $r) { if (in_array(normalizeCharacterName($r['character_used']), $groups['koopa_clan'])) $koopaCount++; }
     $progress['koopa_klan'] = ['current' => round(($koopaCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($koopaCount / $totalRaces) / 0.50) * 100))];
 
-    // Cold-Blooded (reptilian characters)
-    $reptileList = ['Yoshi', 'Birdo', 'Koopa Troopa', 'Dry Bones', 'Lakitu',
-                    'Bowser', 'Dry Bowser', 'Bowser Jr.',
-                    'Larry', 'Roy', 'Wendy', 'Ludwig', 'Iggy', 'Morton', 'Lemmy', 'Kamek'];
+    // Cold-Blooded (reptilian characters — normalisation matters here: the
+    // league's coloured Yoshis count as Yoshi, exactly as badges.php awards)
     $reptileCount = 0;
-    foreach ($results as $r) { if (in_array($r['character_used'], $reptileList)) $reptileCount++; }
+    foreach ($results as $r) { if (in_array(normalizeCharacterName($r['character_used']), $groups['reptiles'])) $reptileCount++; }
     $progress['cold_blooded'] = ['current' => round(($reptileCount / $totalRaces) * 100, 1), 'target' => 50, 'percent' => min(100, round((($reptileCount / $totalRaces) / 0.50) * 100))];
 
     // Hat Trick (3-win streak)
@@ -477,18 +460,13 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
     }
     $progress['ascendant'] = ['current' => $maxImprove, 'target' => 5, 'percent' => min(100, round(($maxImprove / 5) * 100))];
 
-    // The Elder (3+ seasons)
-    $elderStmt = $pdo->prepare("SELECT COUNT(DISTINCT SUBSTR(gpid, 1, INSTR(gpid, 'g') - 1)) FROM results WHERE racer_id = ? AND gpid LIKE 's%'");
-    $elderStmt->execute([$racer_id]);
-    $distinctSeasons = (int)$elderStmt->fetchColumn();
+    // The Elder (3+ seasons) — from context.
+    $distinctSeasons = (int)($ctx['seasonsPlayed'][$racer_id] ?? 0);
     $progress['the_elder'] = ['current' => $distinctSeasons, 'target' => 3, 'percent' => min(100, round(($distinctSeasons / 3) * 100))];
 
     // ── ELO progress ──────────────────────────────────────────────────────────
-    require_once __DIR__ . '/../private/includes/gp_logic.php';
     if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/../private/includes/elo_engine.php';
-    $racerNameStmt2 = $pdo->prepare("SELECT name FROM racers WHERE id = ?");
-    $racerNameStmt2->execute([$racer_id]);
-    $racerName2 = $racerNameStmt2->fetchColumn();
+    $racerName2 = $ctx['racerNames'][$racer_id] ?? null;
 
     // Defaults
     $progress['elo_climber'] = ['current' => 0, 'target' => 100, 'percent' => 0];
@@ -551,13 +529,7 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
         $progress['stone_cold'] = ['current' => $scM, 'target' => 5, 'percent' => min(100, round(($scM / 5) * 100))];
 
         // MONSTER HUNT progress (only relevant for MH seasons)
-        static $mhMetaCache = [];
-        if (!isset($mhMetaCache[$season_id])) {
-            $mhMs = $pdo->prepare("SELECT scoring_system FROM season_meta WHERE season_id = ?");
-            $mhMs->execute([$season_id]);
-            $mhMetaCache[$season_id] = $mhMs->fetchColumn();
-        }
-        if ($mhMetaCache[$season_id] === 'monster_hunt') {
+        if ($ctx['scoringSystem'] === 'monster_hunt') {
             $mhDragon = false; $mhHunted = 0; $mhWipe = 0;
             $mhApex = 0; $mhUnder = false; $mhSurv = 0;
 

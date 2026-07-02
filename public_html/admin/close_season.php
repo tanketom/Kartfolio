@@ -95,8 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // don't shift retroactively if a member toggles their flag later.
         snapshotMikkoliigaMembership($pdo, $seasonId);
 
-        header("Location: /api/season-report?season=" . urlencode($seasonId));
-        exit;
+        // Report generation is a POST+CSRF endpoint — a plain redirect can't
+        // reach it, so hand off through the auto-submitting token bridge.
+        csrf_bridge_post('/api/season-report', ['season' => $seasonId], 'Generate season report');
     }
 }
 
@@ -206,7 +207,11 @@ include __DIR__ . '/../../private/templates/header.php';
     <?php if ($season['status'] === 'archived'): ?>
     <div class="alert-success" style="margin:20px 0;">
         This season is already archived.
-        <a href="/api/season-report?season=<?= urlencode($seasonId) ?>" class="btn btn-primary" style="margin-left:12px;">Regenerate Report</a>
+        <form method="POST" action="/api/season-report" style="display:inline; margin-left:12px;">
+            <?= csrf_field() ?>
+            <input type="hidden" name="season" value="<?= htmlspecialchars($seasonId) ?>">
+            <button type="submit" class="btn btn-primary">Regenerate Report</button>
+        </form>
         <a href="/admin/seasons" class="btn btn-secondary" style="margin-left:8px;">Back to Seasons</a>
     </div>
     <?php else: ?>

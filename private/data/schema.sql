@@ -255,20 +255,8 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Fantasy / Predictions
-CREATE TABLE IF NOT EXISTS fantasy_predictions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    gpid TEXT NOT NULL,
-    predictor_id INTEGER NOT NULL,
-    gp_winner_id INTEGER,
-    dark_horse_id INTEGER,
-    over_under_target_id INTEGER,
-    over_under_threshold INTEGER DEFAULT 45,
-    over_under_pick TEXT DEFAULT 'over',
-    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (predictor_id) REFERENCES racers(id),
-    UNIQUE(gpid, predictor_id)
-);
-
+-- (fantasy_predictions was an earlier design, superseded by fantasy_bets —
+--  dropped from the schema after shipping with zero code references.)
 CREATE TABLE IF NOT EXISTS fantasy_scores (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     gpid TEXT NOT NULL,

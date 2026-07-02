@@ -38,7 +38,7 @@ All AI features use the shared Gemini client (`private/includes/gemini_client.ph
 
 ### Statistics & history
 
-- **Per-racer profile** — career stats, signature character/kart, Elo history, per-cup performance, badges, recent results, milestone alerts, coaching report
+- **Per-racer profile** — career stats, signature character/kart, Elo history, per-cup performance, badges, recent results, milestone alerts
 - **Cup mastery grid** — 24-cup × all-racers completion matrix with best scores
 - **All-time records** — peak single-GP scores, longest podium streaks, win droughts, perfect 60 counts
 - **Season archives** — every closed season preserved with final standings, awards, and a Hall of Fame entry. Mikkoliiga standings get their own sidebar in archived season reports.
@@ -108,7 +108,7 @@ Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/
 │   ├── .htaccess                      # Clean URL routing
 │   ├── index.php                      # Homepage + current standings
 │   ├── add_result.php                 # GP result entry
-│   ├── racer.php                      # Per-racer profile (with coaching report)
+│   ├── racer.php                      # Per-racer profile
 │   ├── archive.php                    # Broadcast feed + publish forms
 │   ├── view_recap.php                 # Single broadcast viewer
 │   ├── stats.php                      # Power rankings
@@ -151,7 +151,6 @@ Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/
 │   │   ├── generate_season_report.php # AI season report
 │   │   ├── generate_season_awards.php # AI season awards
 │   │   ├── generate_gp_story.php      # MONSTER HUNT Chronicle generator
-│   │   ├── generate_coaching_report.php # Per-racer coaching
 │   │   ├── publish_press_release.php  # OMK Press Office (no AI)
 │   │   ├── record_tournament_match.php # Tournament match recording
 │   │   ├── simulate_scoring.php       # What-if scoring sandbox
@@ -187,7 +186,6 @@ Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/
     │   ├── ecology_text.php           # Broadcast persona prompts
     │   ├── gemini_client.php          # Shared retry-with-backoff Gemini caller
     │   ├── season_awards_logic.php    # Awards generation pipeline
-    │   ├── coaching_stats.php         # Per-racer stats gathering for coaching
     │   ├── survivor_tournament.php    # Survivor format engine
     │   ├── snl_tournament.php          # Snakes & Ladders tournament engine + board
     │   ├── mk_data.php                # MK character/cup constants

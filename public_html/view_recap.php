@@ -4,6 +4,7 @@
  * Path: /cdnmk/public_html/view_recap.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/csrf.php';
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
@@ -12,8 +13,9 @@ if ($id === 0) { header("Location: /archive"); exit; }
 
 $isAdmin = (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true);
 
-// Handle Delete
-if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'delete') {
+// Handle Delete — POST + CSRF only (a GET-mutating handler is forgeable).
+if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
+    verify_csrf();
     $del = $pdo->prepare("DELETE FROM recap_archive WHERE id = ?");
     $del->execute([$id]);
     header("Location: /archive?msg=deleted");
@@ -124,7 +126,12 @@ include __DIR__ . '/../private/templates/header.php';
                     <?php if ($isAdmin): ?>
                     <div class="admin-controls">
                         <a href="/edit-recap/<?= $id ?>" class="btn-edit-recap">EDIT</a>
-                        <a href="?id=<?= $id ?>&action=delete" class="btn-delete-recap" onclick="event.preventDefault(); showConfirm({icon: '🗑️', title: 'Delete Broadcast?', message: 'Are you sure you want to delete this broadcast? This action cannot be undone.'}).then(ok => { if(ok) window.location.href = this.href; });">DELETE</a>
+                        <form method="POST" action="?id=<?= $id ?>" style="display:inline;"
+                              onsubmit="event.preventDefault(); showConfirm({icon: '🗑️', title: 'Delete Broadcast?', message: 'Are you sure you want to delete this broadcast? This action cannot be undone.'}).then(ok => { if(ok) this.submit(); });">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="delete">
+                            <button type="submit" class="btn-delete-recap">DELETE</button>
+                        </form>
                     </div>
                     <?php endif; ?>
                 </header>

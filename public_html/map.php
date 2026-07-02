@@ -53,7 +53,7 @@ $sections = [
     ],
 
     'Per-racer profiles' => [
-        ['/racer/1',           '👤', 'Racer profile',           'Per-racer dossier with career stats, badges, Elo history, signature loadout, and the latest coaching report. Replace the id with any racer\'s number.'],
+        ['/racer/1',           '👤', 'Racer profile',           'Per-racer dossier with career stats, badges, Elo history, and signature loadout. Replace the id with any racer\'s number.'],
     ],
 
     'News & broadcasts' => [
