@@ -40,19 +40,75 @@ deploy model is "pull and hit any page; the DB catches up."
 `private/includes/gp_logic.php::getScoringSystemRegistry()` is the single
 source of truth. Adding a new scoring system means:
 
-1. One new entry in the registry array (name, icon, description, calculate
-   fn, breakdown fn, threshold-gating flag, sort comparator).
-2. Define your `calculate*Score()` and `breakdown*()` helpers in
-   `gp_logic.php` next to the existing ones.
+1. One new entry in the registry array (name, icon, description,
+   long_description, `calculate` fn, `breakdown` fn, **`tooltip` fn**,
+   threshold-gating flag, `sort` comparator).
+2. Define your `calculate*Score()`, `breakdown*()` and `tooltip*()` helpers
+   in `gp_logic.php` next to the existing ones.
 3. Add an entry to `public_html/admin/seasons.php::$scoringSystems` for
    the admin dropdown.
 4. Add a settings-fields block in `admin/seasons.php` if your system has
    configurable knobs (use the existing MONSTER HUNT / Bounty Hunter / Pari-Mutuel blocks as templates).
 5. Add per-knob persistence to the `save_rules` handler in the same file.
+6. If the system has knobs, wire them into the Scoring Simulator too — see
+   §2b below. Skipping this doesn't break the page, it just means the
+   simulator can only ever try your system on its saved settings.
 
 You should **not** edit `calculateGPScore`, `getScoringSystemInfo`,
-`getScoringBreakdown`, `racerQualifies`, `sortStandingsByScoring`, or
-`api/simulate_scoring.php` — they all dispatch through the registry.
+`getScoringBreakdown`, `racerQualifies`, or `sortStandingsByScoring` — they
+all dispatch through the registry. `api/simulate_scoring.php` also dispatches
+through it, but you *do* touch it to register a new system's knob overrides
+(step 6).
+
+### 2a. Every system explains its own score — pages never dispatch
+
+The standings hover, the racer profile's season table and `/scoring` all show
+"how did I get this number". That text comes from the registry's `tooltip`
+entry via `scoringTooltipFromBreakdown($breakdown)`, which takes an
+already-computed breakdown so callers pay no extra queries.
+
+**Never write `if ($system === '…')` chains in a page to build this.** Three
+pages used to, none were updated when new systems shipped, and four systems
+(Positional Points, Head-to-Head, Bounty Hunter, Pari-Mutuel) silently fell
+through to the GPScore™ wording — the standings showed
+`Avg: 0.00 (0 GPs counted, 0 dropped) + Attendance: 0.00 = 207.00` for a
+Positional season. A system with `'tooltip' => null` still gets a safe
+fallback (its own name + score), never another system's formula.
+
+Same rule for user-facing labels: don't hardcode "GPScore™" as the score's
+name — that's `average_attendance` only. Read `$scoringInfo['name']` for
+everything else.
+
+### 2b. The Scoring Simulator must agree with the live standings
+
+`api/simulate_scoring.php` (the simulator on `/admin/seasons`) has to produce
+byte-identical standings to the homepage when a season is simulated under its
+own system. Three rules keep that true:
+
+- **Sort through the registry.** Call `sortStandingsByScoring()`, never a bare
+  `usort` on score. PHP 8 sorts are stable, so a score-only sort silently
+  resolves ties by input order — and the racers are fetched `ORDER BY name`,
+  so ties came out alphabetical. That ranked Andreas above Hanna on s04 (both
+  207) while the real standings put Hanna first on count-back. Rows must carry
+  `'id'`; the sorters key off it. Strip the scratch keys they attach
+  (`_pos*`, `tiebreaker`) before echoing JSON.
+- **Base rules on `getSeasonRules()`**, then overlay overrides. Do not
+  hardcode a rules array — the old one invented `attendance_weight 1.0`,
+  `drop_rate 10`, `min_races_threshold 3` and omitted `pos_mode` / `bh_*` /
+  `pm_*` entirely, so a Positional season set to average mode was always
+  simulated as best-N.
+- **Scope every knob override to its own system**, and clamp/whitelist it the
+  same way `save_rules` does. `best_n_count` is shared by `best_n_gps` and
+  `positional_points`, so an unscoped override lets one system's field rewrite
+  the other's rules.
+
+On the UI side (`admin/seasons.php`): each system shows only its own fields,
+sends only its own params, and the fields are seeded from the season's real
+saved config via the `SIM_SEASON_RULES` map (emitted from `season_meta`).
+Seeding runs on season/system change only — never while a knob is being
+edited, or you clobber admin input mid-typing. Hardcoded field defaults are
+the bug here: a best-10 season would open showing 15 and quietly disagree
+with its own standings.
 
 ### 3. All Gemini calls go through `gemini_client.php`
 
@@ -243,7 +299,8 @@ deliberate and load-bearing.
 | `private/includes/badges.php` | Badge unlock logic (~27 badges). |
 | `private/includes/survivor_tournament.php` | Survivor tournament engine. |
 | `private/includes/season_awards_logic.php` | Season awards generation pipeline. |
-| `public_html/admin/seasons.php` | Season config UI — scoring system per season, per-knob fields, Mikkoliiga re-snapshot button. |
+| `public_html/admin/seasons.php` | Season config UI — scoring system per season, per-knob fields, Mikkoliiga re-snapshot button, Scoring Simulator panel (fields + `SIM_SEASON_RULES` seeding). |
+| `public_html/api/simulate_scoring.php` | Scoring Simulator backend. Must mirror live standings — see §2b. |
 | `public_html/admin/tournament_setup.php` | Tournament bracket generation (5 formats). |
 | `public_html/admin/tournament_bracket.php` | Tournament viewer + match recording. |
 | `public_html/racer.php` | Per-racer profile. |
@@ -363,6 +420,21 @@ Cross-reference if you find half-implemented work:
   were left on disk, unused)
 - **Favicon** — OMK crest SVG (white-on-red) wired in `header.php`
 - **Mikkoliiga** best-20 → best-10 (`MIKKOLIIGA_BEST_X`)
+- **Registry tooltips** (§2a) — `tooltip` key on all 14 systems +
+  `scoringTooltipFromBreakdown()`; removed the hardcoded if/else chains from
+  `index.php`, `racer.php` and `scoring.php`
+- **Positional Points explainer** — `/scoring` gained the ladder, count-back
+  row and per-GP chips with a cut line; `positionalPointsDetail()` in
+  `gp_logic.php`
+- **Simulator correctness** (§2b) — sorts via the registry, scores from
+  `getSeasonRules()`, per-system knob scoping; Positional / Bounty Hunter /
+  Pari-Mutuel knobs exposed in the UI and seeded from the season
+- **MONSTER HUNT** — `/scoring` best-N selection had a tie bug (early tied
+  hunts ate the slots, under-reporting the sum); the displayed average now
+  matches the title's band. Ranking is the best-N **sum**, not an average —
+  the old copy claimed otherwise in three places
+- **`/season/<id>` route** — `index.php` now honours `?season=`; it had been
+  ignoring the param, so the rewrite silently served the current season
 
 ## When in doubt
 
