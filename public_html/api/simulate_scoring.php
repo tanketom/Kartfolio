@@ -63,14 +63,36 @@ if (empty($rules)) {
 }
 $rules['scoring_system'] = $system;
 
-// Slider overrides. Each applies only to the system whose UI actually exposes
-// it (see updateSimulator() in admin/seasons.php, which shows one field per
-// system) — the page sends all three on every request, and best_n_count is
-// shared by best_n_gps AND positional_points, so applying it blindly let the
-// hidden best-N box silently override a Positional season's real setting.
-if ($system === 'best_n_gps'   && isset($_GET['best_n']))       $rules['best_n_count']       = $bestN;
-if ($system === 'drop_worst'   && isset($_GET['drop_worst']))   $rules['drop_worst_count']   = $dropWorst;
-if ($system === 'perfect_hunt' && isset($_GET['perfect_mult'])) $rules['perfect_multiplier'] = $perfectMult;
+// Knob overrides. Each applies only to the system whose UI exposes it (see
+// updateSimulator() in admin/seasons.php) — best_n_count is shared by
+// best_n_gps AND positional_points, so scoping by system is what stops one
+// system's box from silently rewriting the other's setting. Values are
+// clamped/whitelisted here exactly as the season save handler does, so a
+// hand-edited URL can't push the engine somewhere the config UI can't.
+if ($system === 'best_n_gps'   && isset($_GET['best_n']))       $rules['best_n_count']       = max(1, $bestN);
+if ($system === 'drop_worst'   && isset($_GET['drop_worst']))   $rules['drop_worst_count']   = max(0, $dropWorst);
+if ($system === 'perfect_hunt' && isset($_GET['perfect_mult'])) $rules['perfect_multiplier'] = max(1.0, $perfectMult);
+
+if ($system === 'positional_points') {
+    if (isset($_GET['pos_mode'])) {
+        $mode = $_GET['pos_mode'];
+        $rules['pos_mode'] = in_array($mode, ['best_n', 'average', 'sum'], true) ? $mode : 'best_n';
+    }
+    if (isset($_GET['pos_best_n'])) $rules['best_n_count'] = max(1, (int)$_GET['pos_best_n']);
+}
+
+if ($system === 'bounty_hunter') {
+    if (isset($_GET['bh_multiplier']))    $rules['bh_multiplier']    = max(0.1, (float)$_GET['bh_multiplier']);
+    if (isset($_GET['bh_carrying_cost'])) $rules['bh_carrying_cost'] = !empty($_GET['bh_carrying_cost']) ? 1 : 0;
+}
+
+if ($system === 'pari_mutuel') {
+    if (isset($_GET['pm_ante'])) $rules['pm_ante'] = max(1, (int)$_GET['pm_ante']);
+    if (isset($_GET['pm_payout_preset'])) {
+        $preset = $_GET['pm_payout_preset'];
+        $rules['pm_payout_preset'] = in_array($preset, ['steep', 'medium', 'flat'], true) ? $preset : 'steep';
+    }
+}
 
 // MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's
 // own values (or the scoring function's defaults) stand.

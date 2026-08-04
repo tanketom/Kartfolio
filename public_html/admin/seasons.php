@@ -423,7 +423,7 @@ include __DIR__ . '/../../private/templates/header.php';
                     <div class="form-grid">
                         <div class="form-field">
                             <label>Scoring System</label>
-                            <select id="sim-system" onchange="updateSimulator()" class="scoring-system-select">
+                            <select id="sim-system" onchange="onSimSelectionChange()" class="scoring-system-select">
                                 <?php foreach($scoringSystems as $key => $info): ?>
                                     <?php if ($key === 'random_cup_draw') continue; ?>
                                     <option value="<?= $key ?>"><?= $info['icon'] ?> <?= $info['name'] ?></option>
@@ -432,7 +432,7 @@ include __DIR__ . '/../../private/templates/header.php';
                         </div>
                         <div class="form-field">
                             <label>Source Season</label>
-                            <select id="sim-season" onchange="loadSimData()">
+                            <select id="sim-season" onchange="onSimSelectionChange()">
                                 <option value="">-- Use sample data --</option>
                                 <?php foreach ($allSeasons as $sid): ?>
                                     <option value="<?= htmlspecialchars($sid) ?>">Season <?= strtoupper($sid) ?></option>
@@ -450,6 +450,47 @@ include __DIR__ . '/../../private/templates/header.php';
                         <div class="form-field" id="sim-param-mult" style="display:none;">
                             <label>Perfect Multiplier</label>
                             <input type="number" id="sim-multiplier" value="2.0" step="0.1" min="1" max="5" onchange="updateSimulator()">
+                        </div>
+
+                        <?php // Positional Points ?>
+                        <div class="form-field" id="sim-param-pos-mode" style="display:none;">
+                            <label>Aggregation</label>
+                            <select id="sim-pos-mode" onchange="updateSimulator()">
+                                <option value="best_n">Best N nights</option>
+                                <option value="average">Per-GP average</option>
+                                <option value="sum">Season sum</option>
+                            </select>
+                        </div>
+                        <div class="form-field" id="sim-param-pos-n" style="display:none;">
+                            <label>Positional Best N</label>
+                            <input type="number" id="sim-pos-best-n" value="15" min="1" max="100" onchange="updateSimulator()">
+                        </div>
+
+                        <?php // Bounty Hunter ?>
+                        <div class="form-field" id="sim-param-bh-mult" style="display:none;">
+                            <label>Bounty Multiplier</label>
+                            <input type="number" id="sim-bh-multiplier" value="1.0" step="0.1" min="0.1" max="5.0" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-bh-cost" style="display:none;">
+                            <label>Carrying Cost</label>
+                            <select id="sim-bh-carrying-cost" onchange="updateSimulator()">
+                                <option value="0">Off (just collect)</option>
+                                <option value="1">On (your bounty subtracts)</option>
+                            </select>
+                        </div>
+
+                        <?php // Pari-Mutuel ?>
+                        <div class="form-field" id="sim-param-pm-ante" style="display:none;">
+                            <label>Ante per GP</label>
+                            <input type="number" id="sim-pm-ante" value="100" min="1" max="1000" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-pm-preset" style="display:none;">
+                            <label>Payout Curve</label>
+                            <select id="sim-pm-payout-preset" onchange="updateSimulator()">
+                                <option value="steep">Steep</option>
+                                <option value="medium">Medium</option>
+                                <option value="flat">Flat</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -1119,6 +1160,42 @@ function toggleNewSeasonFields(select) {
 // ── Scoring Simulator ──
 let simData = null;
 
+// Each season's saved knob values, so the simulator opens on the season's REAL
+// configuration. Without this the fields would sit at hardcoded defaults and a
+// season configured for, say, best-10 Positional would be simulated as best-15
+// — quietly disagreeing with its own live standings.
+const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
+    'pos_mode'          => $m['pos_mode']          ?? 'best_n',
+    'best_n_count'      => (int)($m['best_n_count'] ?? 15),
+    'drop_worst_count'  => (int)($m['drop_worst_count'] ?? 2),
+    'perfect_multiplier'=> (float)($m['perfect_multiplier'] ?? 2.0),
+    'bh_multiplier'     => (float)($m['bh_multiplier'] ?? 1.0),
+    'bh_carrying_cost'  => (int)($m['bh_carrying_cost'] ?? 0),
+    'pm_ante'           => (int)($m['pm_ante'] ?? 100),
+    'pm_payout_preset'  => $m['pm_payout_preset']  ?? 'steep',
+], $metaData), JSON_UNESCAPED_SLASHES) ?>;
+
+// Reseed the knob fields from the selected season, then re-run. Called when the
+// season or the system changes — editing a knob itself must NOT reseed, or the
+// admin's input would be reverted as they typed.
+function onSimSelectionChange() {
+    const season = document.getElementById('sim-season').value;
+    const r = SIM_SEASON_RULES[season];
+    if (r) {
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+        set('sim-best-n', r.best_n_count);
+        set('sim-drop-n', r.drop_worst_count);
+        set('sim-multiplier', r.perfect_multiplier);
+        set('sim-pos-mode', r.pos_mode);
+        set('sim-pos-best-n', r.best_n_count);
+        set('sim-bh-multiplier', r.bh_multiplier);
+        set('sim-bh-carrying-cost', r.bh_carrying_cost);
+        set('sim-pm-ante', r.pm_ante);
+        set('sim-pm-payout-preset', r.pm_payout_preset);
+    }
+    loadSimData();
+}
+
 function loadSimData() {
     const season = document.getElementById('sim-season').value;
     if (!season) {
@@ -1132,18 +1209,36 @@ function updateSimulator() {
     const system = document.getElementById('sim-system').value;
     const season = document.getElementById('sim-season').value;
 
-    // Toggle param fields
-    document.getElementById('sim-param-n').style.display = system === 'best_n_gps' ? '' : 'none';
-    document.getElementById('sim-param-drop').style.display = system === 'drop_worst' ? '' : 'none';
-    document.getElementById('sim-param-mult').style.display = system === 'perfect_hunt' ? '' : 'none';
+    // Toggle param fields — each system shows only the knobs it actually uses.
+    const show = {
+        'sim-param-n':        system === 'best_n_gps',
+        'sim-param-drop':     system === 'drop_worst',
+        'sim-param-mult':     system === 'perfect_hunt',
+        'sim-param-pos-mode': system === 'positional_points',
+        'sim-param-pos-n':    system === 'positional_points' && document.getElementById('sim-pos-mode').value === 'best_n',
+        'sim-param-bh-mult':  system === 'bounty_hunter',
+        'sim-param-bh-cost':  system === 'bounty_hunter',
+        'sim-param-pm-ante':  system === 'pari_mutuel',
+        'sim-param-pm-preset': system === 'pari_mutuel',
+    };
+    for (const [id, visible] of Object.entries(show)) {
+        document.getElementById(id).style.display = visible ? '' : 'none';
+    }
 
     if (!season) return;
 
-    const bestN = document.getElementById('sim-best-n').value;
-    const dropN = document.getElementById('sim-drop-n').value;
-    const mult = document.getElementById('sim-multiplier').value;
+    const val = id => encodeURIComponent(document.getElementById(id).value);
 
-    const url = `/api/simulate_scoring.php?season=${encodeURIComponent(season)}&system=${encodeURIComponent(system)}&best_n=${bestN}&drop_worst=${dropN}&perfect_mult=${mult}`;
+    // Send only the knobs belonging to the chosen system. The endpoint keys
+    // each override to its own system, so nothing can bleed across (best_n and
+    // pos_best_n both land in best_n_count, but only for their own system).
+    let url = `/api/simulate_scoring.php?season=${encodeURIComponent(season)}&system=${encodeURIComponent(system)}`;
+    if (system === 'best_n_gps')        url += `&best_n=${val('sim-best-n')}`;
+    if (system === 'drop_worst')        url += `&drop_worst=${val('sim-drop-n')}`;
+    if (system === 'perfect_hunt')      url += `&perfect_mult=${val('sim-multiplier')}`;
+    if (system === 'positional_points') url += `&pos_mode=${val('sim-pos-mode')}&pos_best_n=${val('sim-pos-best-n')}`;
+    if (system === 'bounty_hunter')     url += `&bh_multiplier=${val('sim-bh-multiplier')}&bh_carrying_cost=${val('sim-bh-carrying-cost')}`;
+    if (system === 'pari_mutuel')       url += `&pm_ante=${val('sim-pm-ante')}&pm_payout_preset=${val('sim-pm-payout-preset')}`;
 
     document.getElementById('sim-standings-table').innerHTML = '<p class="sim-status">Computing...</p>';
     document.getElementById('sim-results').style.display = 'block';
