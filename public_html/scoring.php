@@ -112,6 +112,14 @@ foreach ($racers as $racer) {
         $entry['top12_total'] = array_sum($top12);
         $entry['bubble_score'] = count($cupBests) >= 12 ? min($top12) : null;
         $entry['perfects'] = count(array_filter($top12, fn($p) => $p === 60));
+    } elseif ($scoringSystem === 'positional_points') {
+        // Ladder points per GP, best-first, with the best-N cut line marked.
+        $detail = positionalPointsDetail($pdo, (int)$rid, $seasonId, $rules);
+        $entry['pos']          = $detail;
+        $entry['pos_total']    = array_sum(array_column($detail['rows'], 'pts'));
+        $entry['pos_counted']  = array_sum(array_column(
+            array_filter($detail['rows'], fn($r) => $r['counted']), 'pts'));
+        $entry['pos_wins']     = $detail['pos_counts'][1] ?? 0;
     } elseif ($scoringSystem === 'monster_hunt') {
         // Walk every GP this racer played and reconstruct per-GP role +
         // CR + outcome + XP. Mirrors mhComputeRaw() in gp_logic.php so the
@@ -297,6 +305,47 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     </div>
                 </div>
 
+            <?php elseif ($scoringSystem === 'positional_points'):
+                $posMode  = $rules['pos_mode'] ?? 'best_n';
+                $posBestN = (int)($rules['best_n_count'] ?? 15);
+                $formula  = $posMode === 'average'
+                    ? 'Score = Average(ladder points per GP)'
+                    : ($posMode === 'sum'
+                        ? 'Score = Sum(ladder points from every GP)'
+                        : "Score = Sum(ladder points from your best $posBestN GPs)");
+            ?>
+                <h2>🏁 How Positional Points works</h2>
+                <div class="scr-formula-box">
+                    <code><?= htmlspecialchars($formula) ?></code>
+                </div>
+                <p class="diff-description" style="margin-top:8px;">
+                    Only <strong>where you finish</strong> matters — not by how much. Every GP pays out on a fixed Mario Kart ladder, so a win banks 15 points whether you led by a lap or a bumper.
+                </p>
+                <?php $posOrdinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th']; ?>
+                <div class="scr-pos-ladder">
+                    <?php foreach (POSITIONAL_POINTS_SCALE as $i => $pts): ?>
+                        <div class="scr-pos-rung<?= $i === 0 ? ' scr-pos-rung--win' : '' ?>">
+                            <span class="scr-pos-place"><?= $posOrdinals[$i] ?? ($i + 1) ?></span>
+                            <span class="scr-pos-pts"><?= $pts ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                    <div class="scr-pos-rung scr-pos-rung--none">
+                        <span class="scr-pos-place">13th+</span>
+                        <span class="scr-pos-pts">0</span>
+                    </div>
+                </div>
+                <div class="scr-rules">
+                    <?php if ($posMode === 'best_n'): ?>
+                        <div class="scr-rule"><strong>Best <?= $posBestN ?>:</strong> your <?= $posBestN ?> highest-scoring GPs are summed; extra nights don't hurt you, they just have to beat one of your counted nights to matter</div>
+                    <?php elseif ($posMode === 'average'): ?>
+                        <div class="scr-rule"><strong>Average mode:</strong> every GP counts and the score is the per-GP average — one bad night lowers it, so consistency rules</div>
+                    <?php else: ?>
+                        <div class="scr-rule"><strong>Sum mode:</strong> every GP counts and adds up — showing up more is a real advantage</div>
+                    <?php endif; ?>
+                    <div class="scr-rule"><strong>Minimum GPs:</strong> <?= $minThreshold ?> required to appear on the leaderboard</div>
+                    <div class="scr-rule"><strong>Ties break on:</strong> count-back (most 1sts, then 2nds, then 3rds…) → fewest GPs needed to reach the score → fewer GPs played → name A→Z</div>
+                </div>
+
             <?php elseif ($scoringSystem === 'black_box'): ?>
                 <h2>Black Box</h2>
                 <div class="scr-formula-box">
@@ -343,7 +392,9 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     <span class="scr-unranked">Unranked (<?= $rb['total'] ?>/<?= $minThreshold ?> GPs)</span>
                 <?php else: ?>
                     <span class="scr-gpscore"><?= round($rb['score'], 2) ?></span>
-                    <span class="scr-gpscore-label">GPScore</span>
+                    <?php // Label the season's real scoring system, not always "GPScore". ?>
+                    <span class="scr-gpscore-label"><?= $scoringSystem === 'average_attendance'
+                        ? 'GPScore' : htmlspecialchars($scoringInfo['name']) ?></span>
                 <?php endif; ?>
             </div>
         </div>
@@ -387,6 +438,56 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
             <p class="diff-description" style="margin-top:10px; font-size:0.8rem;">
                 Hover any hunt for the full XP formula. Best <?= $rb['best_x'] ?> hunts count toward the season total; the rest are dropped.
             </p>
+
+        <?php elseif ($scoringSystem === 'positional_points' && !empty($rb['pos']['rows'])):
+            $pos  = $rb['pos'];
+            $ords = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'];
+        ?>
+            <!-- Positional Points view -->
+            <div class="scr-summary">
+                <?= $rb['total'] ?> GP<?= $rb['total'] !== 1 ? 's' : '' ?> played &middot;
+                <?php if ($pos['mode'] === 'best_n'): ?>
+                    best <strong><?= $pos['counted_count'] ?></strong> counted
+                    <?php if ($rb['total'] > $pos['counted_count']): ?>
+                        &middot; <?= $rb['total'] - $pos['counted_count'] ?> below the cut
+                    <?php endif; ?>
+                <?php elseif ($pos['mode'] === 'average'): ?>
+                    per-GP average of <strong><?= $rb['pos_total'] ?></strong> total ladder pts
+                <?php else: ?>
+                    all <?= $pos['counted_count'] ?> counted (<strong><?= $rb['pos_total'] ?></strong> ladder pts)
+                <?php endif; ?>
+                <?php if ($rb['pos_wins'] > 0): ?>
+                    &middot; <?= $rb['pos_wins'] ?> win<?= $rb['pos_wins'] !== 1 ? 's' : '' ?> 🏆
+                <?php endif; ?>
+                <?php if (!empty($pos['cut_line'])): ?>
+                    &middot; cut line: <?= $pos['cut_line'] ?> pts
+                <?php endif; ?>
+            </div>
+
+            <?php // Count-back row — the first tie-break, so show the shape of the season. ?>
+            <div class="scr-pos-counts">
+                <?php foreach ($pos['pos_counts'] as $place => $n): if ($n === 0) continue; ?>
+                    <span class="scr-pos-count<?= $place === 1 ? ' scr-pos-count--win' : '' ?>"
+                          title="<?= $n ?>× <?= $ords[$place-1] ?? $place ?> place @ <?= POSITIONAL_POINTS_SCALE[$place-1] ?? 0 ?> pts">
+                        <?= $n ?>× <?= $ords[$place - 1] ?? $place ?>
+                    </span>
+                <?php endforeach; ?>
+            </div>
+
+            <div class="scr-gp-grid">
+                <?php foreach ($pos['rows'] as $i => $g): ?>
+                    <?php if ($pos['mode'] === 'best_n' && $i === $pos['counted_count'] && $i < count($pos['rows'])): ?>
+                        <div class="scr-cut-divider">— cut line: below here doesn't count —</div>
+                    <?php endif; ?>
+                    <div class="scr-gp-chip <?= $g['counted'] ? 'scr-counted' : 'scr-dropped' ?>"
+                         title="<?= htmlspecialchars($g['cup']) ?> Cup &middot; finished <?= $ords[$g['rank']-1] ?? $g['rank'] ?> &middot; <?= date('M j', strtotime($g['date'])) ?> &middot; <?= $g['pts'] ?> ladder pts">
+                        <span class="scr-gp-rank"><?= $ords[$g['rank'] - 1] ?? $g['rank'] ?></span>
+                        <span class="scr-gp-cup"><?= htmlspecialchars($g['cup']) ?></span>
+                        <span class="scr-gp-pts"><?= $g['pts'] ?></span>
+                        <?php if (!$g['counted']): ?><span class="scr-gp-label">not counted</span><?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
 
         <?php elseif ($scoringSystem === 'top_12_unique' && !empty($rb['cup_bests'])): ?>
             <!-- Top 12 Unique view -->

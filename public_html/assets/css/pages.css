@@ -5539,8 +5539,12 @@ th.rotate > div {
    Scoring Explainer (scoring.php)
    ========================================================================== */
 
+/* These reuse .racer-card for the KART POP card shell, but that class is the
+   global leaderboard ROW (display:flex) — without this reset every child
+   (title, formula, summary, GP grid) became a squeezed side-by-side column. */
 .scr-header-card {
     margin-bottom: 30px;
+    display: block;
 }
 
 .scr-top-row {
@@ -5611,6 +5615,7 @@ th.rotate > div {
 .scr-racer-card {
     margin-bottom: 16px;
     padding: 20px 24px;
+    display: block;
 }
 
 .scr-racer-header {
@@ -5730,6 +5735,79 @@ th.rotate > div {
     padding: 8px 0;
     border-top: 2px dashed var(--nintendo-red, var(--nintendo-red));
     margin-top: 4px;
+}
+
+/* === Positional Points: the points ladder + count-back row === */
+
+.scr-pos-ladder {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 12px 0 4px;
+}
+
+.scr-pos-rung {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 44px;
+    padding: 6px 8px;
+    background: #fff;
+    border: 2px solid var(--ink, #1a1a1a);
+    border-radius: 8px;
+    box-shadow: 2px 2px 0 var(--ink, #1a1a1a);
+}
+
+.scr-pos-rung--win {
+    background: var(--nintendo-red, #e60012);
+}
+
+.scr-pos-rung--win .scr-pos-place,
+.scr-pos-rung--win .scr-pos-pts {
+    color: #fff;
+}
+
+.scr-pos-rung--none {
+    background: var(--gray-100, #f2ede3);
+    opacity: 0.75;
+}
+
+.scr-pos-place {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--gray-700, #4a4438);
+    text-transform: uppercase;
+}
+
+.scr-pos-pts {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--ink, #1a1a1a);
+    line-height: 1.1;
+}
+
+.scr-pos-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 4px 0 10px;
+}
+
+.scr-pos-count {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-800, #2b2620);
+    background: var(--gray-100, #f2ede3);
+    border: 1px solid var(--gray-300, #ddd5c7);
+    border-radius: 999px;
+    padding: 3px 9px;
+    cursor: default;
+}
+
+.scr-pos-count--win {
+    background: var(--nintendo-red, #e60012);
+    border-color: var(--nintendo-red, #e60012);
+    color: #fff;
 }
 
 @media (max-width: 600px) {

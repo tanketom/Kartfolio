@@ -1651,28 +1651,12 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
             <tbody>
                 <?php foreach ($seasonBreakdown as $season):
                     $bd = $season['breakdown'];
-                    $scoringSystem = $bd['system'] ?? 'average_attendance';
-                    $c = $bd['components'] ?? [];
 
-                    // Generate system-aware tooltip
-                    if ($scoringSystem === 'average_attendance') {
-                        $tooltip = sprintf("GPScore: %.2f (%d GPs counted, %d dropped)",
-                            $season['gp_score'], $c['races_counted'] ?? 0, $c['races_dropped'] ?? 0);
-                    } elseif ($scoringSystem === 'preseason') {
-                        $tooltip = sprintf("Average: %.2f (%d GPs played)",
-                            $season['gp_score'], $c['total_races'] ?? 0);
-                    } elseif (in_array($scoringSystem, ['cup_based', 'drop_worst', 'perfect_hunt', 'random_cup_draw'])) {
-                        $tooltip = sprintf("Cups: %d/%d completed • Score: %.2f",
-                            $c['cups_completed'] ?? 0, $c['cups_required'] ?? 12, $season['gp_score']);
-                    } elseif ($scoringSystem === 'best_n_gps') {
-                        $tooltip = sprintf("Best %d GPs: %.2f (%d total played, %d dropped)",
-                            $c['best_n_count'] ?? 0, $season['gp_score'], $c['total_gps_played'] ?? 0, $c['gps_dropped'] ?? 0);
-                    } elseif ($scoringSystem === 'top_12_unique') {
-                        $tooltip = sprintf("Top 12 cups: %d (%d/24 cups played, %d perfects, tiebreaker: %d)",
-                            (int)$season['gp_score'], $c['cups_played'] ?? 0, $c['unique_60s'] ?? 0, $c['unique_60s'] ?? 0);
-                    } else {
-                        $tooltip = sprintf("Score: %.2f", $season['gp_score']);
-                    }
+                    // System-aware tooltip via the scoring registry — same source
+                    // as the standings hover, so a season's score is explained
+                    // identically wherever it appears. (Was a hardcoded chain
+                    // whose fallback reduced newer systems to a bare "Score: N".)
+                    $tooltip = scoringTooltipFromBreakdown($bd);
 
                     // Format placement with medals for top 3
                     $placement = $season['placement'];

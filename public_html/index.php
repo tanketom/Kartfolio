@@ -246,30 +246,13 @@ $liveFormatLabels = [
             $bd = $row['breakdown'];
             $c  = $bd['components'] ?? [];
 
-            // Generate system-aware tooltip
             $bdSystem = $bd['system'] ?? 'average_attendance';
-            if ($bdSystem === 'black_box') {
-                $tooltip = sprintf("⬛ Black Box Score: %.2f (%d GPs)", $row['score'], $c['gps_played'] ?? 0);
-            } elseif ($bdSystem === 'top_12_unique') {
-                $tooltip = sprintf("Top 12 Unique: %d cups played, best %d counted, %d perfects (tiebreaker) • Score: %d",
-                    $c['cups_played'] ?? 0, $c['cups_counted'] ?? 0, $c['unique_60s'] ?? 0, (int)$row['score']);
-            } elseif ($bdSystem === 'cup_based' || $bdSystem === 'drop_worst' || $bdSystem === 'perfect_hunt') {
-                $tooltip = sprintf("Cups: %d/%d completed • Score: %.2f",
-                    $c['cups_completed'] ?? 0, $c['cups_required'] ?? 0, $row['score']);
-            } elseif ($bdSystem === 'best_n_gps') {
-                $tooltip = sprintf("Best %d GPs: %.2f (%d total GPs, %d dropped)",
-                    $c['best_n_count'] ?? 0, $row['score'], $c['total_gps_played'] ?? 0, $c['gps_dropped'] ?? 0);
-            } elseif ($bdSystem === 'preseason') {
-                $tooltip = sprintf("Average: %.2f (%d GPs, %d dropped)",
-                    $row['score'], $c['total_races'] ?? 0, $c['races_dropped'] ?? 0);
-            } elseif ($bdSystem === 'monster_hunt') {
-                $tooltip = sprintf("👹 %s (lv. %d) · Best %d hunts: %d XP · %.1f avg XP/GP · %d total XP · %d GPs played",
-                    $c['title'] ?? '', $c['level'] ?? 0, $c['best_x_used'] ?? 0, $c['best_x_sum'] ?? 0,
-                    $c['avg_xp'] ?? 0, $c['total_xp'] ?? 0, $c['gps'] ?? 0);
-            } else {
-                $tooltip = sprintf("Avg: %.2f (%d GPs counted, %d dropped) + Attendance: %.2f = %.2f",
-                    $c['avg'] ?? 0, $c['races_counted'] ?? 0, $c['races_dropped'] ?? 0, $c['att'] ?? 0, $row['score']);
-            }
+            // System-aware tooltip, dispatched through the scoring registry so
+            // every system explains its own number (this used to be a hardcoded
+            // if/else chain here, and any system missing a branch — Positional
+            // Points, Head-to-Head, Bounty Hunter, Pari-Mutuel — silently fell
+            // through to the GPScore™ wording and showed all zeros).
+            $tooltip = scoringTooltipFromBreakdown($bd);
         ?>
         <div class="racer-card <?= $rankClass ?><?= !$isQualifying ? ' racer-card--ineligible' : '' ?>">
             <div class="rank-number">
@@ -311,7 +294,14 @@ $liveFormatLabels = [
                 <?php endif; ?>
                 <div class="racer-stat-label">
                     <?= $row['raceCount'] ?> GP<?= $row['raceCount'] > 1 ? 's' : '' ?> Raced
-                    <?= !$isQualifying ? '• Ineligible' : '• GPScore™ Active' ?>
+                    <?php // Name the season's actual scoring system — this said
+                          // "GPScore™ Active" on every system, including ones
+                          // that don't compute a GPScore at all. The original
+                          // average_attendance system keeps its GPScore™ brand.
+                          $activeLabel = $scoringInfo['system'] === 'average_attendance'
+                              ? 'GPScore™'
+                              : $scoringInfo['name']; ?>
+                    <?= !$isQualifying ? '• Ineligible' : '• ' . htmlspecialchars($activeLabel) . ' Active' ?>
                 </div>
             </div>
             <div class="racer-score" data-tooltip="<?= htmlspecialchars($tooltip) ?>">
@@ -327,6 +317,20 @@ $liveFormatLabels = [
                     <?= number_format($row['score'], 0) ?>
                     <div class="cup-completion">
                         <?= htmlspecialchars($c['title'] ?? '') ?> &middot; <span style="opacity:0.6">lv.&nbsp;<?= $c['level'] ?? 0 ?></span>
+                    </div>
+                <?php elseif ($bdSystem === 'positional_points'): ?>
+                    <?= (int)$row['score'] ?>
+                    <div class="cup-completion">
+                        <?php if (($c['mode'] ?? 'best_n') === 'best_n'): ?>
+                            best <?= (int)($c['counted'] ?? 0) ?> of <?= (int)($c['gps_played'] ?? 0) ?> GPs
+                        <?php elseif (($c['mode'] ?? '') === 'average'): ?>
+                            avg over <?= (int)($c['gps_played'] ?? 0) ?> GPs
+                        <?php else: ?>
+                            all <?= (int)($c['gps_played'] ?? 0) ?> GPs
+                        <?php endif; ?>
+                        <?php if (($c['wins'] ?? 0) > 0): ?>
+                            &middot; <?= (int)$c['wins'] ?> 🏆
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <?= number_format($row['score'], 2) ?>

@@ -51,6 +51,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Average GP score with attendance bonuses and drop mechanics. Configure the drop rate, attendance weight, weekly cap, and minimum-races threshold below.',
             'calculate'              => 'calculateAverageAttendanceScore',
             'breakdown'              => 'breakdownAverageAttendance',
+            'tooltip'              => 'tooltipAverageAttendance',
             'qualifies_by_threshold' => true,
             'sort'                   => null,
         ],
@@ -61,6 +62,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Simple average with the worst 10% of scores dropped. No configuration needed — designed for off-season play.',
             'calculate'              => 'calculatePreSeasonScore',
             'breakdown'              => 'breakdownPreseason',
+            'tooltip'              => 'tooltipPreseason',
             'qualifies_by_threshold' => true,
             'sort'                   => null,
         ],
@@ -71,6 +73,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Sum of best scores across all required cups (12 or 24). Each racer must complete the configured cup count to be eligible.',
             'calculate'              => 'calculateCupBasedScore',
             'breakdown'              => 'breakdownCupSeries',
+            'tooltip'              => 'tooltipCupBased',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -81,6 +84,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Sum of your best N GP scores; the rest are dropped. Configure N below.',
             'calculate'              => 'calculateBestNGPsScore',
             'breakdown'              => 'breakdownBestNGPs',
+            'tooltip'              => 'tooltipBestNGps',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -91,6 +95,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Play all cups; drop the X worst scores. Configure the drop count below.',
             'calculate'              => 'calculateDropWorstScore',
             'breakdown'              => 'breakdownCupSeries',
+            'tooltip'              => 'tooltipCupBased',
             'qualifies_by_threshold' => true,
             'sort'                   => null,
         ],
@@ -101,6 +106,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Bonus multipliers awarded for every perfect 60 score. Configure the multiplier and required cup count below.',
             'calculate'              => 'calculatePerfectHuntScore',
             'breakdown'              => 'breakdownCupSeries',
+            'tooltip'              => 'tooltipCupBased',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -111,6 +117,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Cumulative score from the best 12 GPs, each from a different cup. Tiebreaker: most perfect 60 scores in unique cups.',
             'calculate'              => 'calculateTop12UniqueScore',
             'breakdown'              => 'breakdownTop12Unique',
+            'tooltip'              => 'tooltipTop12Unique',
             'qualifies_by_threshold' => false,
             'sort'                   => 'sortStandingsTop12Unique',
         ],
@@ -121,6 +128,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Each player will be assigned a random set of cups at season start.',
             'calculate'              => 'calculateRandomCupDrawScore',
             'breakdown'              => null,
+            'tooltip'              => null,
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -131,6 +139,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'ADMIN EYES ONLY. Players see only "Black Box Score" — no formula, no breakdown, no explanation. The formula applies diminishing returns to high scorers, momentum bonuses for improvement streaks, "chaos points" seeded from race dates, and a comeback multiplier that scales inversely with historical average. Net effect: the leaderboard feels plausible but unpredictable, and lower-ranked players punch above their weight.',
             'calculate'              => 'calculateBlackBoxScore',
             'breakdown'              => 'breakdownBlackBox',
+            'tooltip'              => 'tooltipBlackBox',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -141,6 +150,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'The Monster is the highest-Elo racer at race time (ties broken alphabetically; admins can override by flagging is_monster on result entry). CR multiplier (×1.0–×2.0) scales slay XP by the Elo gap. Ranking = average XP per GP.',
             'calculate'              => 'calculateMonsterHuntScore',
             'breakdown'              => 'breakdownMonsterHunt',
+            'tooltip'              => 'tooltipMonsterHunt',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -151,6 +161,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Every racer above the field median (by pre-GP Elo) carries a bounty equal to their Elo above the median. Beat them in a GP to collect (full bounty per beater — no splitting). Optional carrying cost subtracts your own bounty from your night\'s haul.',
             'calculate'              => 'calculateBountyHunterScore',
             'breakdown'              => 'breakdownBountyHunter',
+            'tooltip'              => 'tooltipBountyHunter',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -161,6 +172,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Every participant pays an ante per GP into a shared pot. The pot redistributes by finish position via the chosen payout curve. Net per GP = winnings − ante (can go negative). Season score is the sum of all GP nets.',
             'calculate'              => 'calculateParimutuelScore',
             'breakdown'              => 'breakdownParimutuel',
+            'tooltip'              => 'tooltipPariMutuel',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -174,6 +186,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Relative scoring: each GP awards points by finish position on a fixed Mario Kart ladder (1st=15, 2nd=12, 3rd=10, 4th=9, …), so a win always banks the same regardless of margin. Season aggregation is configurable — best-N nights, per-GP average, or straight sum — with a minimum-GPs eligibility gate.',
             'calculate'              => 'calculatePositionalScore',
             'breakdown'              => 'breakdownPositional',
+            'tooltip'              => 'tooltipPositional',
             'qualifies_by_threshold' => true,
             'sort'                   => 'sortStandingsPositional',
         ],
@@ -184,6 +197,7 @@ function getScoringSystemRegistry(): array {
             'long_description'       => 'Relative scoring built for small fields: in each GP you beat everyone you finish above and lose to everyone above you. Your score is your win rate across every head-to-head matchup all season — completely margin-blind and attendance-fair. A minimum-GPs threshold filters small-sample flukes; ties break on total wins.',
             'calculate'              => 'calculateHeadToHeadScore',
             'breakdown'              => 'breakdownHeadToHead',
+            'tooltip'              => 'tooltipHeadToHead',
             'qualifies_by_threshold' => true,
             'sort'                   => 'sortStandingsHeadToHead',
         ],
@@ -1011,16 +1025,68 @@ function breakdownPositional($pdo, $racer_id, $season_id, $rules) {
     foreach ($raw['per_gp'] as $pts) {
         if ($pts === POSITIONAL_POINTS_SCALE[0]) $wins++; // top of the ladder = a GP win
     }
-    $mode = $rules['pos_mode'] ?? 'best_n';
+    $mode     = $rules['pos_mode'] ?? 'best_n';
+    $bestN    = (int)($rules['best_n_count'] ?? 15);
+    $counted  = $mode === 'best_n' ? min($bestN, $raw['gps']) : $raw['gps'];
+    // The lowest points value that still counts — i.e. what a new night has to
+    // beat to displace one. Only meaningful once best-N is actually binding.
+    $cutLine  = ($mode === 'best_n' && $counted > 0 && $raw['gps'] > $bestN) ? $vals[$counted - 1] : null;
     return [
         'mode'         => $mode,
         'gps_played'   => $raw['gps'],
         'total_points' => array_sum($vals),
         'best_night'   => !empty($vals) ? $vals[0] : 0,
-        'best_n'       => (int)($rules['best_n_count'] ?? 15),
-        'counted'      => $mode === 'best_n' ? min((int)($rules['best_n_count'] ?? 15), $raw['gps']) : $raw['gps'],
+        'best_n'       => $bestN,
+        'counted'      => $counted,
+        'cut_line'     => $cutLine,
         'wins'         => $wins,
         'score'        => calculatePositionalScore($pdo, $racer_id, $season_id, $rules),
+    ];
+}
+
+/**
+ * Per-GP Positional Points detail for the /scoring explainer: every GP this
+ * racer ran, with the ladder points it earned, ordered best-first and flagged
+ * counted / cut. Ordering is explicit (pts desc, then date, then gpid) so the
+ * cut line never moves between requests.
+ */
+function positionalPointsDetail(PDO $pdo, int $racer_id, string $season_id, array $rules): array {
+    $rows = [];
+    foreach (getRacerSeasonRows($pdo, $racer_id, $season_id) as $r) {
+        $rank = (int)$r['rank'];
+        $rows[] = [
+            'gpid' => $r['gpid'],
+            'date' => $r['race_date'],
+            'cup'  => $r['cup_name'] ?? '',
+            'rank' => $rank,
+            'pts'  => positionalPointsForRank($rank),
+        ];
+    }
+    usort($rows, function ($a, $b) {
+        if ($a['pts'] !== $b['pts']) return $b['pts'] <=> $a['pts'];
+        if ($a['date'] !== $b['date']) return strcmp($a['date'], $b['date']);
+        return strcmp($a['gpid'], $b['gpid']);
+    });
+
+    $mode = $rules['pos_mode'] ?? 'best_n';
+    $n    = (int)($rules['best_n_count'] ?? 15);
+    if ($n < 1) $n = 15;
+    $countedCount = ($mode === 'best_n') ? min($n, count($rows)) : count($rows);
+
+    $posCounts = array_fill(1, count(POSITIONAL_POINTS_SCALE), 0);
+    foreach ($rows as $i => &$row) {
+        $row['counted'] = $i < $countedCount;
+        if (isset($posCounts[$row['rank']])) $posCounts[$row['rank']]++;
+    }
+    unset($row);
+
+    return [
+        'rows'          => $rows,
+        'counted_count' => $countedCount,
+        'mode'          => $mode,
+        'best_n'        => $n,
+        'pos_counts'    => $posCounts,
+        'cut_line'      => ($countedCount > 0 && count($rows) > $countedCount) ? $rows[$countedCount - 1]['pts'] : null,
     ];
 }
 
@@ -1351,6 +1417,136 @@ function getScoringBreakdown($pdo, $racer_id, $season_id) {
         'total_score' => calculateGPScore($pdo, $racer_id, $season_id),
         'components'  => $components,
     ];
+}
+
+/**
+ * One-line, human-readable "how this score happened" summary — the standings
+ * hover text. Dispatches through the registry's 'tooltip' entry, so a new
+ * scoring system explains itself by adding one key (never by editing pages).
+ * Takes an ALREADY-COMPUTED breakdown so callers pay no extra queries.
+ */
+function scoringTooltipFromBreakdown(array $bd): string {
+    $system = $bd['system'] ?? 'average_attendance';
+    $def    = getScoringSystemDef($system);
+    $c      = $bd['components'] ?? [];
+    $score  = $bd['total_score'] ?? 0;
+
+    $fn = $def['tooltip'] ?? null;
+    if ($fn !== null && function_exists($fn)) {
+        return $fn($c, $score);
+    }
+    // Systems with no bespoke summary (or no breakdown at all) still get the
+    // system name and their score rather than another system's formula.
+    return sprintf('%s %s · Score: %s', $def['icon'], $def['name'], scoreNum($score));
+}
+
+/** Trim trailing zeros so scores read 207 / 12.5 rather than 207.00 / 12.50. */
+function scoreNum($v): string {
+    $s = number_format((float)$v, 2, '.', '');
+    return str_contains($s, '.') ? rtrim(rtrim($s, '0'), '.') : $s;
+}
+
+// ── Tooltip helpers (registry-referenced) ────────────────────────────────
+// Each takes the system's breakdown components + final score.
+
+function tooltipAverageAttendance(array $c, $score): string {
+    return sprintf('Avg: %.2f (%d GPs counted, %d dropped) + Attendance: %.2f = %.2f',
+        $c['avg'] ?? 0, $c['races_counted'] ?? 0, $c['races_dropped'] ?? 0, $c['att'] ?? 0, $score);
+}
+
+function tooltipPreseason(array $c, $score): string {
+    return sprintf('Average: %.2f (%d GPs, %d dropped)',
+        $score, $c['total_races'] ?? 0, $c['races_dropped'] ?? 0);
+}
+
+function tooltipCupBased(array $c, $score): string {
+    return sprintf('Cups: %d/%d completed · Score: %.2f',
+        $c['cups_completed'] ?? 0, $c['cups_required'] ?? 0, $score);
+}
+
+function tooltipBestNGps(array $c, $score): string {
+    return sprintf('Best %d GPs: %.2f (%d total GPs, %d dropped)',
+        $c['best_n_count'] ?? 0, $score, $c['total_gps_played'] ?? 0, $c['gps_dropped'] ?? 0);
+}
+
+function tooltipTop12Unique(array $c, $score): string {
+    return sprintf('Top 12 Unique: %d cups played, best %d counted, %d perfects (tiebreaker) · Score: %d',
+        $c['cups_played'] ?? 0, $c['cups_counted'] ?? 0, $c['unique_60s'] ?? 0, (int)$score);
+}
+
+function tooltipBlackBox(array $c, $score): string {
+    return sprintf('⬛ Black Box Score: %.2f (%d GPs)', $score, $c['gps_played'] ?? 0);
+}
+
+function tooltipMonsterHunt(array $c, $score): string {
+    return sprintf('👹 %s (lv. %d) · Best %d hunts: %d XP · %.1f avg XP/GP · %d total XP · %d GPs played',
+        $c['title'] ?? '', $c['level'] ?? 0, $c['best_x_used'] ?? 0, $c['best_x_sum'] ?? 0,
+        $c['avg_xp'] ?? 0, $c['total_xp'] ?? 0, $c['gps'] ?? 0);
+}
+
+function tooltipBountyHunter(array $c, $score): string {
+    $s = sprintf('🎯 %s bounty collected over %d GPs · best night %s · ×%s multiplier',
+        scoreNum($c['total_bounty'] ?? 0), $c['gps_played'] ?? 0,
+        scoreNum($c['best_haul'] ?? 0), scoreNum($c['multiplier'] ?? 1));
+    if (!empty($c['carrying_cost'])) $s .= ' · carrying cost on';
+    return $s;
+}
+
+function tooltipPariMutuel(array $c, $score): string {
+    return sprintf('🎰 Net %s over %d GPs · best night %s · worst %s · ante %s (%s payouts)',
+        scoreNum($c['total_net'] ?? 0), $c['gps_played'] ?? 0,
+        scoreNum($c['best_haul'] ?? 0), scoreNum($c['worst_haul'] ?? 0),
+        scoreNum($c['ante'] ?? 0), $c['preset'] ?? 'standard');
+}
+
+/**
+ * Positional Points — the standings hover has to answer "where did my number
+ * come from", so it states the aggregation mode, how many nights counted,
+ * the ladder, and what it takes to improve (the cut line).
+ */
+function tooltipPositional(array $c, $score): string {
+    $gps    = (int)($c['gps_played'] ?? 0);
+    $mode   = $c['mode'] ?? 'best_n';
+    $wins   = (int)($c['wins'] ?? 0);
+    $parts  = [];
+
+    if ($mode === 'average') {
+        $parts[] = sprintf('🏁 %s pts per GP — %s total across %d GP%s',
+            scoreNum($score), scoreNum($c['total_points'] ?? 0), $gps, $gps === 1 ? '' : 's');
+    } elseif ($mode === 'sum') {
+        $parts[] = sprintf('🏁 %s pts — every one of %d GP%s counts',
+            scoreNum($score), $gps, $gps === 1 ? '' : 's');
+    } else {
+        $counted = (int)($c['counted'] ?? 0);
+        if ($gps > $counted) {
+            $parts[] = sprintf('🏁 %s pts — best %d of %d GPs counted', scoreNum($score), $counted, $gps);
+            $parts[] = sprintf('%d dropped', $gps - $counted);
+        } else {
+            // Under the best-N ceiling, so nothing is being dropped yet.
+            $parts[] = sprintf('🏁 %s pts — all %d GP%s counted (best %d would count)',
+                scoreNum($score), $gps, $gps === 1 ? '' : 's', (int)($c['best_n'] ?? 0));
+        }
+    }
+
+    $parts[] = sprintf('%d win%s', $wins, $wins === 1 ? '' : 's');
+
+    // What it takes to move the number. Once every counted night is already a
+    // win there's no headroom left, so say that instead of "beat 15 pts".
+    $cut = (int)($c['cut_line'] ?? 0);
+    if ($cut > 0) {
+        $parts[] = $cut >= POSITIONAL_POINTS_SCALE[0]
+            ? 'every counted night is a win — maxed out'
+            : sprintf('beat %d pts to improve on a counted night', $cut);
+    }
+
+    return implode(' · ', $parts);
+}
+
+function tooltipHeadToHead(array $c, $score): string {
+    // win_rate is already a 0-100 percentage (headToHeadRaw).
+    return sprintf('🤺 %.1f%% win rate · %d–%d across %d matchups in %d GPs',
+        $c['win_rate'] ?? 0,
+        $c['wins'] ?? 0, $c['losses'] ?? 0, $c['matchups'] ?? 0, $c['gps_played'] ?? 0);
 }
 
 // ── Breakdown helpers (registry-referenced) ──────────────────────────────
