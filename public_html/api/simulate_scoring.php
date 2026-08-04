@@ -46,27 +46,40 @@ if (empty($racers)) {
     exit;
 }
 
-// Build simulated rules array (mimics season_meta row structure)
-$rules = [
-    'scoring_system'       => $system,
-    'attendance_weight'    => 1.0,
-    'weekly_bonus_cap'     => 2,
-    'min_races_threshold'  => 3,
-    'drop_rate'            => 10,
-    'cups_required'        => 12,
-    'allow_retries'        => 1,
-    'best_n_count'         => $bestN,
-    'drop_worst_count'     => $dropWorst,
-    'perfect_multiplier'   => $perfectMult,
-    // MONSTER HUNT defaults
-    'mh_slay_xp'           => (int)($_GET['mh_slay_xp']           ?? 100),
-    'mh_survive_xp'        => (int)($_GET['mh_survive_xp']         ?? 20),
-    'mh_party_bonus_xp'    => (int)($_GET['mh_party_bonus_xp']     ?? 50),
-    'mh_monster_win_xp'    => (int)($_GET['mh_monster_win_xp']     ?? 80),
-    'mh_monster_partial_xp'=> (int)($_GET['mh_monster_partial_xp'] ?? 30),
-    'mh_monster_loss_xp'   => (int)($_GET['mh_monster_loss_xp']    ?? -40),
-    'mh_min_gps'           => (int)($_GET['mh_min_gps']            ?? 6),
-];
+// Start from the season's REAL saved configuration, then swap in the system
+// being tried and any knob the caller explicitly set.
+//
+// This used to be a hardcoded block that ignored season_meta entirely, so the
+// simulator scored with invented settings: attendance_weight 1.0, drop_rate 10,
+// min_races_threshold 3 regardless of what the season actually used, and no
+// pos_mode / bh_* / pm_* keys at all — meaning Positional Points was always
+// simulated in best_n mode even for an average- or sum-mode season. Simulating
+// a season under its own system therefore could not reproduce its standings.
+$rules = getSeasonRules($pdo, $season);
+if (empty($rules)) {
+    // No season_meta row (shouldn't happen — the season has results) — fall
+    // back to the engine's own defaults rather than inventing values here.
+    $rules = ['min_races_threshold' => 3];
+}
+$rules['scoring_system'] = $system;
+
+// Slider overrides. Each applies only to the system whose UI actually exposes
+// it (see updateSimulator() in admin/seasons.php, which shows one field per
+// system) — the page sends all three on every request, and best_n_count is
+// shared by best_n_gps AND positional_points, so applying it blindly let the
+// hidden best-N box silently override a Positional season's real setting.
+if ($system === 'best_n_gps'   && isset($_GET['best_n']))       $rules['best_n_count']       = $bestN;
+if ($system === 'drop_worst'   && isset($_GET['drop_worst']))   $rules['drop_worst_count']   = $dropWorst;
+if ($system === 'perfect_hunt' && isset($_GET['perfect_mult'])) $rules['perfect_multiplier'] = $perfectMult;
+
+// MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's
+// own values (or the scoring function's defaults) stand.
+foreach ([
+    'mh_slay_xp', 'mh_survive_xp', 'mh_party_bonus_xp', 'mh_monster_win_xp',
+    'mh_monster_partial_xp', 'mh_monster_loss_xp', 'mh_min_gps',
+] as $mhKey) {
+    if (isset($_GET[$mhKey])) $rules[$mhKey] = (int)$_GET[$mhKey];
+}
 
 // Route to the correct scoring function via the shared registry.
 function simulateScore($pdo, $racerId, $seasonId, $system, $rules) {
@@ -91,6 +104,9 @@ foreach ($racers as $racer) {
     $stats = $statsStmt->fetch(PDO::FETCH_ASSOC);
 
     $entry = [
+        // 'id' is what the registry's sort functions key off to look up a
+        // racer's rows (count-back, unique-60s, head-to-head wins).
+        'id'    => (int)$racer['id'],
         'name'  => $racer['name'],
         'score' => round((float)$score, 2),
         'gps'   => $gpCount,
@@ -107,12 +123,25 @@ foreach ($racers as $racer) {
     $standings[] = $entry;
 }
 
-// Sort by score descending
-usort($standings, fn($a, $b) => $b['score'] <=> $a['score']);
+// Order exactly like the real standings do: through the registry, so each
+// system applies its own tie-breaks (Positional count-back, Top 12 unique-60s,
+// Head-to-Head wins) and everything else falls back to score desc + name asc.
+//
+// This was a bare score-only usort. PHP 8 sorts are stable, so tied racers kept
+// the input order — and the racers above are fetched ORDER BY name, which meant
+// ties silently resolved alphabetically. The simulator ranked Andreas over
+// Hanna on s04 (both 207) purely because "A" < "H", while the live standings
+// put Hanna first on count-back (17 second places to his 6).
+sortStandingsByScoring($standings, $system, $pdo, $season);
 
-// Add rank
+// Add rank, and drop the scratch keys the registry sorters hang off each row
+// (_posCounts / _posGps / _posCounted / tiebreaker) so they don't ride along
+// in the JSON — _posCounts alone is a 12-entry array per racer.
 foreach ($standings as $i => &$s) {
     $s['rank'] = $i + 1;
+    foreach (array_keys($s) as $k) {
+        if ($k === 'tiebreaker' || (is_string($k) && str_starts_with($k, '_'))) unset($s[$k]);
+    }
 }
 unset($s);
 
