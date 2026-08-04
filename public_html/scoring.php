@@ -206,19 +206,28 @@ foreach ($racers as $racer) {
             ];
         }
 
-        // Sort by XP desc to identify which hunts make the best-X cut.
-        $sortedByXp = $hunts;
-        usort($sortedByXp, fn($a, $b) => $b['xp'] <=> $a['xp']);
-        $cutoffXp = isset($sortedByXp[$best_x - 1]) ? $sortedByXp[$best_x - 1]['xp'] : PHP_INT_MIN;
+        // Pick the best-X hunts by ranking them and taking the top slice.
+        //
+        // This used to derive a cutoff XP and then accept hunts in
+        // CHRONOLOGICAL order while any scored >= cutoff. With ties at the
+        // cutoff, early tied nights ate the slots and a later, bigger haul got
+        // excluded — flagging the wrong hunts as counted and under-reporting
+        // the sum (Hanna, s03: 590 shown vs her real 705 score). Ordering is
+        // explicit (xp desc, then date, then gpid) so the cut never wobbles.
+        $order = array_keys($hunts);
+        usort($order, function ($a, $b) use ($hunts) {
+            if ($hunts[$a]['xp'] !== $hunts[$b]['xp']) return $hunts[$b]['xp'] <=> $hunts[$a]['xp'];
+            if ($hunts[$a]['date'] !== $hunts[$b]['date']) return strcmp($hunts[$a]['date'], $hunts[$b]['date']);
+            return strcmp($hunts[$a]['gpid'], $hunts[$b]['gpid']);
+        });
+        $countedKeys  = array_flip(array_slice($order, 0, $best_x));
         $countedCount = 0;
         $countedTotal = 0;
-        foreach ($hunts as &$h) {
-            if ($countedCount < $best_x && $h['xp'] >= $cutoffXp) {
-                $h['counted']   = true;
+        foreach ($hunts as $k => &$h) {
+            $h['counted'] = isset($countedKeys[$k]);
+            if ($h['counted']) {
                 $countedCount++;
-                $countedTotal  += $h['xp'];
-            } else {
-                $h['counted'] = false;
+                $countedTotal += $h['xp'];
             }
         }
         unset($h);
@@ -229,8 +238,13 @@ foreach ($racers as $racer) {
         $entry['hunts'] = $hunts;
         $entry['best_x'] = $best_x;
         $entry['counted_total'] = $countedTotal;
-        $entry['avg_xp'] = $countedCount > 0 ? round($countedTotal / $countedCount, 1) : 0;
         $mh = getMonsterHuntDisplayData($pdo, $rid, $seasonId, $rules);
+        // Average XP per GP PLAYED — the canonical figure (gp_logic's
+        // getMonsterHuntDisplayData), and the one the title is derived from.
+        // This used to divide by the counted hunts only, producing a number
+        // that matched nothing: 109.6 sat next to "Apex Predator", a title
+        // whose band is 85-105, so the page contradicted itself.
+        $entry['avg_xp']   = $mh['avg_xp'] ?? 0;
         $entry['mh_title'] = $mh['title'] ?? null;
         $entry['mh_level'] = $mh['level'] ?? null;
     }
@@ -358,7 +372,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
             <?php elseif ($scoringSystem === 'monster_hunt'): ?>
                 <h2>👹 How MONSTER HUNT scoring works</h2>
                 <div class="scr-formula-box">
-                    <code>Score = Sum of your <?= (int)($rules['mh_best_x'] ?? 20) ?> best XP hauls · Display rank = avg XP per GP</code>
+                    <code>Score = Sum of your <?= (int)($rules['mh_best_x'] ?? 20) ?> best XP hauls · Title = avg XP per GP</code>
                 </div>
                 <p class="diff-description" style="margin-top:8px;">
                     Each GP, the <strong>highest-Elo racer</strong> becomes the <strong>Monster</strong> (ties broken alphabetically). Everyone else is an <strong>Adventurer</strong>. Earn XP based on how the hunt unfolds:
@@ -373,7 +387,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     <div class="scr-rule"><strong>Minimum GPs to rank:</strong> <?= (int)($rules['mh_min_gps'] ?? 6) ?></div>
                 </div>
                 <p class="diff-description" style="margin-top:8px; font-size:0.8rem;">
-                    💡 Standings rank by <strong>average XP per kept GP</strong> — consistency wins over grinding bad nights.
+                    💡 Standings rank by the <strong>best-<?= (int)($rules['mh_best_x'] ?? 20) ?> XP sum</strong>, so turning up gives you more chances to bank a big haul — bad nights simply drop out. Your <strong>title</strong> is the separate skill track: average XP across every GP you played, where consistency is what counts.
                 </p>
 
             <?php else: ?>
@@ -403,10 +417,10 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
             <!-- MONSTER HUNT view -->
             <div class="scr-summary">
                 <?= count($rb['hunts']) ?> hunt<?= count($rb['hunts']) !== 1 ? 's' : '' ?> ·
-                Best <?= $rb['best_x'] ?> sum: <strong><?= $rb['counted_total'] ?></strong> XP ·
-                Avg XP/hunt: <strong><?= $rb['avg_xp'] ?></strong>
+                Best <?= $rb['best_x'] ?> sum: <strong><?= $rb['counted_total'] ?></strong> XP <span class="scr-mh-note">(the score)</span> ·
+                Avg XP/GP: <strong><?= $rb['avg_xp'] ?></strong>
                 <?php if ($rb['mh_title']): ?>
-                    · Title: <strong><?= htmlspecialchars($rb['mh_title']) ?></strong> (lv. <?= $rb['mh_level'] ?>)
+                    · Title: <strong><?= htmlspecialchars($rb['mh_title']) ?></strong> (lv. <?= $rb['mh_level'] ?>) <span class="scr-mh-note">— from Avg XP/GP</span>
                 <?php endif; ?>
             </div>
             <div class="scr-mh-grid">

@@ -10,7 +10,19 @@ require_once __DIR__ . '/../private/includes/badges.php';
 $pageTitle = "Leaderboard - Kartfolio";
 include __DIR__ . '/../private/templates/header.php';
 
+// Honour ?season= — this is what the /season/<id> rewrite in .htaccess maps
+// to. The param was previously ignored, so that route silently served the
+// current season no matter what you asked for. Only a season_id that actually
+// exists is accepted; anything else falls back to the current season.
 $seasonId = getCurrentSeasonNumber();
+$requestedSeason = trim((string)($_GET['season'] ?? ''));
+if ($requestedSeason !== '') {
+    $seasonCheck = $pdo->prepare("SELECT season_id FROM season_meta WHERE season_id = ?");
+    $seasonCheck->execute([$requestedSeason]);
+    $foundSeason = $seasonCheck->fetchColumn();
+    if ($foundSeason !== false) $seasonId = $foundSeason;
+}
+$isCurrentSeason = ($seasonId === getCurrentSeasonNumber());
 
 // 1. Fetch Rules and Scoring System Info
 $rules = getSeasonRules($pdo, $seasonId);
@@ -221,6 +233,12 @@ $liveFormatLabels = [
                 <?php if ($rules['academic_year']): ?>
                     • <?= $rules['academic_year'] ?>
                 <?php endif; ?>
+            </div>
+            <?php endif; ?>
+            <?php if (!$isCurrentSeason): ?>
+            <div class="season-past-note">
+                📼 You're viewing a past season ·
+                <a href="/">back to <?= strtoupper(getCurrentSeasonNumber()) ?></a>
             </div>
             <?php endif; ?>
         </div>

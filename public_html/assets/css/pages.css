@@ -5662,6 +5662,14 @@ th.rotate > div {
     margin-bottom: 12px;
 }
 
+/* Quiet inline aside inside a summary — clarifies which figure is which. */
+.scr-mh-note {
+    font-size: 11px;
+    color: var(--gray-500, #8a8170);
+    opacity: 0.85;
+    font-style: normal;
+}
+
 .scr-gp-grid {
     display: flex;
     flex-wrap: wrap;

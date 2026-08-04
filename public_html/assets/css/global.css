@@ -1286,6 +1286,24 @@ a:not(.btn):not(.racer-card):hover {
     font-weight: 600;
 }
 
+/* Shown when ?season= / /season/<id> puts you on a season that isn't current. */
+.season-past-note {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ink, #1a1a1a);
+    background: var(--star, #ff8a1e);
+    border: 2px solid var(--ink, #1a1a1a);
+    border-radius: 999px;
+}
+
+.season-past-note a {
+    color: var(--ink, #1a1a1a);
+    text-decoration: underline;
+}
+
 .season-select {
     padding: 10px 20px;
     border-radius: 30px;

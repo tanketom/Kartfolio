@@ -146,8 +146,8 @@ function getScoringSystemRegistry(): array {
         'monster_hunt' => [
             'name'                   => 'MONSTER HUNT',
             'icon'                   => '👹',
-            'description'            => 'XP per GP — the highest-Elo racer becomes the Monster; adventurers slay them for XP',
-            'long_description'       => 'The Monster is the highest-Elo racer at race time (ties broken alphabetically; admins can override by flagging is_monster on result entry). CR multiplier (×1.0–×2.0) scales slay XP by the Elo gap. Ranking = average XP per GP.',
+            'description'            => 'Hunt XP — the highest-Elo racer becomes the Monster; adventurers slay them for XP',
+            'long_description'       => 'The Monster is the highest-Elo racer at race time (ties broken alphabetically; admins can override by flagging is_monster on result entry). CR multiplier (×1.0–×2.0) scales slay XP by the Elo gap. Ranking = the sum of your best-N XP hauls, so extra nights can only help; your title is a separate skill track based on average XP across every GP played.',
             'calculate'              => 'calculateMonsterHuntScore',
             'breakdown'              => 'breakdownMonsterHunt',
             'tooltip'              => 'tooltipMonsterHunt',
