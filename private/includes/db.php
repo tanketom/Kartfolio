@@ -26,6 +26,26 @@ try {
     $pdo->exec('PRAGMA journal_mode = WAL;');
     $pdo->exec('PRAGMA synchronous = NORMAL;');
 
+    // ── Fresh install bootstrap ──────────────────────────────────────────
+    // Everything below this point is an UPGRADE step: ALTER TABLEs and index
+    // creations that assume the core tables already exist. On a brand-new
+    // database they don't, and the first un-caught statement
+    // (CREATE INDEX … ON results) aborted the whole connection with
+    // "no such table: main.results" — a fresh clone could not serve a page.
+    //
+    // schema.sql is the canonical base schema and is fully idempotent
+    // (CREATE TABLE IF NOT EXISTS throughout, INSERT OR IGNORE seeds), so
+    // laying it down when the core is missing is safe and self-healing.
+    $coreExists = (int)$pdo->query(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='results'"
+    )->fetchColumn();
+    if ($coreExists === 0) {
+        $schemaFile = __DIR__ . '/../data/schema.sql';
+        if (is_readable($schemaFile)) {
+            $pdo->exec(file_get_contents($schemaFile));
+        }
+    }
+
     // Inline migrations (idempotent — fail silently if the column exists).
     // Mikkoliiga: per-racer opt-in flag for the casual sub-league.
     try { $pdo->exec("ALTER TABLE racers ADD COLUMN in_mikkoliiga BOOLEAN DEFAULT 0"); }

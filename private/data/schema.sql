@@ -415,7 +415,7 @@ CREATE INDEX IF NOT EXISTS idx_lexicon_category ON lexicon_terms(category, term)
 
 -- Default Settings
 INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, category, description) VALUES
-    ('league_name', 'Kartfolio League', 'text', 'league_identity', 'Main name of the league'),
+    ('league_name', 'Kartfolio', 'text', 'league_identity', 'Main name of the league'),
     ('league_tagline', 'Premier Mario Kart Racing League', 'text', 'league_identity', 'League tagline/slogan'),
     ('primary_color', '#e60012', 'color', 'league_identity', 'Primary brand color'),
     ('secondary_color', '#0066cc', 'color', 'league_identity', 'Secondary accent color'),

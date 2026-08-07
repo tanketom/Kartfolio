@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- Insert default settings
 INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, category, description) VALUES
-    ('league_name', 'Kartfolio League', 'text', 'league_identity', 'Main name of the league'),
+    ('league_name', 'Kartfolio', 'text', 'league_identity', 'Main name of the league'),
     ('governing_body_full', 'Organisation Mondial du Karting', 'text', 'league_identity', 'Full name of governing body'),
     ('governing_body_short', 'OMK', 'text', 'league_identity', 'Short name/acronym of governing body'),
     ('league_tagline', 'Premier Mario Kart Racing League', 'text', 'league_identity', 'League tagline/slogan'),

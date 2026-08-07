@@ -12,11 +12,24 @@ require_once __DIR__ . '/../includes/settings.php';
 // Get settings
 global $pdo;
 initializeSettings($pdo);
-$leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
+$leagueName = getSetting($pdo, 'league_name', 'Kartfolio');
 $primaryColor = getSetting($pdo, 'primary_color', '#E60012');
 $currentSeasonTag = strtoupper(getCurrentSeasonNumber());
 // "Tournament mode" — when on, the Tournaments hub is open to all players.
 $tournamentsOn = (bool) getSetting($pdo, 'enable_tournaments', true);
+
+// A brand-new install has no racers and no results. Surface the first-run
+// setup link (admins only) so /admin/setup is reachable without knowing the
+// URL — it disappears the moment the league has any data.
+// Must match the "empty" test in admin/setup.php: season_meta is deliberately
+// NOT counted, because schema.sql seeds a placeholder season on every fresh
+// install, which would make the league look already-configured.
+$needsSetup = false;
+if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
+    $needsSetup = (int)$pdo->query(
+        "SELECT (SELECT COUNT(*) FROM racers) + (SELECT COUNT(*) FROM results)"
+    )->fetchColumn() === 0;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,7 +47,7 @@ $tournamentsOn = (bool) getSetting($pdo, 'enable_tournaments', true);
     <link rel="stylesheet" href="/assets/css/global.css">
     <?php
     // Load admin CSS files if we're on an admin page
-    $isAdminPage = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false;
+    $isAdminPage = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false;
     if ($isAdminPage):
     ?>
     <link rel="stylesheet" href="/assets/css/forms.css">
@@ -94,6 +107,9 @@ $tournamentsOn = (bool) getSetting($pdo, 'enable_tournaments', true);
                     <div class="dropdown">
                         <span class="dropbtn" style="color: #ffcc00 !important;">Admin ▾</span>
                         <div class="dropdown-content">
+                            <?php if ($needsSetup): ?>
+                                <a href="/admin/setup">🚀 First-time setup</a>
+                            <?php endif; ?>
                             <a href="/admin/seasons">Seasons</a>
                             <a href="/admin/close-season">🏁 Close Season</a>
                             <a href="/admin/racers">Racers</a>

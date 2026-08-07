@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
+require_once __DIR__ . '/../../private/includes/roster.php';
 require_admin();
 
 $message = "";
@@ -24,8 +25,21 @@ if (isset($_GET['delete'])) {
     }
 }
 
+// 2a. Handle bulk roster paste (same parser the first-run setup page uses).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_roster'])) {
+    verify_csrf();
+    [$added, $skipped] = insertRosterRows($pdo, parseRosterLines((string)$_POST['bulk_roster']));
+    if ($added === 0 && $skipped === 0) {
+        $message = "Nothing to add — the box was empty.";
+        $status  = "error";
+    } else {
+        $message = "Added $added racer" . ($added === 1 ? '' : 's')
+                 . ($skipped > 0 ? " · skipped $skipped already on the roster" : '') . ".";
+    }
+}
+
 // 2. Handle Save/Update
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['bulk_roster'])) {
     verify_csrf();
     $id        = $_POST['racer_id'] ?? '';
     $name      = trim($_POST['name']);
@@ -119,6 +133,23 @@ include __DIR__ . '/../../private/templates/header.php';
                 <button type="button" onclick="resetForm()" id="cancel-btn" class="btn btn-secondary hidden">Cancel</button>
             </div>
         </form>
+
+        <details class="bulk-roster-block">
+            <summary>➕ Add several at once</summary>
+            <form method="POST" action="/admin/racers">
+                <?= csrf_field() ?>
+                <label class="form-label" for="bulk_roster">ONE PER LINE</label>
+                <textarea name="bulk_roster" id="bulk_roster" rows="6" class="setup-roster"
+                          placeholder="Hanna&#10;Tom, The Wall&#10;Andreas"></textarea>
+                <small class="setup-hint">
+                    Paste straight from a spreadsheet. Optional nickname after a comma.
+                    Names already on the roster are skipped.
+                </small>
+                <div class="mt-md">
+                    <button type="submit" class="btn btn-primary">Add to roster</button>
+                </div>
+            </form>
+        </details>
     </section>
 
     <div class="racer-roster-grid">
