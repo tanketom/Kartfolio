@@ -877,6 +877,17 @@ include __DIR__ . '/../../private/templates/header.php';
                             onclick="return confirm('Re-freeze Mikkoliiga roster for <?= htmlspecialchars(strtoupper($sid)) ?> using the CURRENT member flags? This overwrites any existing snapshot for this season.');">
                         🌟 Re-snapshot Mikkoliiga
                     </button>
+                <?php else: ?>
+                    <?php // 'upcoming' — a season created here starts in this state and used to
+                          // have NO status controls at all, so it could never be started or
+                          // closed from the UI. Both actions belong here. ?>
+                    <button type="submit" name="action" value="activate" class="btn btn-primary">
+                        ▶️ Start Season
+                    </button>
+                    <button type="submit" name="action" value="archive" class="btn btn-archive"
+                            onclick="return confirm('Close <?= htmlspecialchars(strtoupper($sid)) ?> and archive it now?');">
+                        📦 Finalize &amp; Archive
+                    </button>
                 <?php endif; ?>
 
                 <?php if($isEmpty): ?>

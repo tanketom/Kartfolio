@@ -56,15 +56,62 @@ $daysBack = $customTimeRange ?? 7;
 $targetLength = $customLength ?? 300;
 $cutoffDate = date('Y-m-d', strtotime("-{$daysBack} days"));
 
-$stmt = $pdo->prepare("SELECT res.*, r.name, r.nickname
-                       FROM results res
-                       JOIN racers r ON res.racer_id = r.id
-                       WHERE res.gpid LIKE ? AND res.race_date >= ?
-                       ORDER BY res.race_date DESC, res.gpid DESC");
-$stmt->execute([$currentSeason . "%", $cutoffDate]);
-$raceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Races to report on. A quiet week (or a season that hasn't started racing)
+// used to be a hard stop — the endpoint died with "No race data found" and the
+// newsroom went silent exactly when a filler piece is most useful. Instead we
+// widen the net in steps and tell the writer which step we landed on, so it
+// frames the piece honestly rather than calling months-old races "this week".
+//
+//   1. recent   — current season, last N days (the timely default)
+//   2. season   — current season, everything so far (quiet week)
+//   3. previous — most recent season that has races (new season, nothing run)
+//
+// $sourceSeason is the season being REPORTED ON. $currentSeason stays the live
+// season, because that's where the finished broadcast gets filed — a piece
+// written today belongs in today's news feed even when it looks backwards.
+$fetchRaces = function (string $season, ?string $since) use ($pdo) {
+    $sql = "SELECT res.*, r.name, r.nickname
+            FROM results res
+            JOIN racers r ON res.racer_id = r.id
+            WHERE res.gpid LIKE ?" . ($since !== null ? " AND res.race_date >= ?" : "") . "
+            ORDER BY res.race_date DESC, res.gpid DESC";
+    $st = $pdo->prepare($sql);
+    $st->execute($since !== null ? [$season . '%', $since] : [$season . '%']);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+};
 
-if (empty($raceData)) { die("Error: No race data found for Season $currentSeason in the last {$daysBack} days."); }
+$sourceSeason = $currentSeason;
+$newsScope    = 'recent';
+$raceData     = $fetchRaces($sourceSeason, $cutoffDate);
+
+if (empty($raceData)) {
+    $raceData  = $fetchRaces($sourceSeason, null);
+    $newsScope = 'season';
+}
+
+if (empty($raceData)) {
+    // Nothing raced in this season at all — fall back to the latest season
+    // that actually has results.
+    $prevStmt = $pdo->prepare("
+        SELECT SUBSTR(gpid, 1, INSTR(gpid, 'g') - 1) AS season_id, MAX(race_date) AS last_race
+        FROM results
+        WHERE gpid LIKE 's%' AND gpid NOT LIKE ?
+        GROUP BY season_id
+        ORDER BY last_race DESC, season_id DESC
+        LIMIT 1
+    ");
+    $prevStmt->execute([$currentSeason . '%']);
+    $prevSeason = $prevStmt->fetchColumn();
+    if ($prevSeason) {
+        $sourceSeason = $prevSeason;
+        $raceData     = $fetchRaces($sourceSeason, null);
+        $newsScope    = 'previous';
+    }
+}
+
+if (empty($raceData)) {
+    die("Error: no race results exist yet, so there's nothing to report on. Log a Grand Prix first.");
+}
 
 // 3. FETCH SEASON RULES/PARAMETERS
 $seasonRules = null;
@@ -74,7 +121,7 @@ try {
         FROM season_meta
         WHERE season_id = ?
     ");
-    $rulesStmt->execute([$currentSeason]);
+    $rulesStmt->execute([$sourceSeason]);
     $seasonRules = $rulesStmt->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Fail silently if season_meta doesn't exist
@@ -85,11 +132,28 @@ $cups = [];
 $racers = [];
 $gpidList = []; // New: Capture IDs for linking
 
-$dataContext = "SEASON: $currentSeason.\n";
+$dataContext = "SEASON: $sourceSeason.\n";
+
+// Tell the writer how fresh this material actually is. Without this it happily
+// narrates a months-old race as if it happened last night.
+if ($newsScope === 'season') {
+    $dataContext .= "*** TIMEFRAME — READ THIS ***\n"
+                 .  "There were NO races in the last {$daysBack} days. The results below are the whole of "
+                 .  "$sourceSeason so far, not a fresh batch. Write a state-of-the-season look-back: how the "
+                 .  "title race stands, form over the season, what's brewing. Do NOT describe any of this as "
+                 .  "having just happened, and do not invent recent racing.\n\n";
+} elseif ($newsScope === 'previous') {
+    $dataContext .= "*** TIMEFRAME — READ THIS ***\n"
+                 .  "The current season ($currentSeason) has not been raced yet — not a single GP. Everything "
+                 .  "below is from the PREVIOUS season, $sourceSeason. Write a retrospective that looks back at "
+                 .  "$sourceSeason and forward to $currentSeason: who finished strong, who has a point to prove, "
+                 .  "what to watch for. Be explicit that $currentSeason hasn't started. Do NOT present these "
+                 .  "results as recent, and do NOT invent races in $currentSeason.\n\n";
+}
 
 // Scoring-system overview — pulled live from the registry so the broadcast
 // always describes the ACTUAL system in play, not a hardcoded GPScore™ blurb.
-$scoringInfo = getScoringSystemInfo($pdo, $currentSeason);
+$scoringInfo = getScoringSystemInfo($pdo, $sourceSeason);
 $dataContext .= "\n*** SCORING SYSTEM IN PLAY — READ THIS FIRST ***\n";
 $dataContext .= "This season runs on: {$scoringInfo['name']} {$scoringInfo['icon']}\n";
 $dataContext .= "How it works: {$scoringInfo['long_description']}\n";
@@ -155,7 +219,7 @@ try {
         ORDER BY (COUNT(*) * (1.0 - ABS((CAST(SUM(CASE WHEN res1.rank < res2.rank THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*)) - 0.5) * 2.0)) DESC
         LIMIT 1
     ");
-    $feudStmt->execute([$currentSeason . "%"]);
+    $feudStmt->execute([$sourceSeason . "%"]);
     $topNemesis = $feudStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($topNemesis) {
@@ -180,7 +244,7 @@ try {
         WHERE res.gpid LIKE ?
         ORDER BY r.name, res.race_date DESC
     ");
-    $formStmt->execute([$currentSeason . "%"]);
+    $formStmt->execute([$sourceSeason . "%"]);
     $allResults = $formStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $racerScores = [];

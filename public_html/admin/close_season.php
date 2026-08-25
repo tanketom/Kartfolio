@@ -14,8 +14,18 @@ require_admin();
 $seasonId = $_GET['season'] ?? $_POST['season_id'] ?? null;
 
 if (!$seasonId) {
-    // Show picker if no season specified
-    $activeStmt = $pdo->query("SELECT season_id, season_name FROM season_meta WHERE status='active' ORDER BY season_id DESC");
+    // Show picker if no season specified.
+    // Any season that isn't already archived is closable — NOT just status='active'.
+    // Seasons created on /admin/seasons start as 'upcoming', so keying on 'active'
+    // alone hid real, raced seasons from this wizard and reported "all seasons are
+    // already archived" when they plainly weren't.
+    $activeStmt = $pdo->query("
+        SELECT sm.season_id, sm.season_name, sm.status,
+               (SELECT COUNT(DISTINCT gpid) FROM results WHERE gpid LIKE sm.season_id || '%') AS gp_count
+        FROM season_meta sm
+        WHERE sm.status != 'archived'
+        ORDER BY sm.season_id DESC
+    ");
     $activeSeasons = $activeStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $pageTitle = "Season Transition Wizard";
@@ -26,13 +36,18 @@ if (!$seasonId) {
         <nav class="breadcrumb"><a href="/admin/seasons">← Seasons</a><span class="breadcrumb-separator">/</span><span class="breadcrumb-current">Transition Wizard</span></nav>
         <h1 class="admin-page-title" style="margin-top:20px;">SEASON TRANSITION WIZARD</h1>
         <?php if (empty($activeSeasons)): ?>
-            <div class="alert-error">No active seasons found. All seasons are already archived.</div>
+            <div class="alert-error">Every season is already archived — there's nothing left to close.</div>
         <?php else: ?>
             <p style="color:var(--gray-500);margin-bottom:24px;">Select the season to close:</p>
             <div style="display:flex;flex-direction:column;gap:12px;max-width:400px;">
                 <?php foreach ($activeSeasons as $s): ?>
                     <a href="/admin/close-season?season=<?= htmlspecialchars($s['season_id']) ?>" class="btn btn-primary" style="text-align:center;padding:16px;font-size:1.1rem;">
                         🏁 Close <?= htmlspecialchars($s['season_name'] ?: strtoupper($s['season_id'])) ?>
+                        <small style="display:block;font-weight:600;opacity:0.85;font-size:0.75rem;margin-top:4px;">
+                            <?= htmlspecialchars(strtoupper($s['season_id'])) ?> ·
+                            <?= htmlspecialchars($s['status']) ?> ·
+                            <?= (int)$s['gp_count'] ?> GP<?= (int)$s['gp_count'] === 1 ? '' : 's' ?> raced
+                        </small>
                     </a>
                 <?php endforeach; ?>
             </div>
