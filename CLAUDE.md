@@ -8,7 +8,8 @@ file explains *how to work on the code* without re-learning lessons.
 
 Kartfolio — a self-hosted Mario Kart 8 Deluxe league. PHP 8 + SQLite +
 vanilla JS. Apache web root is `public_html/`. Code includes live in
-`private/includes/`. No frameworks, no build step. Deploy = `git pull`.
+`private/includes/`. No frameworks, no build step. Deploy = `bin/deploy.sh`
+(see §12).
 
 Three personas use this code:
 - **The user (Tom)** runs the live `cdnmk.bgo.city` league. Mostly admin
@@ -33,7 +34,15 @@ catch (PDOException $e) {}
 ```
 
 Do **not** ship standalone migration files or require manual runs. The
-deploy model is "pull and hit any page; the DB catches up."
+deploy model is "deploy and hit any page; the DB catches up."
+
+These migrations are **upgrade** steps — `ALTER TABLE`s and index creations
+that assume the core tables exist. On a brand-new database they don't, so
+`db.php` first applies `private/data/schema.sql` whenever the `results` table
+is missing, then runs the migrations. Before that guard a fresh clone could
+not serve a single page (`no such table: main.results`). Keep `schema.sql`
+fully idempotent (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`) — it is
+safe to re-run and is a no-op on an existing install.
 
 ### 2. Scoring systems live in a registry
 
@@ -245,6 +254,57 @@ most-used character, and previous-standings ranks.
   public season editor. Every new state-changing page lives under `/admin/`
   with `require_admin()` + `verify_csrf()`.
 
+### 12. Deploying, and what must survive a deploy
+
+The live site is a **git checkout** of this repo (`~/www/cdnmk` on the host;
+Apache serves `public_html/` beneath it). Deploy from your machine with
+
+```bash
+git push
+bin/deploy.sh          # add --dry-run to preview
+```
+
+`bin/deploy.sh` ssh's in and does `git fetch` + `git reset --hard origin/main`,
+prints which files changed, and loads the site so `db.php` applies migrations.
+Server details live in `bin/deploy.conf` (**gitignored**; `deploy.conf.example`
+is committed). Never put a hostname or path in the repo — it is shared code.
+
+**Hard reset, not pull.** A live install accumulates drift, and a merge that
+needs a human is the worst thing to hit mid-deploy. The reset is safe only
+because everything that must survive is gitignored and therefore untouched:
+
+- `private/data/league.db` — the league itself
+- `private/config/config.php` — Gemini key, admin password hash
+- `assets/img/*.png`, `assets/img/tracks/` — character and track art
+
+**So: any new file holding per-install state must be gitignored**, or the next
+deploy deletes or overwrites it. That is the one rule this section exists for.
+
+Other things learned the hard way:
+
+- **Never commit the database.** Players create data on the live server (wall
+  code, packs, quests, fantasy). A committed `league.db` would overwrite that
+  on every push. Data comes *back* to a laptop via Admin → Export Database
+  only.
+- **There is one codebase.** Codeberg is not a "public empty version" distinct
+  from the live site — the live site *is* that code. What makes it Tom's
+  league is `league.db` + `config.php`, both ignored. League identity lives in
+  the `settings` table (§ "Project at a glance"), never in source. Do not
+  create a "live" fork.
+- **Don't download the live site into the repo folder.** It flips file modes
+  (`755` → `640`, showing as spurious diffs), resurrects deleted files, and
+  invites committing dead code. Flow is one-way: laptop → Codeberg → server.
+- `deploy.sh` **refuses an unpushed commit** — the server pulls from the
+  forge, so deploying first would silently ship the *previous* commit, which
+  looks exactly like "it uploaded an old file".
+- The host's git is old: no `git init -b`; use `git init` then
+  `git branch -M main` after the first reset.
+- Converting a drag-and-drop install to a checkout: `git diff origin/main` on
+  an empty index reports *every* file as deleted and tells you nothing. Run
+  `git read-tree origin/main` first, then `git diff --stat` — that compares
+  what is actually on disk. Then `git clean -nd` (preview) before `-fd`;
+  gitignored files such as `admin_season.php` need an explicit `rm`.
+
 ## Naming / style rules
 
 ### MONSTER HUNT is always all-caps
@@ -435,6 +495,21 @@ Cross-reference if you find half-implemented work:
   the old copy claimed otherwise in three places
 - **`/season/<id>` route** — `index.php` now honours `?season=`; it had been
   ignoring the param, so the rewrite silently served the current season
+- **First-run setup** — `/admin/setup` (league identity, first season, pasted
+  roster) shown only while the league is empty; roster parser shared with an
+  "add several at once" box on `/admin/racers` (`private/includes/roster.php`).
+  Uncovered that a fresh clone couldn't boot — `db.php` now bootstraps
+  `schema.sql` (§1)
+- **News fallback** — `gemini_recap.php` no longer dies on a quiet week or an
+  unraced season: recent → whole season → previous season with results, and
+  tells the writer which timeframe it got so old races aren't narrated as
+  "last night"
+- **Seasons stuck in `upcoming`** — seasons created on `/admin/seasons` had no
+  status controls at all (only `active`/`archived` branches existed) and the
+  Transition Wizard listed only `active`; s04 (52 GPs) was unclosable. Both
+  now handle `upcoming`; the wizard shows status + GP count per season
+- **Deploy** (§12) — `bin/deploy.sh`; live server converted from a
+  drag-and-drop SFTP copy to a git checkout at `457b522`
 
 ## When in doubt
 
