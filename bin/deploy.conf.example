@@ -1,0 +1,15 @@
+# Copy to bin/deploy.conf (gitignored) and fill in.
+# bin/deploy.conf holds your server details and must never be committed.
+
+# SSH target for the live install.
+DEPLOY_SSH="brukernavn@ssh.domeneshop.no"
+
+# Absolute path to the repository ON THE SERVER (the folder containing
+# public_html/ and private/ — not public_html itself).
+DEPLOY_PATH="/home/brukernavn/cdnmk"
+
+# Branch to deploy. Default: main
+DEPLOY_BRANCH="main"
+
+# Optional: loaded after deploying so db.php applies pending migrations.
+DEPLOY_URL="https://cdnmk.bgo.city/"

@@ -48,3 +48,6 @@ TODO_*.md
 # Deprecated unauthenticated season editor — deleted in the security pass.
 # Ignored so a stray local copy can never be committed again.
 public_html/admin_season.php
+
+# Deploy target (server details — per-install, never committed)
+bin/deploy.conf

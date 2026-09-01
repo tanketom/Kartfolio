@@ -99,6 +99,31 @@ Paste the hash into `config.php`. Plaintext passwords also work for development.
 
 Schema changes ship as idempotent `ALTER TABLE` statements in `private/includes/db.php`, which run on every request. Pulling a new version doesn't require running migrations manually — just hit any page and the database catches up.
 
+### Deploying an update
+
+`bin/deploy.sh` updates a live install from your machine over SSH. One-time setup:
+
+```bash
+cp bin/deploy.conf.example bin/deploy.conf   # gitignored — your server details
+# edit DEPLOY_SSH and DEPLOY_PATH
+```
+
+Then, after pushing:
+
+```bash
+bin/deploy.sh              # fetch + hard-reset the server to origin/main
+bin/deploy.sh --dry-run    # show what would change, touch nothing
+```
+
+It refuses to run if the commit you're deploying hasn't been pushed yet (otherwise
+you'd silently ship the previous one), prints exactly which files changed on the
+server, and loads the site afterwards so the inline migrations apply.
+
+The server is **hard reset**, not merged, so files deleted from the repo are
+deleted from the server too — the thing that drag-and-drop SFTP can't do. That's
+safe because everything that must survive is gitignored and therefore untouched:
+the database, `private/config/config.php`, and the character and track images.
+
 ---
 
 ## Project Structure
