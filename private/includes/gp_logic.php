@@ -193,8 +193,8 @@ function getScoringSystemRegistry(): array {
         'head_to_head' => [
             'name'                   => 'Head-to-Head',
             'icon'                   => '🤺',
-            'description'            => 'Win rate across every head-to-head matchup',
-            'long_description'       => 'Relative scoring built for small fields: in each GP you beat everyone you finish above and lose to everyone above you. Your score is your win rate across every head-to-head matchup all season — completely margin-blind and attendance-fair. A minimum-GPs threshold filters small-sample flukes; ties break on total wins.',
+            'description'            => fn($rules) => 'Win rate across every matchup · CPUs count ×' . rtrim(rtrim(number_format(h2hWeightFromRules($rules), 2, '.', ''), '0'), '.'),
+            'long_description'       => 'Relative scoring built for small fields: in each GP you beat everyone you finish above and lose to everyone above you, and your score is your win rate across every matchup all season — margin-blind and attendance-fair. Other humans count as a full opponent; the CPU karts filling the 12-kart grid count a fraction (the NPC weight, default 0.25), so finishing 4th of 12 as the last human still beats finishing 12th. A minimum-GPs threshold filters small-sample flukes; ties break on total wins.',
             'calculate'              => 'calculateHeadToHeadScore',
             'breakdown'              => 'breakdownHeadToHead',
             'tooltip'              => 'tooltipHeadToHead',
@@ -1140,58 +1140,117 @@ function sortStandingsPositional(array &$standings, PDO $pdo, string $season_id)
 // HEAD-TO-HEAD  ("Duels")  — RELATIVE
 //
 // In each GP you "beat" everyone you finish above and "lose" to everyone above
-// you. Season score is your WIN RATE across every head-to-head matchup —
-// margin-blind and attendance-fair (a ratio). The min_races_threshold gate
-// filters small-sample flukes; ties break on absolute wins then name.
+// you. Season score is your WIN RATE across every matchup — margin-blind and
+// attendance-fair (a ratio). Humans count 1; the CPU karts filling the rest of
+// the 12-kart grid count h2h_npc_weight (0 = pure human duels, 1 = every kart
+// is an opponent). The min_races_threshold gate filters small-sample flukes;
+// ties break on absolute wins then name.
+//
+// HISTORY: this used to compute wins = (humans in GP) - (12-kart rank), i.e. it
+// subtracted a grid position from a head count. Any human who finished behind
+// an NPC went NEGATIVE (Ola, s05: 3 humans, 6th of 12 -> -3 wins, -60%). The
+// grid below compares against the other humans' actual ranks instead.
 // ============================================================================
+
+/** Karts on a Mario Kart grid — humans plus CPU fillers. Same as ELO_FIELD_SIZE. */
+const MK_FIELD_SIZE = 12;
+
+/** NPC weight for seasons that predate the knob. */
+const H2H_NPC_WEIGHT_DEFAULT = 0.25;
+
+/** Clamp a rules array's NPC weight to 0..1 (missing/blank -> default). */
+function h2hWeightFromRules(array $rules): float {
+    $w = $rules['h2h_npc_weight'] ?? null;
+    if ($w === null || $w === '') $w = H2H_NPC_WEIGHT_DEFAULT;
+    return max(0.0, min(1.0, (float)$w));
+}
+
+/**
+ * Per-GP grid for a season: gpid => [racer_id => 12-kart rank]. Built once per
+ * request from the shared season-results cache — no per-racer queries.
+ */
+function headToHeadGrid(PDO $pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+    $grid = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        foreach ($rows as $row) $grid[$row['gpid']][(int)$rid] = (int)$row['rank'];
+    }
+    return $cache[$season_id] = $grid;
+}
 
 /**
  * Aggregate head-to-head record for a racer in a season.
- * Returns ['wins','losses','matchups','gps','rate'(0-100, 1dp)].
+ * $npcWeight overrides the season's saved knob (the simulator passes its own).
+ * Returns wins/losses/matchups (weighted, 2dp), gps, rate (0-100, 1dp), plus
+ * the raw human/NPC splits so the breakdown can explain the number.
  */
-function headToHeadRaw(PDO $pdo, int $racer_id, string $season_id): array {
+function headToHeadRaw(PDO $pdo, int $racer_id, string $season_id, ?float $npcWeight = null): array {
+    $w = $npcWeight ?? h2hWeightFromRules(getSeasonRules($pdo, $season_id));
     static $cache = [];
-    $key = "$racer_id|$season_id";
+    $key = "$racer_id|$season_id|$w";
     if (isset($cache[$key])) return $cache[$key];
 
-    $stmt = $pdo->prepare("
-        SELECT (SELECT COUNT(*) FROM results WHERE gpid = res.gpid) AS participants,
-               res.rank
-        FROM results res
-        WHERE res.racer_id = ? AND res.gpid LIKE ? AND res.gpid LIKE 's%'
-    ");
-    $stmt->execute([$racer_id, $season_id . '%']);
+    $wins = 0.0; $losses = 0.0; $gps = 0;
+    $hw = 0; $hl = 0; $nw = 0; $nl = 0;
+    foreach (headToHeadGrid($pdo, $season_id) as $ranks) {
+        if (!isset($ranks[$racer_id])) continue;
+        $mine = $ranks[$racer_id];
 
-    $wins = 0; $losses = 0; $gps = 0;
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $n = (int)$row['participants'];
-        if ($n < 2) continue; // a solo GP has no duels
-        $rank    = (int)$row['rank'];
-        $wins   += ($n - $rank);   // everyone you finished above
-        $losses += ($rank - 1);    // everyone above you
+        // Humans beaten / humans who beat me, from their real grid positions.
+        $hb = 0; $ha = 0;
+        foreach ($ranks as $rid => $rk) {
+            if ($rid === $racer_id) continue;
+            if ($rk > $mine) $hb++; elseif ($rk < $mine) $ha++;
+        }
+        // Everyone else on the grid is a CPU kart.
+        $nb = max(0, (MK_FIELD_SIZE - $mine) - $hb);
+        $na = max(0, ($mine - 1) - $ha);
+
+        $gpWins = $hb + $w * $nb;
+        $gpLoss = $ha + $w * $na;
+        if ($gpWins + $gpLoss <= 0) continue; // solo GP at weight 0: no duels
+
+        $wins += $gpWins; $losses += $gpLoss;
+        $hw += $hb; $hl += $ha; $nw += $nb; $nl += $na;
         $gps++;
     }
     $matchups = $wins + $losses;
     $rate = $matchups > 0 ? round($wins / $matchups * 100, 1) : 0.0;
-    return $cache[$key] = compact('wins', 'losses', 'matchups', 'gps') + ['rate' => $rate];
-}
-
-function calculateHeadToHeadScore($pdo, $racer_id, $season_id, $rules) {
-    return headToHeadRaw($pdo, (int)$racer_id, $season_id)['rate'];
-}
-
-function breakdownHeadToHead($pdo, $racer_id, $season_id, $rules) {
-    $raw = headToHeadRaw($pdo, (int)$racer_id, $season_id);
-    return [
-        'wins'       => $raw['wins'],
-        'losses'     => $raw['losses'],
-        'matchups'   => $raw['matchups'],
-        'gps_played' => $raw['gps'],
-        'win_rate'   => $raw['rate'],
+    return $cache[$key] = [
+        'wins' => round($wins, 2), 'losses' => round($losses, 2), 'matchups' => round($matchups, 2),
+        'gps' => $gps, 'rate' => $rate,
+        'human_wins' => $hw, 'human_losses' => $hl, 'npc_wins' => $nw, 'npc_losses' => $nl,
+        'npc_weight' => $w,
     ];
 }
 
-/** Custom sort for head_to_head — win rate desc, then absolute wins, then name. */
+function calculateHeadToHeadScore($pdo, $racer_id, $season_id, $rules) {
+    // Weight comes from the rules handed in, so the simulator's override applies.
+    return headToHeadRaw($pdo, (int)$racer_id, $season_id, h2hWeightFromRules((array)$rules))['rate'];
+}
+
+function breakdownHeadToHead($pdo, $racer_id, $season_id, $rules) {
+    $raw = headToHeadRaw($pdo, (int)$racer_id, $season_id, h2hWeightFromRules((array)$rules));
+    return [
+        'wins'         => $raw['wins'],
+        'losses'       => $raw['losses'],
+        'matchups'     => $raw['matchups'],
+        'gps_played'   => $raw['gps'],
+        'win_rate'     => $raw['rate'],
+        'human_wins'   => $raw['human_wins'],
+        'human_losses' => $raw['human_losses'],
+        'npc_wins'     => $raw['npc_wins'],
+        'npc_losses'   => $raw['npc_losses'],
+        'npc_weight'   => $raw['npc_weight'],
+    ];
+}
+
+/**
+ * Custom sort for head_to_head — win rate desc, then absolute wins, then name.
+ * The registry sort signature carries no rules, so the tiebreak uses the
+ * season's saved weight; it only matters on an exact rate tie.
+ */
 function sortStandingsHeadToHead(array &$standings, PDO $pdo, string $season_id): void {
     foreach ($standings as &$s) {
         $s['tiebreaker'] = headToHeadRaw($pdo, (int)$s['id'], $season_id)['wins'];
@@ -1544,9 +1603,14 @@ function tooltipPositional(array $c, $score): string {
 
 function tooltipHeadToHead(array $c, $score): string {
     // win_rate is already a 0-100 percentage (headToHeadRaw).
-    return sprintf('🤺 %.1f%% win rate · %d–%d across %d matchups in %d GPs',
-        $c['win_rate'] ?? 0,
-        $c['wins'] ?? 0, $c['losses'] ?? 0, $c['matchups'] ?? 0, $c['gps_played'] ?? 0);
+    $w = (float)($c['npc_weight'] ?? H2H_NPC_WEIGHT_DEFAULT);
+    $s = sprintf('🤺 %.1f%% win rate · %d GP%s · vs humans %d–%d',
+        $c['win_rate'] ?? 0, $c['gps_played'] ?? 0, ($c['gps_played'] ?? 0) === 1 ? '' : 's',
+        $c['human_wins'] ?? 0, $c['human_losses'] ?? 0);
+    if ($w > 0) {
+        $s .= sprintf(' · vs CPUs %d–%d at ×%s', $c['npc_wins'] ?? 0, $c['npc_losses'] ?? 0, scoreNum($w));
+    }
+    return $s;
 }
 
 // ── Breakdown helpers (registry-referenced) ──────────────────────────────

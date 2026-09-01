@@ -176,6 +176,10 @@ try {
     try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN pos_mode TEXT DEFAULT 'best_n'"); }
     catch (PDOException $e) {}
 
+    // Head-to-Head: weight of a CPU kart as an opponent (0 = humans only, 1 = full grid).
+    try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN h2h_npc_weight FLOAT DEFAULT 0.25"); }
+    catch (PDOException $e) {}
+
     // Sticker Packs — Panini-style collection. Packs are granted (1 per GP
     // raced from the stickers_epoch setting onward + a one-time Founders
     // pack) with DETERMINISTIC contents via `seed`; opening only reveals.

@@ -107,7 +107,10 @@ CREATE TABLE IF NOT EXISTS season_meta (
     team_best_n INTEGER DEFAULT 2,
 
     -- Positional Points aggregation: 'best_n' | 'average' | 'sum'
-    pos_mode TEXT DEFAULT 'best_n'
+    pos_mode TEXT DEFAULT 'best_n',
+
+    -- Head-to-Head: CPU kart weight as an opponent (0 = humans only, 1 = full 12-kart grid)
+    h2h_npc_weight FLOAT DEFAULT 0.25
 );
 
 -- AI Broadcast Archive

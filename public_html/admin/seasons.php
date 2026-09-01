@@ -209,6 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['pos_thresh'] ?? 3));
             } elseif ($scoringSystem === 'head_to_head') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['h2h_thresh'] ?? 3));
+                $updateFields['h2h_npc_weight']      = max(0.0, min(1.0, (float)($_POST['h2h_npc_weight'] ?? 0.25)));
             }
 
             // Build SQL
@@ -491,6 +492,12 @@ include __DIR__ . '/../../private/templates/header.php';
                                 <option value="medium">Medium</option>
                                 <option value="flat">Flat</option>
                             </select>
+                        </div>
+
+                        <?php // Head-to-Head ?>
+                        <div class="form-field" id="sim-param-h2h-w" style="display:none;">
+                            <label>CPU Kart Weight</label>
+                            <input type="number" id="sim-h2h-npc-weight" value="0.25" min="0" max="1" step="0.05" onchange="updateSimulator()">
                         </div>
                     </div>
                 </div>
@@ -851,6 +858,11 @@ include __DIR__ . '/../../private/templates/header.php';
                                 <input type="number" name="h2h_thresh" value="<?= $meta['min_races_threshold'] ?? 3 ?>" min="0" max="50">
                                 <small>Filters one-GP flukes from the win-rate board</small>
                             </div>
+                            <div class="form-field">
+                                <label>CPU kart weight</label>
+                                <input type="number" name="h2h_npc_weight" value="<?= htmlspecialchars((string)($meta['h2h_npc_weight'] ?? 0.25)) ?>" min="0" max="1" step="0.05">
+                                <small>How much beating (or losing to) a CPU kart counts vs a human. 0 = pure duels, 1 = every kart is an opponent</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1184,6 +1196,7 @@ const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
     'bh_carrying_cost'  => (int)($m['bh_carrying_cost'] ?? 0),
     'pm_ante'           => (int)($m['pm_ante'] ?? 100),
     'pm_payout_preset'  => $m['pm_payout_preset']  ?? 'steep',
+    'h2h_npc_weight'    => (float)($m['h2h_npc_weight'] ?? 0.25),
 ], $metaData), JSON_UNESCAPED_SLASHES) ?>;
 
 // Reseed the knob fields from the selected season, then re-run. Called when the
@@ -1203,6 +1216,7 @@ function onSimSelectionChange() {
         set('sim-bh-carrying-cost', r.bh_carrying_cost);
         set('sim-pm-ante', r.pm_ante);
         set('sim-pm-payout-preset', r.pm_payout_preset);
+        set('sim-h2h-npc-weight', r.h2h_npc_weight);
     }
     loadSimData();
 }
@@ -1231,6 +1245,7 @@ function updateSimulator() {
         'sim-param-bh-cost':  system === 'bounty_hunter',
         'sim-param-pm-ante':  system === 'pari_mutuel',
         'sim-param-pm-preset': system === 'pari_mutuel',
+        'sim-param-h2h-w':    system === 'head_to_head',
     };
     for (const [id, visible] of Object.entries(show)) {
         document.getElementById(id).style.display = visible ? '' : 'none';
@@ -1250,6 +1265,7 @@ function updateSimulator() {
     if (system === 'positional_points') url += `&pos_mode=${val('sim-pos-mode')}&pos_best_n=${val('sim-pos-best-n')}`;
     if (system === 'bounty_hunter')     url += `&bh_multiplier=${val('sim-bh-multiplier')}&bh_carrying_cost=${val('sim-bh-carrying-cost')}`;
     if (system === 'pari_mutuel')       url += `&pm_ante=${val('sim-pm-ante')}&pm_payout_preset=${val('sim-pm-payout-preset')}`;
+    if (system === 'head_to_head')      url += `&h2h_npc_weight=${val('sim-h2h-npc-weight')}`;
 
     document.getElementById('sim-standings-table').innerHTML = '<p class="sim-status">Computing...</p>';
     document.getElementById('sim-results').style.display = 'block';

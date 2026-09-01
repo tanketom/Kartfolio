@@ -94,6 +94,10 @@ if ($system === 'pari_mutuel') {
     }
 }
 
+if ($system === 'head_to_head' && isset($_GET['h2h_npc_weight'])) {
+    $rules['h2h_npc_weight'] = max(0.0, min(1.0, (float)$_GET['h2h_npc_weight']));
+}
+
 // MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's
 // own values (or the scoring function's defaults) stand.
 foreach ([

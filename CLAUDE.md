@@ -510,6 +510,13 @@ Cross-reference if you find half-implemented work:
   now handle `upcoming`; the wizard shows status + GP count per season
 - **Deploy** (§12) — `bin/deploy.sh`; live server converted from a
   drag-and-drop SFTP copy to a git checkout at `457b522`
+- **Head-to-Head negatives** — `headToHeadRaw()` computed `wins = humans − 12-kart
+  rank`, so any human behind an NPC went negative (Ola s05: −60%). Now compares
+  against the other humans' real grid positions, with CPU karts weighted by the
+  new per-season knob `h2h_npc_weight` (0 = pure duels, 1 = full grid, default
+  0.25) — the "participation" gradation for the last human. `MK_FIELD_SIZE`,
+  `headToHeadGrid()` (season cache, zero per-racer queries). Only s05 ever used
+  the system, so nothing archived moved
 
 ## When in doubt
 
