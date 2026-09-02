@@ -107,6 +107,7 @@ if (isset($_GET['data'])) {
 
             // Calculate score based on scoring system using data up to this GP
             $score = 0;
+            $provisional = false;
 
             switch ($scoringSystem) {
                 case 'positional_points':
@@ -128,8 +129,11 @@ if (isset($_GET['data'])) {
                 default:
                     // Any other system lands here as an APPROXIMATION — the
                     // payload carries 'approximate' so the page can say so.
-                    $threshold = $rules['min_races_threshold'] ?? 3;
-                    if ($threshold > 0 && $totalRaces < $threshold) { $score = 0; break; }
+                    // Below the qualifying threshold the racer is PROVISIONAL:
+                    // shown greyed with their running average instead of being
+                    // hidden (score 0) and then popping in at full value.
+                    $threshold   = (int)($rules['min_races_threshold'] ?? 3);
+                    $provisional = ($threshold > 0 && $totalRaces < $threshold);
                     $score = aaFromRows($racerRowsSoFar, $rules)['score'];
                     break;
             }
@@ -139,12 +143,15 @@ if (isset($_GET['data'])) {
                 'name'  => $r['name'],
                 'score' => $score,
                 'char'  => $racerChars[$rid] ?? 'Mii',
-                'gps'   => $totalRaces
+                'gps'         => $totalRaces,
+                'provisional' => $provisional,
             ];
         }
 
         // Sort by score descending
-        usort($scores, fn($a, $b) => $b['score'] <=> $a['score']);
+        // Qualified racers first (score desc), then provisional ones; ties by
+        // name so two level racers stop swapping between frames.
+        usort($scores, fn($a, $b) => ((int)$a['provisional'] <=> (int)$b['provisional']) ?: ($b['score'] <=> $a['score']) ?: strcmp($a['name'], $b['name']));
 
         $frames[] = [
             'gpid'     => $gp['gpid'],
@@ -165,6 +172,8 @@ if (isset($_GET['data'])) {
         'systemName'   => getScoringSystemDef($scoringSystem)['name'] ?? $scoringSystem,
         'approximate'  => !in_array($scoringSystem, ['average_attendance', 'preseason', 'top_12_unique', 'positional_points', 'median', 'form'], true),
         'totalGPs'     => count($allGPs),
+        'threshold'    => (int)($rules['min_races_threshold'] ?? 3),
+        'rosterSize'   => count($racers),
         'frames'       => $frames
     ], JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
@@ -281,6 +290,17 @@ include __DIR__ . '/../private/templates/header.php';
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
+    // Fixed z-order: bars under portraits under text. d3 used to append
+    // every entering <rect> to the SVG root AFTER the existing <text> nodes,
+    // so each new racer painted over other racers' names and scores.
+    const layers = {
+        bars:      svg.append('g').attr('class', 'anim-layer-bars'),
+        portraits: svg.append('g').attr('class', 'anim-layer-portraits'),
+        names:     svg.append('g').attr('class', 'anim-layer-names'),
+        scores:    svg.append('g').attr('class', 'anim-layer-scores'),
+        gps:       svg.append('g').attr('class', 'anim-layer-gps'),
+    };
+
     // Scales
     const x = d3.scaleLinear().range([0, width]);
     const y = d3.scaleBand().range([0, height - margin.top - margin.bottom]).padding(0.12);
@@ -301,6 +321,10 @@ include __DIR__ . '/../private/templates/header.php';
             // Assign colors
             const allRacers = new Set();
             data.frames.forEach(f => f.scores.forEach(s => allRacers.add(s.name)));
+            // Size the canvas to the roster once, so no frame needs to grow it.
+            maxBars = Math.min(30, Math.max(12, data.rosterSize || allRacers.size));
+            calcDimensions();
+            d3.select('#anim-chart svg').attr('height', height);
             let ci = 0;
             allRacers.forEach(name => {
                 racerColors[name] = colorPalette[ci % colorPalette.length];
@@ -373,12 +397,14 @@ include __DIR__ . '/../private/templates/header.php';
         progressBar.style.width = `${(gpNum / animData.totalGPs) * 100}%`;
 
         // Get top N scores (filter out 0s)
-        const scores = frame.scores.filter(s => s.score > 0).slice(0, maxBars);
+        const scores = frame.scores.filter(s => s.score > 0 || s.provisional).slice(0, maxBars);
         const maxScore = d3.max(scores, d => d.score) || 1;
 
-        // Update scales
+        // Update scales — constant bar height; the chart grows downward and the
+        // SVG is already tall enough for the whole roster, so entrants rise from
+        // inside the canvas instead of flying in from off-screen.
         x.domain([0, maxScore * 1.15]);
-        y.domain(scores.map(d => d.name));
+        y.range([0, scores.length * (barHeight + barPad)]).domain(scores.map(d => d.name));
 
         const t = d3.transition().duration(transitionMs).ease(d3.easeCubicOut);
 
@@ -386,7 +412,7 @@ include __DIR__ . '/../private/templates/header.php';
         const chartBottom = scores.length * (barHeight + barPad) + 40;
 
         // === BARS ===
-        const bars = svg.selectAll('.anim-bar')
+        const bars = layers.bars.selectAll('.anim-bar')
             .data(scores, d => d.name);
 
         const barsEnter = bars.enter()
@@ -397,7 +423,7 @@ include __DIR__ . '/../private/templates/header.php';
             .attr('height', y.bandwidth())
             .attr('width', d => Math.max(0, x(d.score)))
             .attr('rx', 4)
-            .attr('fill', d => racerColors[d.name] || '#999')
+            .attr('fill', d => d.provisional ? '#b8c0c8' : (racerColors[d.name] || '#999'))
             .attr('opacity', 0);
 
         bars.merge(barsEnter)
@@ -405,7 +431,7 @@ include __DIR__ . '/../private/templates/header.php';
             .attr('y', d => y(d.name))
             .attr('height', y.bandwidth())
             .attr('width', d => Math.max(0, x(d.score)))
-            .attr('fill', d => racerColors[d.name] || '#999')
+            .attr('fill', d => d.provisional ? '#b8c0c8' : (racerColors[d.name] || '#999'))
             .attr('opacity', 1);
 
         bars.exit()
@@ -415,7 +441,7 @@ include __DIR__ . '/../private/templates/header.php';
             .remove();
 
         // === PORTRAITS ===
-        const portraits = svg.selectAll('.anim-portrait')
+        const portraits = layers.portraits.selectAll('.anim-portrait')
             .data(scores, d => d.name);
 
         const portraitsEnter = portraits.enter()
@@ -437,7 +463,7 @@ include __DIR__ . '/../private/templates/header.php';
         portraits.exit().transition(t).attr('y', chartBottom).attr('opacity', 0).remove();
 
         // === NAME LABELS (inside bar, clipped to bar width) ===
-        const names = svg.selectAll('.anim-name')
+        const names = layers.names.selectAll('.anim-name')
             .data(scores, d => d.name);
 
         const namesEnter = names.enter()
@@ -461,7 +487,7 @@ include __DIR__ . '/../private/templates/header.php';
         names.exit().transition(t).attr('y', chartBottom).attr('opacity', 0).remove();
 
         // === SCORE LABELS (at end of bar) ===
-        const scoreLabels = svg.selectAll('.anim-score')
+        const scoreLabels = layers.scores.selectAll('.anim-score')
             .data(scores, d => d.name);
 
         const scoreEnter = scoreLabels.enter()
@@ -485,7 +511,7 @@ include __DIR__ . '/../private/templates/header.php';
         scoreLabels.exit().transition(t).attr('y', chartBottom).attr('opacity', 0).remove();
 
         // === GP COUNT (small, after score) ===
-        const gpCounts = svg.selectAll('.anim-gpcount')
+        const gpCounts = layers.gps.selectAll('.anim-gpcount')
             .data(scores, d => d.name);
 
         const gpCountEnter = gpCounts.enter()
@@ -503,13 +529,13 @@ include __DIR__ . '/../private/templates/header.php';
             .attr('x', d => x(d.score) + 6)
             .attr('y', d => y(d.name) + y.bandwidth() / 2 + 14)
             .attr('opacity', 1)
-            .text(d => d.gps + ' GPs');
+            .text(d => d.provisional ? `${d.gps} / ${animData.threshold} GPs to qualify` : d.gps + ' GPs');
 
         gpCounts.exit().transition(t).attr('y', chartBottom).attr('opacity', 0).remove();
 
         // Update SVG height dynamically
         const newHeight = scores.length * (barHeight + barPad) + margin.top + margin.bottom;
-        d3.select('#anim-chart svg').attr('height', Math.max(newHeight, 200));
+        d3.select('#anim-chart svg').attr('height', Math.max(newHeight, height));
     }
 
     function formatDate(dateStr) {
