@@ -287,7 +287,7 @@ flowchart LR
     Elo[elo_engine.php<br/>All-time Elo]:::engine
     Survivor[survivor_tournament.php<br/>Survivor format]:::engine
     Awards[season_awards_logic.php<br/>fixed + AI awards]:::engine
-    TrackRank[track_ranking.php<br/>Elo for tracks]:::engine
+    TrackRank[preference_ranking.php<br/>Elo over votes: cups + tracks]:::engine
     GemClient[gemini_client.php<br/>retry + 4-model fallback]:::engine
     Programs[programs.php<br/>AI personas + Press Office]:::engine
     MkData[mk_data.php<br/>cups + tracks + characters]:::engine
