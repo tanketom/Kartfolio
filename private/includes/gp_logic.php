@@ -2264,6 +2264,7 @@ function getActiveRacers($pdo, $season_id) {
         SELECT DISTINCT r.* FROM racers r
         JOIN results res ON r.id = res.racer_id
         WHERE res.gpid LIKE ?
+        ORDER BY r.name ASC, r.id ASC
     ");
     $stmt->execute([$season_id . '%']);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);

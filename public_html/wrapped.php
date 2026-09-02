@@ -37,9 +37,9 @@ function wrappedYearData($pdo, $year) {
     $stmt = $pdo->prepare("
         SELECT res.racer_id, r.name, res.gp_points, res.rank, res.character_used
         FROM results res JOIN racers r ON r.id = res.racer_id
-        WHERE res.gpid LIKE 's%' AND strftime('%Y', res.race_date) = ?
+        WHERE res.gpid LIKE 's%' AND res.race_date >= ? AND res.race_date < ?
     ");
-    $stmt->execute([$year]);
+    $stmt->execute(["$year-01-01", ($year + 1) . "-01-01"]);
     $acc = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $rid = (int)$row['racer_id'];
@@ -135,10 +135,10 @@ if (!isset($roster[$racerId])) {
 $rowStmt = $pdo->prepare("
     SELECT gp_points, rank, gpid, cup_name, race_date, character_used, is_lol
     FROM results
-    WHERE racer_id = ? AND gpid LIKE 's%' AND strftime('%Y', race_date) = ?
+    WHERE racer_id = ? AND gpid LIKE 's%' AND race_date >= ? AND race_date < ?
     ORDER BY race_date ASC, id ASC
 ");
-$rowStmt->execute([$racerId, $year]);
+$rowStmt->execute([$racerId, "$year-01-01", ($year + 1) . "-01-01"]);
 $rows = $rowStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $name    = $roster[$racerId]['name'];
@@ -239,9 +239,9 @@ $nemStmt = $pdo->prepare("
     FROM results a
     JOIN results b ON a.gpid = b.gpid AND b.racer_id != a.racer_id
     JOIN racers rb ON rb.id = b.racer_id
-    WHERE a.racer_id = ? AND a.gpid LIKE 's%' AND strftime('%Y', a.race_date) = ?
+    WHERE a.racer_id = ? AND a.gpid LIKE 's%' AND a.race_date >= ? AND a.race_date < ?
 ");
-$nemStmt->execute([$racerId, $year]);
+$nemStmt->execute([$racerId, "$year-01-01", ($year + 1) . "-01-01"]);
 $rivals = [];
 foreach ($nemStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
     $rivals[$r['name']] ??= ['faced' => 0, 'ahead' => 0, 'behind' => 0];
@@ -252,8 +252,8 @@ uasort($rivals, fn($x, $y) => $y['faced'] <=> $x['faced']);
 $nemesis = !empty($rivals) ? (['name' => array_key_first($rivals)] + reset($rivals)) : null;
 
 // Badges earned this year (union across the year's seasons).
-$seasonsThisYear = $pdo->prepare("SELECT DISTINCT SUBSTR(gpid,1,3) FROM results WHERE gpid LIKE 's%' AND strftime('%Y', race_date) = ?");
-$seasonsThisYear->execute([$year]);
+$seasonsThisYear = $pdo->prepare("SELECT DISTINCT SUBSTR(gpid,1,3) FROM results WHERE gpid LIKE 's%' AND race_date >= ? AND race_date < ?");
+$seasonsThisYear->execute(["$year-01-01", ($year + 1) . "-01-01"]);
 $yearBadges = [];
 foreach ($seasonsThisYear->fetchAll(PDO::FETCH_COLUMN) as $sid) {
     foreach (getRacerBadges($pdo, $racerId, $sid) as $b) $yearBadges[$b['title']] = $b;

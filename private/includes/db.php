@@ -25,6 +25,13 @@ try {
     // Persistent once set — running it on every connect is a no-op if already WAL.
     $pdo->exec('PRAGMA journal_mode = WAL;');
     $pdo->exec('PRAGMA synchronous = NORMAL;');
+    // LIKE is case-insensitive by default, and SQLite will not turn a
+    // case-insensitive prefix (gpid LIKE 's04%') into an index range — every
+    // one of the ~170 season filters was a full scan of results. GPIDs are
+    // machine-generated lowercase, so nothing needs case folding there; the
+    // two free-text searches (recap mentions, admin results search) fold with
+    // LOWER() explicitly. Measured ~3x on this DB, widening with table size.
+    $pdo->exec('PRAGMA case_sensitive_like = ON;');
 
     // ── Fresh install bootstrap ──────────────────────────────────────────
     // Everything below this point is an UPGRADE step: ALTER TABLEs and index
@@ -133,6 +140,9 @@ try {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_results_gpid       ON results(gpid)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_results_racer_gpid ON results(racer_id, gpid)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_results_cup_gpid   ON results(cup_name, gpid)");
+    // Chronological reads (Elo engine, timeline, power rankings, wrapped) sort
+    // or filter on race_date; without this they build a temp B-tree per call.
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_results_date       ON results(race_date, id)");
 
     // Failed-attempt throttle for login and wall-code submissions, keyed by
     // IP + action. Rows are pruned opportunistically by the consumers.

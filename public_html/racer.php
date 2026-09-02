@@ -600,12 +600,13 @@ $rivalries = $rivalriesStmt->fetchAll(PDO::FETCH_ASSOC);
 $newsStmt = $pdo->prepare("
     SELECT *
     FROM recap_archive
-    WHERE headline LIKE ? OR headline LIKE ? OR recap_text LIKE ?
+    WHERE LOWER(headline) LIKE ? OR LOWER(headline) LIKE ? OR LOWER(recap_text) LIKE ?
     ORDER BY created_at DESC
     LIMIT 5
 ");
-$searchName = '%' . $racer['name'] . '%';
-$searchNick = '%' . ($racer['nickname'] ?: 'XXXNOMATCHXXX') . '%';
+// LIKE is case-sensitive on this connection (db.php); fold both sides.
+$searchName = '%' . strtolower($racer['name']) . '%';
+$searchNick = '%' . strtolower($racer['nickname'] ?: 'XXXNOMATCHXXX') . '%';
 $newsStmt->execute([$searchName, $searchNick, $searchName]);
 $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>

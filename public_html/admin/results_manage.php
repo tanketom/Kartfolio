@@ -98,12 +98,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $search = $_GET['search'] ?? '';
 $query = "SELECT res.*, r.name FROM results res JOIN racers r ON res.racer_id = r.id";
 if ($search) {
-    $query .= " WHERE res.gpid LIKE :search OR r.name LIKE :search OR res.cup_name LIKE :search";
+    // LIKE is case-sensitive on this connection (db.php); fold both sides.
+    $query .= " WHERE LOWER(res.gpid) LIKE :search OR LOWER(r.name) LIKE :search OR LOWER(res.cup_name) LIKE :search";
 }
 $query .= " ORDER BY res.race_date DESC, res.gpid DESC LIMIT 100";
 
 $stmt = $pdo->prepare($query);
-if ($search) $stmt->bindValue(':search', "%$search%");
+if ($search) $stmt->bindValue(':search', '%' . strtolower($search) . '%');
 $stmt->execute();
 $results = $stmt->fetchAll();
 

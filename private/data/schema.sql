@@ -329,6 +329,7 @@ CREATE TABLE IF NOT EXISTS track_musings (
 CREATE INDEX IF NOT EXISTS idx_results_gpid       ON results(gpid);
 CREATE INDEX IF NOT EXISTS idx_results_racer_gpid ON results(racer_id, gpid);
 CREATE INDEX IF NOT EXISTS idx_results_cup_gpid   ON results(cup_name, gpid);
+CREATE INDEX IF NOT EXISTS idx_results_date       ON results(race_date, id);
 
 -- Failed-attempt throttle for login and wall-code submissions.
 CREATE TABLE IF NOT EXISTS auth_throttle (

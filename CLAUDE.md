@@ -231,8 +231,16 @@ few hundred queries before you notice. Reuse these patterns:
   per-racer queries to `getRacerBadges`.
 - **Batch, don't loop** — replace "one query per cup/GP" with one query +
   PHP grouping (see `cup_stats.php`, `timeline.php`, `cup_detail.php`).
-- The `results` table is indexed on `gpid`, `(racer_id, gpid)`, and
-  `(cup_name, gpid)`. Keep new hot filters covered by an index.
+- The `results` table is indexed on `gpid`, `(racer_id, gpid)`,
+  `(cup_name, gpid)` and `(race_date, id)`. Keep new hot filters covered by
+  an index.
+- **`LIKE` is case-sensitive on this connection** (`PRAGMA case_sensitive_like`
+  in `db.php`). Default LIKE is case-insensitive, and SQLite then refuses to
+  turn `gpid LIKE 's04%'` into an index range — every season filter was a
+  full scan. GPIDs are lowercase by construction so nothing there needs
+  folding; a free-text search on user or prose text must fold both sides
+  explicitly (`LOWER(col) LIKE ?` with `strtolower()` on the parameter — see
+  the recap-mention search in `racer.php`).
 
 ### 10. Deterministic ordering, not query-plan-dependent
 
@@ -240,7 +248,9 @@ When you move a sort between SQL and PHP, or drop an `ORDER BY` with no
 tiebreak, equal-key rows previously had an arbitrary order that silently
 changed when indexes were added. Always pick an explicit, stable tiebreak
 (`id ASC`, `name ASC`). We hit this on podium ties, cup "best GP" links,
-most-used character, and previous-standings ranks.
+most-used character, previous-standings ranks — and the stats scatter, whose
+row order flipped the day `(race_date, id)` was indexed because
+`getActiveRacers()` had no `ORDER BY`.
 
 ### 11. Auth, throttling, and no stray admin pages
 
