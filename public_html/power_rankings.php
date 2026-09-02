@@ -288,10 +288,18 @@ include __DIR__ . '/../private/templates/header.php';
                 <div class="pwr-score-value"><?= round($r['power_score'], 1) ?></div>
             </div>
             <div class="pwr-bar-row">
-                <div class="pwr-score-bar">
-                    <div class="pwr-segment pwr-seg-elo" style="width:<?= round($r['elo_norm'] * 0.4, 1) ?>%"><span class="pwr-seg-label">ELO <?= round($r['elo_norm'], 0) ?></span></div>
-                    <div class="pwr-segment pwr-seg-form" style="width:<?= round($r['form_norm'] * 0.35, 1) ?>%"><span class="pwr-seg-label">Form <?= round($r['form_norm'], 0) ?></span></div>
-                    <div class="pwr-segment pwr-seg-cons" style="width:<?= round($r['cons_norm'] * 0.25, 1) ?>%"><span class="pwr-seg-label">Cons <?= round($r['cons_norm'], 0) ?></span></div>
+                <!-- Three 0–100 meters, one per component. The old single stacked
+                     bar showed the WEIGHTED contributions, so a perfect consistency
+                     score was a sliver and the labels clipped — it read as a
+                     percentage but wasn't one. Weights live in the methodology card. -->
+                <div class="pwr-meters">
+                    <?php foreach ([['elo', 'Elo', $r['elo_norm']], ['form', 'Form', $r['form_norm']], ['cons', 'Consistency', $r['cons_norm']]] as [$mk, $ml, $mv]): ?>
+                    <div class="pwr-meter pwr-meter-<?= $mk ?>" title="<?= $ml ?> <?= round($mv) ?> / 100">
+                        <span class="pwr-meter-label"><?= $ml ?></span>
+                        <div class="pwr-meter-track"><div class="pwr-meter-fill" style="width:<?= max(0, min(100, round($mv, 1))) ?>%"></div></div>
+                        <span class="pwr-meter-val"><?= round($mv) ?></span>
+                    </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
             <?php if (!empty($r['cached_commentary'])): ?>
