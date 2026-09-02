@@ -226,9 +226,16 @@ few hundred queries before you notice. Reuse these patterns:
   (`calculateAllELORatings`, `trackRankings`) cache on a cheap table
   signature (`COUNT || ':' || MAX(id)`), so they recompute only when rows
   actually change — safe even if a write lands mid-request.
-- **Batched context** — season/career-wide badge inputs live in
-  `badgeSeasonContext()`, built once per season per request. Don't add
-  per-racer queries to `getRacerBadges`.
+- **Batched context** — badge inputs live in `badgeCareerContext()` (career-
+  wide: stickers, tournaments, Elo, dynasties, archived placements — built
+  ONCE per request) and `badgeSeasonContext()` (season-scoped, once per
+  season, merges the career half in). Put a new input in the right one: a
+  season-independent query in the season context runs again for every
+  season a profile shows. Don't add per-racer queries to `getRacerBadges`.
+- **Settings** — `getSetting()` reads a once-per-request map
+  (`settingsMap()`); `updateSetting()` resets it. Mikkoliiga per-GP points
+  come from `mikkoliigaSeasonPerGP()` (whole roster, one pass over the
+  season cache).
 - **Batch, don't loop** — replace "one query per cup/GP" with one query +
   PHP grouping (see `cup_stats.php`, `timeline.php`, `cup_detail.php`).
 - The `results` table is indexed on `gpid`, `(racer_id, gpid)`,
