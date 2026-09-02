@@ -572,6 +572,15 @@ Cross-reference if you find half-implemented work:
   dynamic desc); `/badges` renders `badgeCatalogByCategory()`. A new badge =
   one catalogue entry + its rule in `badges.php` + (optionally) a progress
   entry in `badges_overview.php::calculateBadgeProgress()`
+- **Crystal Ball cached** — `sim_cache` table + `private/includes/sim_cache.php`:
+  predictions.php's 5000-run Monte Carlo runs once per (season, results
+  signature, day, GPs remaining) instead of per view (423 → 10 ms; odds no
+  longer change between reloads). Use it for any other pure, expensive
+  simulation — key on every input, one write per new key by design
+- **/cup-favourites retired** — /track-favourites is the one in use;
+  `preference_ranking.php` keeps the engine config-driven ('track' only now).
+  fantasy.php no longer CREATEs tables or INSERTs the week row on GET — the
+  DDL is in `db.php`, the week row is born with the first bet (POST)
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),
