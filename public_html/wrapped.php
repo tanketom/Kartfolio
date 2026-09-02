@@ -285,6 +285,62 @@ $aura        = $assigned['aura']        ?? wrappedPick(wrappedAuras(), $statBag)
 $club        = $assigned['club']        ?? wrappedPick(wrappedClubs(), $statBag);
 $personality = $assigned['personality'] ?? wrappedPick(wrappedPersonalities(), $statBag);
 
+// ── Data for the newer slides ────────────────────────────────────────────
+// Firsts of the year: first win, first podium, first perfect — chronological.
+$firsts = [];
+foreach ($rows as $r) {
+    if (!isset($firsts['win'])     && (int)$r['rank'] === 1)                    $firsts['win']     = ['label' => 'First win',     'icon' => '🏆', 'r' => $r];
+    if (!isset($firsts['podium'])  && (int)$r['rank'] <= 3)                     $firsts['podium']  = ['label' => 'First podium',  'icon' => '🥉', 'r' => $r];
+    if (!isset($firsts['perfect']) && (int)$r['gp_points'] === MK_MAX_GP_POINTS) $firsts['perfect'] = ['label' => 'First perfect', 'icon' => '💎', 'r' => $r];
+}
+$firsts['debut'] = ['label' => 'First GP of the year', 'icon' => '🏁', 'r' => $rows[0] ?? null];
+$firstOrder = ['debut' => 0, 'podium' => 1, 'win' => 2, 'perfect' => 3];   // same-night ties: debut, then podium, win, perfect
+uksort($firsts, fn($ka, $kb) => strcmp((string)($firsts[$ka]['r']['race_date'] ?? ''), (string)($firsts[$kb]['r']['race_date'] ?? '')) ?: ($firstOrder[$ka] <=> $firstOrder[$kb]));
+
+// Giant killing: the GP where you finished ahead of the most racers rated
+// above you going in (Elo before the GP, from the shared changelog).
+$scalpBest = null;   // ['gpid','date','cup','count','biggest' => ['name','gap']]
+if (!function_exists('getMonsterHuntEloChangelog')) require_once __DIR__ . '/../private/includes/gp_logic.php';
+$eloLog = getMonsterHuntEloChangelog($pdo);
+foreach ($rows as $r) {
+    $g = $eloLog[$r['gpid']] ?? null;
+    if (!$g || !isset($g[$name])) continue;
+    $mine = $g[$name]; $count = 0; $biggest = null;
+    foreach ($g as $other => $d) {
+        if ($other === $name) continue;
+        if ($d['old_elo'] > $mine['old_elo'] && $d['rank'] > $mine['rank']) {
+            $count++;
+            $gap = (int)round($d['old_elo'] - $mine['old_elo']);
+            if ($biggest === null || $gap > $biggest['gap']) $biggest = ['name' => $other, 'gap' => $gap];
+        }
+    }
+    if ($count > 0 && ($scalpBest === null || $count > $scalpBest['count'] || ($count === $scalpBest['count'] && $biggest['gap'] > $scalpBest['biggest']['gap']))) {
+        $scalpBest = ['gpid' => $r['gpid'], 'date' => $r['race_date'], 'cup' => $r['cup_name'], 'count' => $count, 'biggest' => $biggest];
+    }
+}
+
+// Cup loyalty: home cup (most raced) vs best cup (highest average, 2+ GPs),
+// plus one Mac's Musing line from a track in the best cup if we have one.
+$cupAvg = [];
+foreach ($rows as $r) if ($r['cup_name']) { $cupAvg[$r['cup_name']][] = (int)$r['gp_points']; }
+foreach ($cupAvg as $c => $pts) $cupAvg[$c] = ['avg' => round(array_sum($pts) / count($pts), 1), 'n' => count($pts)];
+$bestCup = null;
+foreach ($cupAvg as $c => $v) if ($v['n'] >= 2 && ($bestCup === null || $v['avg'] > $cupAvg[$bestCup]['avg'])) $bestCup = $c;
+$cupMusing = null;
+if ($bestCup !== null) {
+    $tracks = getMKTracksByCup()[$bestCup] ?? [];
+    if ($tracks) {
+        try {
+            $mq = $pdo->prepare("SELECT track_name, body FROM track_musings WHERE track_name IN (" . implode(',', array_fill(0, count($tracks), '?')) . ") ORDER BY track_name LIMIT 1");
+            $mq->execute($tracks);
+            if ($m = $mq->fetch(PDO::FETCH_ASSOC)) {
+                $first = preg_split('/(?<=[.!?])\s+/', trim((string)$m['body']), 2)[0] ?? '';
+                if ($first !== '') $cupMusing = ['track' => $m['track_name'], 'line' => mb_substr($first, 0, 160)];
+            }
+        } catch (PDOException $e) { /* no musings table */ }
+    }
+}
+
 $pageTitle = htmlspecialchars($name) . " — $year Wrapped";
 $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
 include __DIR__ . '/../private/templates/header.php';
@@ -323,6 +379,23 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
         <div class="wr-sub">≈ <?= number_format($estMinutes) ?> minutes behind the wheel — about <?= number_format(round($estMinutes / 60)) ?> hours.</div>
     </section>
 
+    <!-- 2b. Firsts of the year -->
+    <?php if (count($firsts) >= 2): ?>
+    <section class="wr-slide">
+        <div class="wr-kicker">FIRSTS OF THE YEAR</div>
+        <ol class="wr-firsts">
+            <?php foreach ($firsts as $f): if (!$f['r']) continue; ?>
+                <li>
+                    <span class="wr-firsts-icon"><?= $f['icon'] ?></span>
+                    <span class="wr-firsts-label"><?= htmlspecialchars($f['label']) ?></span>
+                    <span class="wr-firsts-when"><?= date('M j', strtotime($f['r']['race_date'])) ?><?= !empty($f['r']['cup_name']) ? ' · ' . htmlspecialchars($f['r']['cup_name']) : '' ?></span>
+                </li>
+            <?php endforeach; ?>
+        </ol>
+        <div class="wr-lead"><?= isset($firsts['win']) ? 'The year you started winning.' : (isset($firsts['podium']) ? 'The podium found you this year.' : 'Every streak starts with a first night.') ?></div>
+    </section>
+    <?php endif; ?>
+
     <!-- 3. #1 racer -->
     <section class="wr-slide">
         <div class="wr-kicker">YOUR #1 RACER</div>
@@ -358,6 +431,20 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
         </ol>
     </section>
 
+    <!-- 5b. Wardrobe -->
+    <?php if ($distinctChars >= 2): ?>
+    <section class="wr-slide">
+        <div class="wr-kicker">YOUR WARDROBE</div>
+        <div class="wr-strip">
+            <?php foreach (array_keys($charTally) as $ci => $c): ?>
+                <img src="<?= $portrait($c) ?>" class="wr-strip-img" style="--i:<?= $ci ?>" title="<?= htmlspecialchars($c) ?> × <?= (int)$charTally[$c] ?>" onerror="this.src='/assets/img/Mii.png'">
+            <?php endforeach; ?>
+        </div>
+        <div class="wr-big"><?= $distinctChars ?></div>
+        <div class="wr-lead">different racers took the wheel this year<?= $distinctChars >= 10 ? ' — a full roster of you.' : '.' ?></div>
+    </section>
+    <?php endif; ?>
+
     <!-- 6. Favourite cup -->
     <section class="wr-slide">
         <div class="wr-kicker">YOUR FAVOURITE CUP</div>
@@ -365,6 +452,30 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
         <div class="wr-big"><?= htmlspecialchars($favCup) ?> Cup</div>
         <div class="wr-lead">raced <?= (int)reset($cupTally) ?> times — your home turf.</div>
     </section>
+
+    <!-- 6b. Cup loyalty: home cup vs best cup -->
+    <?php if ($bestCup !== null && count($cupAvg) >= 2): ?>
+    <section class="wr-slide">
+        <div class="wr-kicker">CUP LOYALTY</div>
+        <div class="wr-vs">
+            <div class="wr-vs-col">
+                <div class="wr-vs-emoji"><?= getMKCupEmoji($favCup) ?></div>
+                <div class="wr-vs-name"><?= htmlspecialchars($favCup) ?></div>
+                <div class="wr-vs-tag">home turf · <?= (int)reset($cupTally) ?> GPs · avg <?= $cupAvg[$favCup]['avg'] ?? '—' ?></div>
+            </div>
+            <div class="wr-vs-mid"><?= $bestCup === $favCup ? '=' : 'vs' ?></div>
+            <div class="wr-vs-col">
+                <div class="wr-vs-emoji"><?= getMKCupEmoji($bestCup) ?></div>
+                <div class="wr-vs-name"><?= htmlspecialchars($bestCup) ?></div>
+                <div class="wr-vs-tag">best cup · <?= $cupAvg[$bestCup]['n'] ?> GPs · avg <?= $cupAvg[$bestCup]['avg'] ?></div>
+            </div>
+        </div>
+        <div class="wr-lead"><?= $bestCup === $favCup ? 'You race it most and you race it best. That is loyalty.' : 'You keep going back to one — but the points live in the other.' ?></div>
+        <?php if ($cupMusing): ?>
+            <div class="wr-quote">“<?= htmlspecialchars($cupMusing['line']) ?>”<span>— Mac, on <?= htmlspecialchars($cupMusing['track']) ?></span></div>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
     <!-- 7. Best night (song of the year) -->
     <section class="wr-slide">
@@ -376,6 +487,19 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
             <?php if (!empty($best['date'])): ?> · <?= date('M j', strtotime($best['date'])) ?><?php endif; ?>
         </div>
     </section>
+
+    <!-- 7b. Giant killing -->
+    <?php if ($scalpBest): ?>
+    <section class="wr-slide">
+        <div class="wr-kicker">GIANT KILLING</div>
+        <div class="wr-huge"><?= $scalpBest['count'] ?></div>
+        <div class="wr-lead">
+            higher-rated racer<?= $scalpBest['count'] === 1 ? '' : 's' ?> beaten in one night —
+            <?= htmlspecialchars($scalpBest['cup'] ?? '') ?> Cup, <?= date('M j', strtotime($scalpBest['date'])) ?>.
+        </div>
+        <div class="wr-sub">Biggest scalp: <strong><?= htmlspecialchars($scalpBest['biggest']['name']) ?></strong>, rated <?= $scalpBest['biggest']['gap'] ?> Elo above you going in.</div>
+    </section>
+    <?php endif; ?>
 
     <!-- 8. Nemesis -->
     <?php if ($nemesis): ?>
@@ -541,6 +665,25 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
 }
 @keyframes wrpulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
 .wr-badge-fan { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; margin-top: 6px; }
+/* Firsts of the year */
+.wr-firsts { list-style: none; padding: 0; margin: 0; width: min(440px, 92vw); }
+.wr-firsts li { display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.1); text-align: left; }
+.wr-firsts-icon { font-size: 1.5rem; }
+.wr-firsts-label { font-weight: 800; font-size: 1.1rem; }
+.wr-firsts-when { color: #a99ed0; font-size: .85rem; white-space: nowrap; }
+/* Wardrobe portrait strip */
+.wr-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 0; max-width: 520px; }
+.wr-strip-img { width: 64px; height: 64px; object-fit: contain; margin: 0 -8px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.6)); animation: wrpop .5s ease-out both; animation-delay: calc(var(--i, 0) * 60ms); }
+@keyframes wrpop { from { transform: translateY(14px) scale(.7); opacity: 0 } to { transform: none; opacity: 1 } }
+/* Cup loyalty: two columns */
+.wr-vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; width: min(480px, 92vw); }
+.wr-vs-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wr-vs-emoji { font-size: 3.2rem; }
+.wr-vs-name { font-weight: 900; font-size: 1.25rem; text-transform: uppercase; }
+.wr-vs-tag { color: #a99ed0; font-size: .75rem; }
+.wr-vs-mid { color: #FFD700; font-weight: 900; font-size: 1.4rem; }
+.wr-quote { max-width: 34ch; font-style: italic; color: #cbb9ff; font-size: .95rem; line-height: 1.4; }
+.wr-quote span { display: block; font-style: normal; color: #8a7bc0; font-size: .75rem; margin-top: 4px; }
 .wr-badge { background: rgba(255,215,0,.12); border: 1px solid rgba(255,215,0,.3); color: #ffe9a8; border-radius: 999px; padding: 3px 10px; font-size: .78rem; }
 .wr-progress { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 50; }
 .wr-progress span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.25); transition: background .2s, transform .2s; }
