@@ -446,7 +446,7 @@ if ($mode === 'score' && isset($_SESSION['is_admin']) && $_SESSION['is_admin']) 
                         $rid = (int)$row['racer_id'];
                         $weeklyTotals[$rid] = ($weeklyTotals[$rid] ?? 0) + (int)$row['gp_points'];
                         $weeklyGPCounts[$rid] = ($weeklyGPCounts[$rid] ?? 0) + 1;
-                        if ((int)$row['gp_points'] >= 60) $anyPerfect60 = true;
+                        if ((int)$row['gp_points'] >= MK_MAX_GP_POINTS) $anyPerfect60 = true;
                         if ($rid === $leaderId && (int)$row['rank'] === 1) $leaderWonGP = true;
                         if ($rid === $underdogId && (int)$row['rank'] <= 3) $underdogPodium = true;
                         if (!empty($row['is_lol'])) $anyLol = true;

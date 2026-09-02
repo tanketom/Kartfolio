@@ -4,6 +4,8 @@
  * Path: /cdnmk/private/includes/gp_logic.php
  */
 
+require_once __DIR__ . '/mk_data.php';   // cups, characters, MK_MAX_GP_POINTS, ordinal()
+
 // ============================================================================
 // SCORING SYSTEM REGISTRY
 //
@@ -445,7 +447,7 @@ function calculatePreSeasonScore($pdo, $racer_id, $season_id, $rules) {
  * Sum of best scores across all cups (12 or 24)
  */
 function calculateCupBasedScore($pdo, $racer_id, $season_id, $rules) {
-    $requiredCups = array_slice(getMK8DCups(), 0, $rules['cups_required'] ?? 12);
+    $requiredCups = array_slice(getMKAllCups(), 0, $rules['cups_required'] ?? 12);
     $bestPerCup   = getBestScorePerCup($pdo, $racer_id, $season_id, $requiredCups);
     return round(array_sum(array_filter($bestPerCup)), 2);
 }
@@ -471,7 +473,7 @@ function calculateBestNGPsScore($pdo, $racer_id, $season_id, $rules) {
  * More forgiving than strict cup-based
  */
 function calculateDropWorstScore($pdo, $racer_id, $season_id, $rules) {
-    $requiredCups   = array_slice(getMK8DCups(), 0, $rules['cups_required'] ?? 12);
+    $requiredCups   = array_slice(getMKAllCups(), 0, $rules['cups_required'] ?? 12);
     $dropWorstCount = $rules['drop_worst_count'] ?? 2;
 
     $cupScores = array_values(array_filter(getBestScorePerCup($pdo, $racer_id, $season_id, $requiredCups)));
@@ -486,13 +488,13 @@ function calculateDropWorstScore($pdo, $racer_id, $season_id, $rules) {
  * Cup-based with multipliers for excellence
  */
 function calculatePerfectHuntScore($pdo, $racer_id, $season_id, $rules) {
-    $requiredCups      = array_slice(getMK8DCups(), 0, $rules['cups_required'] ?? 12);
+    $requiredCups      = array_slice(getMKAllCups(), 0, $rules['cups_required'] ?? 12);
     $perfectMultiplier = $rules['perfect_multiplier'] ?? 2.0;
 
     $totalScore = 0;
     foreach (getBestScorePerCup($pdo, $racer_id, $season_id, $requiredCups) as $score) {
         if ($score === null) continue;
-        $totalScore += ($score == 60) ? ($score * $perfectMultiplier) : $score;
+        $totalScore += ($score == MK_MAX_GP_POINTS) ? ($score * $perfectMultiplier) : $score;
     }
     return round($totalScore, 2);
 }
@@ -503,7 +505,7 @@ function calculatePerfectHuntScore($pdo, $racer_id, $season_id, $rules) {
  * Tiebreaker: most perfect 60 scores in unique cups.
  */
 function calculateTop12UniqueScore($pdo, $racer_id, $season_id, $rules) {
-    $cupBests = array_values(array_filter(getBestScorePerCup($pdo, $racer_id, $season_id, getMK8DCups())));
+    $cupBests = array_values(array_filter(getBestScorePerCup($pdo, $racer_id, $season_id, getMKAllCups())));
     if (empty($cupBests)) return 0;
     rsort($cupBests);
     return round(array_sum(array_slice($cupBests, 0, 12)), 2);
@@ -513,8 +515,8 @@ function calculateTop12UniqueScore($pdo, $racer_id, $season_id, $rules) {
  * Top 12 Unique Tiebreaker: count of perfect 60s in unique cups
  */
 function getTop12UniqueTiebreaker($pdo, $racer_id, $season_id) {
-    $bestPerCup = getBestScorePerCup($pdo, $racer_id, $season_id, getMK8DCups());
-    return count(array_filter($bestPerCup, fn($s) => $s === 60));
+    $bestPerCup = getBestScorePerCup($pdo, $racer_id, $season_id, getMKAllCups());
+    return count(array_filter($bestPerCup, fn($s) => $s === MK_MAX_GP_POINTS));
 }
 
 /**
@@ -1247,11 +1249,11 @@ function sortStandingsPositional(array &$standings, PDO $pdo, string $season_id)
     $n     = max(1, (int)($rules['best_n_count'] ?? 15));
 
     foreach ($standings as &$s) {
-        $counts = array_fill(1, 12, 0);   // finishes by rank 1..12 (schema caps rank at 12)
+        $counts = array_fill(1, count(MK_POINTS_SCALE), 0);   // finishes by place 1..12
         $gps = 0;
         foreach (getRacerSeasonRows($pdo, $s['id'], $season_id) as $row) {
             $r = (int)$row['rank'];
-            if ($r >= 1 && $r <= 12) $counts[$r]++;
+            if ($r >= 1 && $r <= count(MK_POINTS_SCALE)) $counts[$r]++;
             $gps++;
         }
         $s['_posCounts']  = $counts;
@@ -1263,7 +1265,7 @@ function sortStandingsPositional(array &$standings, PDO $pdo, string $season_id)
 
     usort($standings, function ($a, $b) {
         if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
-        for ($p = 1; $p <= 12; $p++) {                       // count-back
+        for ($p = 1; $p <= count(MK_POINTS_SCALE); $p++) {                       // count-back
             if ($a['_posCounts'][$p] !== $b['_posCounts'][$p]) {
                 return $b['_posCounts'][$p] <=> $a['_posCounts'][$p];
             }
@@ -1441,16 +1443,6 @@ function getSeasonRules($pdo, $season_id) {
     return $cache[$season_id];
 }
 
-/**
- * Cup list for MK8D — back-compat forwarder.
- * The canonical list lives in mk_data.php; keep this for older callers.
- */
-function getMK8DCups(): array {
-    if (!function_exists('getMKAllCups')) {
-        require_once __DIR__ . '/mk_data.php';
-    }
-    return getMKAllCups();
-}
 
 /**
  * Best gp_points per cup for a racer — computed from the shared season
@@ -1476,7 +1468,7 @@ function getBestScorePerCup($pdo, $racer_id, $season_id, array $cups) {
  * $offset = 0 → base cups, $offset = 12 → DLC cups.
  */
 function getCupProgress($pdo, $racer_id, $season_id, $cupsRequired = 12, $offset = 0) {
-    $requiredCups = array_slice(getMK8DCups(), $offset, $cupsRequired);
+    $requiredCups = array_slice(getMKAllCups(), $offset, $cupsRequired);
     if (empty($requiredCups)) return [];
 
     // Per-cup stats + best gpid, computed from the shared season cache
@@ -1515,8 +1507,8 @@ function getCupProgress($pdo, $racer_id, $season_id, $cupsRequired = 12, $offset
             'completed'             => $best > 0,
             'last_played'           => $s['last_played'] ?? null,
             'best_gpid'             => $bestGpids[$cupName] ?? null,
-            'improvement_potential' => 60 - $best,
-            'is_perfect'            => $best === 60,
+            'improvement_potential' => MK_MAX_GP_POINTS - $best,
+            'is_perfect'            => $best === MK_MAX_GP_POINTS,
         ];
     }
 
@@ -1766,7 +1758,7 @@ function breakdownBestNGPs($pdo, $racer_id, $season_id, $rules) {
 }
 
 function breakdownTop12Unique($pdo, $racer_id, $season_id, $rules) {
-    $bestPerCup = getBestScorePerCup($pdo, $racer_id, $season_id, getMK8DCups());
+    $bestPerCup = getBestScorePerCup($pdo, $racer_id, $season_id, getMKAllCups());
     $cupsPlayed = count(array_filter($bestPerCup));
     return [
         'cups_played'  => $cupsPlayed,
@@ -2229,7 +2221,7 @@ function racerSeasonStats($pdo, $racer_id, $season_id, ?array $eloData = null): 
         'max_char_plays'        => $charTally ? (int)reset($charTally) : 0,
         'cups_raced'            => count($cups),
         'base_cups_raced'       => count($baseCups),
-        'has_perfect'           => $best === 60,
+        'has_perfect'           => $best === MK_MAX_GP_POINTS,
         'longest_win_streak'    => $lws,
         'longest_podium_streak' => $lps,
         'comeback'              => $comeback,
@@ -2438,16 +2430,15 @@ function explainStandingsTie(PDO $pdo, string $season_id, string $system, array 
 }
 
 function tieExplainPositional($pdo, $season_id, $rules, $a, $b): string {
-    $ords = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'];
     $count = function ($rid) use ($pdo, $season_id) {
-        $c = array_fill(1, 12, 0);
-        foreach (getRacerSeasonRows($pdo, (int)$rid, $season_id) as $r) { $k = (int)$r['rank']; if ($k >= 1 && $k <= 12) $c[$k]++; }
+        $c = array_fill(1, count(MK_POINTS_SCALE), 0);
+        foreach (getRacerSeasonRows($pdo, (int)$rid, $season_id) as $r) { $k = (int)$r['rank']; if ($k >= 1 && $k <= count(MK_POINTS_SCALE)) $c[$k]++; }
         return $c;
     };
     $ca = $count($a['id']); $cb = $count($b['id']);
-    for ($p = 1; $p <= 12; $p++) {
+    for ($p = 1; $p <= count(MK_POINTS_SCALE); $p++) {
         if ($ca[$p] !== $cb[$p]) {
-            return sprintf('Level on points · %s ahead on count-back: %d× %s place vs %d', $a['name'], $ca[$p], $ords[$p-1], $cb[$p]);
+            return sprintf('Level on points · %s ahead on count-back: %d× %s place vs %d', $a['name'], $ca[$p], ordinal($p), $cb[$p]);
         }
     }
     $ga = count(getRacerSeasonRows($pdo, (int)$a['id'], $season_id));
@@ -2712,6 +2703,34 @@ function tooltipForm(array $c, $score): string {
 // racerQualifies() and sorted through the registry, so it can never disagree
 // with the homepage standings. Cached per request; reads the season cache.
 // ============================================================================
+
+/**
+ * Every knob a new season starts with, per system — the ONE place these
+ * numbers live. seasons.php, setup.php and the /scoring-systems examples
+ * used to carry their own copies (and the registry closures still fall back
+ * to the same values with ?? — keep them in agreement).
+ */
+function newSeasonDefaults(string $system): array {
+    $aa = ($system === 'average_attendance');
+    return [
+        'cups_required'         => 12,
+        'best_n_count'          => 15,
+        'drop_worst_count'      => 2,
+        'perfect_multiplier'    => 2.0,
+        'attendance_weight'     => $aa ? 1.0 : 0.0,
+        'weekly_bonus_cap'      => 2,
+        'min_races_threshold'   => 3,
+        'drop_rate'             => $aa ? 10 : 0,
+        'mh_slay_xp'            => 100,
+        'mh_survive_xp'         => 20,
+        'mh_party_bonus_xp'     => 50,
+        'mh_monster_win_xp'     => 80,
+        'mh_monster_partial_xp' => 30,
+        'mh_monster_loss_xp'    => -40,
+        'mh_min_gps'            => 6,
+        'mh_best_x'             => 20,
+    ];
+}
 
 /** id => name, once per request. */
 function racerNamesMap(PDO $pdo): array {

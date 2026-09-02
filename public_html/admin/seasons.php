@@ -116,27 +116,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ) VALUES (?, 'upcoming', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            // Set defaults based on scoring system
-            $cupsRequired = ($scoringSystem === 'cup_based') ? (int)$_POST['cups_required'] : 12;
-            $bestNCount = ($scoringSystem === 'best_n_gps') ? (int)$_POST['best_n_count'] : 15;
-            $dropWorstCount = ($scoringSystem === 'drop_worst') ? (int)$_POST['drop_worst_count'] : 2;
-            $perfectMultiplier = ($scoringSystem === 'perfect_hunt') ? (float)$_POST['perfect_multiplier'] : 2.0;
-
-            // Legacy fields for backward compatibility
-            $attWeight = ($scoringSystem === 'average_attendance') ? 1.0 : 0.0;
-            $weeklyCap = 2;
-            $minThreshold = 3;
-            $dropRate = ($scoringSystem === 'average_attendance') ? 10 : 0;
+            // Defaults per system come from newSeasonDefaults(); a knob is taken
+            // from the form only when it belongs to the chosen system.
+            $d = newSeasonDefaults($scoringSystem);
+            $cupsRequired      = ($scoringSystem === 'cup_based')    ? (int)$_POST['cups_required']       : $d['cups_required'];
+            $bestNCount        = ($scoringSystem === 'best_n_gps')   ? (int)$_POST['best_n_count']        : $d['best_n_count'];
+            $dropWorstCount    = ($scoringSystem === 'drop_worst')   ? (int)$_POST['drop_worst_count']    : $d['drop_worst_count'];
+            $perfectMultiplier = ($scoringSystem === 'perfect_hunt') ? (float)$_POST['perfect_multiplier'] : $d['perfect_multiplier'];
+            $attWeight    = $d['attendance_weight'];
+            $weeklyCap    = $d['weekly_bonus_cap'];
+            $minThreshold = $d['min_races_threshold'];
+            $dropRate     = $d['drop_rate'];
 
             // MONSTER HUNT fields
-            $mhSlayXP      = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_slay_xp']          ?? 100) : 100;
-            $mhSurviveXP   = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_survive_xp']        ?? 20)  : 20;
-            $mhPartyXP     = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_party_bonus_xp']    ?? 50)  : 50;
-            $mhMonWin      = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_monster_win_xp']    ?? 80)  : 80;
-            $mhMonPart     = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_monster_partial_xp'] ?? 30) : 30;
-            $mhMonLoss     = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_monster_loss_xp']   ?? -40) : -40;
-            $mhMinGPs      = $scoringSystem === 'monster_hunt' ? (int)($_POST['mh_min_gps']            ?? 6)  : 6;
-            $mhBestX       = $scoringSystem === 'monster_hunt' ? max(1, (int)($_POST['mh_best_x']      ?? 20)) : 20;
+            $mh = fn(string $k) => $scoringSystem === 'monster_hunt' ? (int)($_POST[$k] ?? $d[$k]) : $d[$k];
+            $mhSlayXP    = $mh('mh_slay_xp');
+            $mhSurviveXP = $mh('mh_survive_xp');
+            $mhPartyXP   = $mh('mh_party_bonus_xp');
+            $mhMonWin    = $mh('mh_monster_win_xp');
+            $mhMonPart   = $mh('mh_monster_partial_xp');
+            $mhMonLoss   = $mh('mh_monster_loss_xp');
+            $mhMinGPs    = $mh('mh_min_gps');
+            $mhBestX     = max(1, $mh('mh_best_x'));
 
             $stmt->execute([
                 $seasonId, $scoringSystem, $academicYear,
@@ -547,24 +548,16 @@ include __DIR__ . '/../../private/templates/header.php';
     $seasonsWithResults = array_flip($resultSeasons);
     foreach ($allSeasons as $sid):
         $isEmpty = !isset($seasonsWithResults[$sid]);
-        $meta = $metaData[$sid] ?? [
+        $meta = $metaData[$sid] ?? (newSeasonDefaults('average_attendance') + [
             'status' => 'active',
             'scoring_system' => 'average_attendance',
-            'attendance_weight' => 1.0,
-            'weekly_bonus_cap' => 2,
-            'min_races_threshold' => 3,
-            'drop_rate' => 10,
             'ecology_report' => null,
             'season_name' => strtoupper($sid),
             'season_description' => '',
             'academic_year' => null,
-            'cups_required' => 12,
-            'best_n_count' => 15,
-            'drop_worst_count' => 2,
-            'perfect_multiplier' => 2.0,
             'start_date' => null,
             'end_date' => null
-        ];
+        ]);
         $hasReport = !empty($meta['ecology_report']);
         $systemInfo = $scoringSystems[$meta['scoring_system']] ?? $scoringSystems['average_attendance'];
     ?>

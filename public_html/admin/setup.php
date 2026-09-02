@@ -79,8 +79,7 @@ if (!$done && $_SERVER['REQUEST_METHOD'] === 'POST') {
             // placeholder 's01', so if the commissioner keeps that ID we must
             // fill it in, not collide with it.
             $label     = $seasonName !== '' ? mb_substr($seasonName, 0, 80) : strtoupper($seasonId);
-            $attWeight = $system === 'average_attendance' ? 1.0 : 0.0;
-            $dropRate  = $system === 'average_attendance' ? 10 : 0;
+            $d = newSeasonDefaults($system);   // one place for every knob's starting value
 
             $exists = $pdo->prepare("SELECT COUNT(*) FROM season_meta WHERE season_id = ?");
             $exists->execute([$seasonId]);
@@ -89,11 +88,13 @@ if (!$done && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("
                     UPDATE season_meta SET
                         status='active', scoring_system=?, academic_year=?, season_name=?,
-                        cups_required=12, best_n_count=15, drop_worst_count=2, perfect_multiplier=2.0,
-                        attendance_weight=?, weekly_bonus_cap=2, min_races_threshold=3, drop_rate=?
+                        cups_required=?, best_n_count=?, drop_worst_count=?, perfect_multiplier=?,
+                        attendance_weight=?, weekly_bonus_cap=?, min_races_threshold=?, drop_rate=?
                     WHERE season_id = ?
                 ");
-                $stmt->execute([$system, date('Y'), $label, $attWeight, $dropRate, $seasonId]);
+                $stmt->execute([$system, date('Y'), $label,
+                    $d['cups_required'], $d['best_n_count'], $d['drop_worst_count'], $d['perfect_multiplier'],
+                    $d['attendance_weight'], $d['weekly_bonus_cap'], $d['min_races_threshold'], $d['drop_rate'], $seasonId]);
             } else {
                 $stmt = $pdo->prepare("
                     INSERT INTO season_meta (
@@ -101,9 +102,11 @@ if (!$done && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         season_name, season_description,
                         cups_required, best_n_count, drop_worst_count, perfect_multiplier,
                         attendance_weight, weekly_bonus_cap, min_races_threshold, drop_rate
-                    ) VALUES (?, 'active', ?, ?, ?, '', 12, 15, 2, 2.0, ?, 2, 3, ?)
+                    ) VALUES (?, 'active', ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$seasonId, $system, date('Y'), $label, $attWeight, $dropRate]);
+                $stmt->execute([$seasonId, $system, date('Y'), $label,
+                    $d['cups_required'], $d['best_n_count'], $d['drop_worst_count'], $d['perfect_multiplier'],
+                    $d['attendance_weight'], $d['weekly_bonus_cap'], $d['min_races_threshold'], $d['drop_rate']]);
 
                 // The commissioner named their season something other than the
                 // seeded placeholder — drop the placeholder so the league isn't

@@ -28,7 +28,7 @@ function badgeCareerContext($pdo) {
         if ($r['cup_name'] !== null) $careerCups[(int)$r['racer_id']][] = $r['cup_name'];
     }
     $careerPerfectCups = [];   // racer_id => [cup_name with a 60, ...]
-    foreach ($pdo->query("SELECT DISTINCT racer_id, cup_name FROM results WHERE gp_points = 60")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    foreach ($pdo->query("SELECT DISTINCT racer_id, cup_name FROM results WHERE gp_points = " . MK_MAX_GP_POINTS)->fetchAll(PDO::FETCH_ASSOC) as $r) {
         if ($r['cup_name'] !== null) $careerPerfectCups[(int)$r['racer_id']][] = $r['cup_name'];
     }
     $careerChars = [];         // racer_id => [character_used, ...]
@@ -615,14 +615,14 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         if ($r['rank'] == 2) $seconds++;
         if ($r['rank'] == 4) $fourths++;
         if ($r['rank'] == 7) $sevenths++;
-        if ($r['gp_points'] == 60) $perfect_games++;
+        if ($r['gp_points'] == MK_MAX_GP_POINTS) $perfect_games++;
 
         // Arrays for Stats (keep original name for display / uniqueness)
         $chars[] = $r['character_used'];
         $ranks[] = $r['rank'];
         $karts[] = $r['kart_setup'];
         $raced_cups[] = $r['cup_name'];
-        if ($r['gp_points'] == 60) $perfect_cups[] = $r['cup_name'];
+        if ($r['gp_points'] == MK_MAX_GP_POINTS) $perfect_cups[] = $r['cup_name'];
 
         // Archetype Checks (use normalised name so colour variants count correctly)
         if (in_array($charNorm, $babies)) $baby_count++;

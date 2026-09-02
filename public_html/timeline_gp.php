@@ -212,7 +212,7 @@ include __DIR__ . '/../private/templates/header.php';
                     <td class="gp-flags">
                         <?php if ($row['is_monster']): ?><span class="flag flag-monster">👹 Monster</span><?php endif; ?>
                         <?php if ($row['is_lol']): ?><span class="flag flag-lol">😂 LOL</span><?php endif; ?>
-                        <?php if ((int)$row['gp_points'] === 60): ?><span class="flag flag-perfect">💎 Perfect</span><?php endif; ?>
+                        <?php if ((int)$row['gp_points'] === MK_MAX_GP_POINTS): ?><span class="flag flag-perfect">💎 Perfect</span><?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>

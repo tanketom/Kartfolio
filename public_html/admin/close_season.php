@@ -124,7 +124,7 @@ $gpStmt = $pdo->prepare("
            COUNT(DISTINCT res.gpid) AS gp_count,
            AVG(res.gp_points) AS avg_score,
            MAX(res.gp_points) AS best_score,
-           SUM(CASE WHEN res.gp_points = 60 THEN 1 ELSE 0 END) AS perfects
+           SUM(CASE WHEN res.gp_points = " . MK_MAX_GP_POINTS . " THEN 1 ELSE 0 END) AS perfects
     FROM racers r
     JOIN results res ON res.racer_id = r.id
     WHERE res.gpid LIKE ?

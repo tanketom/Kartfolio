@@ -93,8 +93,8 @@ $milestonesStmt = $pdo->prepare("
         MIN(race_date) as first_gp_date,
         MIN(CASE WHEN rank = 1 THEN race_date END) as first_win_date,
         MIN(CASE WHEN rank <= 3 THEN race_date END) as first_podium_date,
-        MIN(CASE WHEN gp_points = 60 THEN race_date END) as first_perfect_date,
-        MIN(CASE WHEN gp_points = 60 THEN gpid END) as first_perfect_gpid,
+        MIN(CASE WHEN gp_points = " . MK_MAX_GP_POINTS . " THEN race_date END) as first_perfect_date,
+        MIN(CASE WHEN gp_points = " . MK_MAX_GP_POINTS . " THEN gpid END) as first_perfect_gpid,
         MAX(CASE WHEN gp_points = (SELECT MAX(gp_points) FROM results WHERE racer_id = ?) THEN gpid END) as best_score_gpid,
         MAX(CASE WHEN gp_points = (SELECT MAX(gp_points) FROM results WHERE racer_id = ?) THEN race_date END) as best_score_date
     FROM results
@@ -411,7 +411,7 @@ if ($rcPerfects > 0) {
     $rcPerfLeaderStmt = $pdo->query("
         SELECT r.name, COUNT(*) as cnt
         FROM results res JOIN racers r ON res.racer_id = r.id
-        WHERE res.gp_points = 60 AND res.gpid LIKE 's%'
+        WHERE res.gp_points = " . MK_MAX_GP_POINTS . " AND res.gpid LIKE 's%'
         GROUP BY res.racer_id ORDER BY cnt DESC LIMIT 1
     ");
     $rcPerfLeader = $rcPerfLeaderStmt->fetch(PDO::FETCH_ASSOC);
@@ -1316,7 +1316,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
             $cupRank = 1;
             foreach ($allCupData as $cupName => $data):
                 if (!in_array($cupName, $top12Names)) continue;
-                $impactValue = 60 - $data['best_score'];
+                $impactValue = MK_MAX_GP_POINTS - $data['best_score'];
             ?>
             <div class="cup-cell cup-cell--top12 <?= $data['is_perfect'] ? 'cup-cell--perfect' : 'cup-cell--done' ?>">
                 <div class="cup-cell-header">
@@ -1701,7 +1701,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
     $isTop12Unique = ($currentScoringSystem === 'top_12_unique');
     if ($isTop12Unique) {
         // Best per cup off the season cache — this was 24 MAX() queries.
-        $bestInCup = array_filter(getBestScorePerCup($pdo, $racerId, $currentSeason, getMK8DCups()), fn($v) => $v !== null && $v > 0);
+        $bestInCup = array_filter(getBestScorePerCup($pdo, $racerId, $currentSeason, getMKAllCups()), fn($v) => $v !== null && $v > 0);
         arsort($bestInCup);
         $top12CupNamesRecent = array_slice(array_keys($bestInCup), 0, 12);
     }

@@ -12,6 +12,15 @@
 // ── Cups ──────────────────────────────────────────────────────────────────
 
 /** The 12 Base Game cups, in canonical Mario Kart order. */
+/** A perfect Grand Prix: 4 races × 15 points. The magic number 60 lived in ~30 places. */
+const MK_MAX_GP_POINTS = 60;
+
+/** 1 → "1st", 2 → "2nd", 11 → "11th", 22 → "22nd". */
+function ordinal(int $n): string {
+    if ($n % 100 >= 11 && $n % 100 <= 13) return $n . 'th';
+    return $n . (['th', 'st', 'nd', 'rd'][$n % 10] ?? 'th');
+}
+
 const MK_BASE_CUPS = [
     'Mushroom', 'Flower', 'Star', 'Special',
     'Shell', 'Banana', 'Leaf', 'Lightning',

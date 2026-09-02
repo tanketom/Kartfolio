@@ -586,7 +586,7 @@ document.addEventListener('keydown', function(e) {
     // --- Cup-by-cup comparison ---
     // Career best per cup for both racers in ONE grouped query (this was
     // 24 MAX() queries per racer). Career-wide, so the season cache doesn't apply.
-    $allCups = getMK8DCups();
+    $allCups = getMKAllCups();
     $cupComparison = [];
     $cupBest = [];   // racer_id => cup => best
     $cupQ = $pdo->prepare("SELECT racer_id, cup_name, MAX(gp_points) AS best FROM results WHERE racer_id IN (?, ?) AND gpid LIKE 's%' AND cup_name IS NOT NULL GROUP BY racer_id, cup_name");
@@ -607,9 +607,9 @@ document.addEventListener('keydown', function(e) {
 
     $buckets = [];
     for ($i = 0; $i <= 60; $i += 5) {
-        $label = $i . '-' . min($i + 4, 60);
-        $countA = count(array_filter($scoresA, fn($s) => $s >= $i && $s <= min($i + 4, 60)));
-        $countB = count(array_filter($scoresB, fn($s) => $s >= $i && $s <= min($i + 4, 60)));
+        $label = $i . '-' . min($i + 4, MK_MAX_GP_POINTS);
+        $countA = count(array_filter($scoresA, fn($s) => $s >= $i && $s <= min($i + 4, MK_MAX_GP_POINTS)));
+        $countB = count(array_filter($scoresB, fn($s) => $s >= $i && $s <= min($i + 4, MK_MAX_GP_POINTS)));
         $buckets[] = ['label' => $label, 'a' => $countA, 'b' => $countB];
     }
 

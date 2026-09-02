@@ -64,7 +64,7 @@ foreach ($activeRacers as $r) {
 
 // Colour class helper
 function scoreBracket(int $score): string {
-    if ($score === 60) return 'mc-perfect';
+    if ($score === MK_MAX_GP_POINTS) return 'mc-perfect';
     if ($score >= 55)  return 'mc-great';
     if ($score >= 45)  return 'mc-good';
     if ($score >= 30)  return 'mc-mid';
@@ -156,11 +156,11 @@ include __DIR__ . '/../private/templates/header.php';
                                     $bracket = scoreBracket($cell['best']);
                                     $tooltip = htmlspecialchars($r['name']) . ': ' . $cell['best'] . 'pts';
                                     if ($cell['times'] > 1) $tooltip .= ' (×' . $cell['times'] . ')';
-                                    if ($cell['best'] === 60) $tooltip .= ' ✦ Perfect!';
+                                    if ($cell['best'] === MK_MAX_GP_POINTS) $tooltip .= ' ✦ Perfect!';
                                 ?>
                                     <td class="mc-cell <?= $bracket ?>" data-tooltip="<?= $tooltip ?>">
                                         <?= $cell['best'] ?>
-                                        <?php if ($cell['best'] === 60): ?><span class="mc-star">✦</span><?php endif; ?>
+                                        <?php if ($cell['best'] === MK_MAX_GP_POINTS): ?><span class="mc-star">✦</span><?php endif; ?>
                                     </td>
                                 <?php else: ?>
                                     <td class="mc-cell mc-unplayed" data-tooltip="<?= htmlspecialchars($r['name']) ?>: Not played">—</td>

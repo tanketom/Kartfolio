@@ -142,13 +142,13 @@ foreach ($cupStats as $row) {
     $winSpread = $totalGPs > 0 ? $uniqueWinners / $totalGPs : 0; // Higher = more competitive
 
     // Perfect 60 rate
-    $perfectCount = count(array_filter($scores, fn($s) => $s === 60));
+    $perfectCount = count(array_filter($scores, fn($s) => $s === MK_MAX_GP_POINTS));
     $perfectRate = count($scores) > 0 ? $perfectCount / count($scores) * 100 : 0;
 
     // Difficulty index: lower avg + higher variance + more LOLs + fewer perfects = harder
     // Normalized to 0-100 scale
     $difficultyScore = 0;
-    $difficultyScore += (60 - $avgScore) * 1.5;     // Lower avg = harder (0-90)
+    $difficultyScore += (MK_MAX_GP_POINTS - $avgScore) * 1.5;     // Lower avg = harder (0-90)
     $difficultyScore += min($stdDev, 20) * 0.5;     // Higher variance = harder (0-10)
     $difficultyScore += min($lolRate, 50) * 0.3;    // More LOLs = harder (0-15)
     $difficultyScore -= $perfectRate * 0.5;          // More perfects = easier
@@ -191,7 +191,7 @@ foreach ($radarCups as $rc) {
         'volatility' => min($d['std_dev'] / 20 * 100, 100),
         'lol_danger' => min($d['lol_rate'] * 2, 100),
         'competitiveness' => $d['win_spread'],
-        'scoring' => ($d['avg_score'] / 60) * 100,
+        'scoring' => ($d['avg_score'] / MK_MAX_GP_POINTS) * 100,
     ];
 }
 ?>
@@ -539,7 +539,7 @@ if (!$isAllTime):
     $racedCupNames = $racedCupsStmt->fetchAll(PDO::FETCH_COLUMN);
 
     // Keep MK8D order but filter to only cups raced this season
-    $allCupNames = array_values(array_filter(getMK8DCups(), fn($c) => in_array($c, $racedCupNames)));
+    $allCupNames = array_values(array_filter(getMKAllCups(), fn($c) => in_array($c, $racedCupNames)));
 
 if (!empty($seasonRacers) && !empty($allCupNames)):
     // Build progress matrix

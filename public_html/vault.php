@@ -159,7 +159,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <strong><?= htmlspecialchars($highest['name']) ?></strong> on
                 <strong><?= htmlspecialchars($highest['cup_name'] ?? 'Unknown') ?> Cup</strong>,
                 <a href="/timeline/<?= htmlspecialchars($highest['gpid']) ?>"><?= strtoupper(htmlspecialchars($highest['gpid'])) ?></a>.
-                <?php if ((int)$highest['gp_points'] === 60): ?><em>A perfect 60.</em><?php endif; ?>
+                <?php if ((int)$highest['gp_points'] === MK_MAX_GP_POINTS): ?><em>A perfect 60.</em><?php endif; ?>
             </p>
         </article>
         <?php endif; ?>

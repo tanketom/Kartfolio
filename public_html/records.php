@@ -89,7 +89,7 @@ if (!empty($topScores)) {
 // ============================================================================
 $perfect60s = [];
 foreach ($allResults as $row) {
-    if ((int)$row['gp_points'] === 60) {
+    if ((int)$row['gp_points'] === MK_MAX_GP_POINTS) {
         $name = $row['name'];
         $perfect60s[$name] = ($perfect60s[$name] ?? 0) + 1;
     }

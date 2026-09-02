@@ -7,6 +7,7 @@
  */
 
 require_once __DIR__ . '/../../private/includes/db.php';
+require_once __DIR__ . '/../../private/includes/mk_data.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_admin();
 
@@ -79,7 +80,7 @@ try {
 
         // Validate points (0-60)
         $points = (int)$points;
-        if ($points < 0 || $points > 60) {
+        if ($points < 0 || $points > MK_MAX_GP_POINTS) {
             throw new Exception("Invalid points for " . $participant['name'] . ". Must be between 0-60.");
         }
 

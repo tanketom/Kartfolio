@@ -165,7 +165,7 @@ $favCup    = array_key_first($cupTally) ?: '—';
 $cupConc   = $gps ? (max($cupTally ?: [0]) / $gps) : 0;
 $distinctChars = count($charTally);
 $cupsRaced     = count($cupTally);
-$hasPerfect    = ($best['pts'] === 60);
+$hasPerfect    = ($best['pts'] === MK_MAX_GP_POINTS);
 $lolRate       = $gps ? $lols / $gps : 0;
 
 // std dev of gp_points
@@ -368,7 +368,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
         <div class="wr-kicker">YOUR PEAK</div>
         <div class="wr-huge"><?= (int)$best['pts'] ?></div>
         <div class="wr-lead">
-            points<?= $best['pts'] === 60 ? ' — a flawless 60!' : '' ?>
+            points<?= $best['pts'] === MK_MAX_GP_POINTS ? ' — a flawless 60!' : '' ?>
             <?php if (!empty($best['cup'])): ?><br><?= htmlspecialchars($best['cup']) ?> Cup<?php endif; ?>
             <?php if (!empty($best['date'])): ?> · <?= date('M j', strtotime($best['date'])) ?><?php endif; ?>
         </div>

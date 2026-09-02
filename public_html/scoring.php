@@ -72,7 +72,7 @@ foreach ($racers as $racer) {
     } elseif ($scoringSystem === 'top_12_unique') {
         // Best score per cup, top 12
         // Best per cup off the season cache — this was 24 MAX() queries per racer.
-        $cupBests = array_filter(getBestScorePerCup($pdo, (int)$rid, $seasonId, getMK8DCups()), fn($v) => $v !== null && $v > 0);
+        $cupBests = array_filter(getBestScorePerCup($pdo, (int)$rid, $seasonId, getMKAllCups()), fn($v) => $v !== null && $v > 0);
         arsort($cupBests);
         $entry['cup_bests'] = $cupBests;
         $top12 = array_slice($cupBests, 0, 12, true);
@@ -81,7 +81,7 @@ foreach ($racers as $racer) {
         $entry['dropped_cups'] = $dropped;
         $entry['top12_total'] = array_sum($top12);
         $entry['bubble_score'] = count($cupBests) >= 12 ? min($top12) : null;
-        $entry['perfects'] = count(array_filter($top12, fn($p) => $p === 60));
+        $entry['perfects'] = count(array_filter($top12, fn($p) => $p === MK_MAX_GP_POINTS));
     } elseif ($scoringSystem === 'positional_points') {
         // Ladder points per GP, best-first, with the best-N cut line marked.
         $detail = positionalPointsDetail($pdo, (int)$rid, $seasonId, $rules);
@@ -275,7 +275,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                 <p class="diff-description" style="margin-top:8px;">
                     Only <strong>where you finish</strong> matters — not by how much. Every GP pays out on a fixed Mario Kart ladder, so a win banks 15 points whether you led by a lap or a bumper.
                 </p>
-                <?php $posOrdinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th']; ?>
+                <?php $posOrdinals = array_map('ordinal', range(1, count(MK_POINTS_SCALE))); ?>
                 <div class="scr-pos-ladder">
                     <?php foreach (MK_POINTS_SCALE as $i => $pts): ?>
                         <div class="scr-pos-rung<?= $i === 0 ? ' scr-pos-rung--win' : '' ?>">
@@ -395,7 +395,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
 
         <?php elseif ($scoringSystem === 'positional_points' && !empty($rb['pos']['rows'])):
             $pos  = $rb['pos'];
-            $ords = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'];
+            $ords = array_map('ordinal', range(1, count(MK_POINTS_SCALE)));
         ?>
             <!-- Positional Points view -->
             <div class="scr-summary">

@@ -153,7 +153,7 @@ foreach ($all_racers as $racer) {
                 case 'cup_based':
                     // Best score per required cup, sum
                     $cupsRequired = $rules['cups_required'] ?? 12;
-                    $allCups = array_slice(getMK8DCups(), 0, $cupsRequired);
+                    $allCups = array_slice(getMKAllCups(), 0, $cupsRequired);
                     $cupBests = [];
                     foreach ($running_bag as $e) {
                         $cn = $e['cup_name'];
@@ -168,7 +168,7 @@ foreach ($all_racers as $racer) {
                     // Best per cup, drop N worst, sum
                     $cupsRequired = $rules['cups_required'] ?? 12;
                     $dropWorstCount = $rules['drop_worst_count'] ?? 2;
-                    $allCups = array_slice(getMK8DCups(), 0, $cupsRequired);
+                    $allCups = array_slice(getMKAllCups(), 0, $cupsRequired);
                     $cupBests = [];
                     foreach ($running_bag as $e) {
                         $cn = $e['cup_name'];
@@ -186,7 +186,7 @@ foreach ($all_racers as $racer) {
                     // Cup-based with multiplier for 60s
                     $cupsRequired = $rules['cups_required'] ?? 12;
                     $perfectMultiplier = $rules['perfect_multiplier'] ?? 2.0;
-                    $allCups = array_slice(getMK8DCups(), 0, $cupsRequired);
+                    $allCups = array_slice(getMKAllCups(), 0, $cupsRequired);
                     $cupBests = [];
                     foreach ($running_bag as $e) {
                         $cn = $e['cup_name'];
@@ -196,14 +196,14 @@ foreach ($all_racers as $racer) {
                     }
                     $total = 0;
                     foreach ($cupBests as $score) {
-                        $total += ($score == 60) ? ($score * $perfectMultiplier) : $score;
+                        $total += ($score == MK_MAX_GP_POINTS) ? ($score * $perfectMultiplier) : $score;
                     }
                     $chart_points[] = round($total, 2);
                     break;
 
                 case 'top_12_unique':
                     // Best score per cup, take top 12
-                    $allCups = getMK8DCups();
+                    $allCups = getMKAllCups();
                     $cupBests = [];
                     foreach ($running_bag as $e) {
                         $cn = $e['cup_name'];

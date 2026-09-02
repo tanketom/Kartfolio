@@ -28,11 +28,7 @@ function ss_resolve($val, array $rules) {
 
 // Defaults used for configurable name/description templates so the
 // examples on this page show a representative value rather than a 0.
-$exampleRules = [
-    'cups_required'      => 12,
-    'best_n_count'       => 15,
-    'drop_worst_count'   => 2,
-    'perfect_multiplier' => 2.0,
+$exampleRules = newSeasonDefaults('average_attendance') + [
     'pm_ante'            => 100,
     'h2h_npc_weight'     => 0.25,
     'bs_rate'            => 0.10,

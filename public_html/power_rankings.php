@@ -81,7 +81,7 @@ foreach ($seasonRacers as $racer) {
     // ----- Recent Form: last 5 season GPs -----
     $recentPts = array_slice($prPts, 0, 5);
     $formAvg = count($recentPts) > 0 ? array_sum($recentPts) / count($recentPts) : 0;
-    $formNorm = ($formAvg / 60) * 100;
+    $formNorm = ($formAvg / MK_MAX_GP_POINTS) * 100;
 
     // ----- Consistency: last 10 season GPs, inverse stddev -----
     $consPts = array_slice($prPts, 0, 10);
@@ -153,7 +153,7 @@ foreach ($seasonRacers as $racer) {
     // Form without most recent GP (last 5 becomes items 2-6)
     $prevRecentPts = array_slice($prPts, 1, 5);
     $prevFormAvg = count($prevRecentPts) > 0 ? array_sum($prevRecentPts) / count($prevRecentPts) : 0;
-    $prevFormNorm = ($prevFormAvg / 60) * 100;
+    $prevFormNorm = ($prevFormAvg / MK_MAX_GP_POINTS) * 100;
 
     // Consistency without most recent GP (last 10 becomes items 2-11)
     $prevConsPts = array_slice($prPts, 1, 10);

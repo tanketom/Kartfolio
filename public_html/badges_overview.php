@@ -112,7 +112,7 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
         if ($r['rank'] == 2) $seconds++;
         if ($r['rank'] == 4) $fourths++;
         if ($r['rank'] == 7) $sevenths++;
-        if ($r['gp_points'] == 60) $perfect_games++;
+        if ($r['gp_points'] == MK_MAX_GP_POINTS) $perfect_games++;
 
         $chars[] = $r['character_used'];
         $ranks[] = $r['rank'];

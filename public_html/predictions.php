@@ -256,7 +256,7 @@ if (!$insufficientData && count($racers) >= 2) {
         // #2 needs: (secondTotal + X * remaining) / (secondCount + remaining) >= leaderProjectedAvg
         $neededTotal = $leaderProjectedAvg * ($secondCount + $estimatedRemainingGPs) - $secondTotal;
         $neededAvg   = $estimatedRemainingGPs > 0 ? $neededTotal / $estimatedRemainingGPs : 0;
-        $neededAvg   = max(0, min(60, round($neededAvg, 1)));
+        $neededAvg   = max(0, min(MK_MAX_GP_POINTS, round($neededAvg, 1)));
 
         $scenarios[] = [
             'icon' => '2',

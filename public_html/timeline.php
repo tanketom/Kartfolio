@@ -141,7 +141,7 @@ foreach ($resultsByGP as $gpid => $gpResults) {
     // Perfect 60s
     $perfectNames = [];
     foreach ($gpResults as $r) {
-        if ((int)$r['gp_points'] === 60) $perfectNames[] = $r['name'];
+        if ((int)$r['gp_points'] === MK_MAX_GP_POINTS) $perfectNames[] = $r['name'];
     }
     if (count($perfectNames) > 0) {
         $events[] = ['type' => 'perfect', 'icon' => '💯', 'label' => implode(' & ', $perfectNames) . ' — Perfect 60!'];

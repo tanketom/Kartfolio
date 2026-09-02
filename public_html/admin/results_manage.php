@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../private/includes/auth.php';
 require_admin();
 
 $message = "";
-$cups = getMK8DCups();
+$cups = getMKAllCups();
 
 // 1. HANDLE UPDATES
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (!empty($updates) || $pointsOffset !== 0) {
             $count = 0;
             if ($pointsOffset !== 0) {
-                $updates[] = "gp_points = MAX(0, MIN(60, gp_points + ?))";
+                $updates[] = "gp_points = MAX(0, MIN(" . MK_MAX_GP_POINTS . ", gp_points + ?))";
                 $params[] = $pointsOffset;
             }
 
