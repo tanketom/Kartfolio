@@ -17,12 +17,158 @@
  * Path: /cdnmk/private/includes/wrapped_personas.php
  */
 
-/** Pick the first catalog entry whose 'match' closure returns true. */
+/** Pick the first catalog entry whose 'match' closure returns true (single-racer fallback). */
 function wrappedPick(array $catalog, array $stats): array {
     foreach ($catalog as $entry) {
         if (($entry['match'])($stats)) return $entry;
     }
     return end($catalog); // catalogs always end with an unconditional default
+}
+
+/**
+ * RARITY-FIRST assignment across the whole roster. wrappedPick() is
+ * first-match-wins in catalogue order, so everyone who qualified for an
+ * early entry landed there (2026: ten "Fresh Tracks", six "Fading Star",
+ * twelve clubs unused). Here every racer's matches are collected first and
+ * each racer takes the matching entry that the FEWEST racers qualify for —
+ * specific achievements beat generic buckets automatically, unconditional
+ * defaults only ever catch someone who matched nothing else. Ties keep the
+ * catalogue's priority order. Deterministic: no state, no randomness.
+ *
+ * @param array $bags  racer_id => stat bag (the same shape wrappedPick takes)
+ * @return array racer_id => catalogue entry
+ */
+function wrappedAssignAll(array $catalog, array $bags): array {
+    $matches = [];   // racer_id => [catalog index, ...]
+    $count   = array_fill(0, count($catalog), 0);
+    foreach ($bags as $rid => $bag) {
+        foreach ($catalog as $i => $entry) {
+            if (($entry['match'])($bag)) { $matches[$rid][] = $i; $count[$i]++; }
+        }
+    }
+    $out = [];
+    foreach ($bags as $rid => $bag) {
+        $best = null;
+        foreach ($matches[$rid] ?? [] as $i) {
+            if ($best === null || $count[$i] < $count[$best]) $best = $i;   // strict <, so ties keep order
+        }
+        $out[$rid] = $catalog[$best ?? array_key_last($catalog)];
+    }
+    return $out;
+}
+
+/**
+ * Stat bag for every racer with a GP this year — the fields the catalogues
+ * match on, computed from ONE query of the year's rows plus the Elo
+ * changelog. Mirrors the per-racer computation in wrapped.php exactly (the
+ * regression check compares them). Cached per request.
+ */
+function wrappedStatBags(PDO $pdo, int $year, array $roster): array {
+    static $cache = [];
+    if (isset($cache[$year])) return $cache[$year];
+
+    $st = $pdo->prepare("
+        SELECT racer_id, gp_points, rank, cup_name, character_used, is_lol
+        FROM results
+        WHERE gpid LIKE 's%' AND race_date >= ? AND race_date < ?
+        ORDER BY race_date ASC, id ASC");
+    $st->execute(["$year-01-01", ($year + 1) . "-01-01"]);
+    $byRacer = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $byRacer[(int)$r['racer_id']][] = $r;
+
+    // Elo first/last/peak per racer name for the year.
+    if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/elo_engine.php';
+    $eloData = calculateAllELORatings($pdo);
+    $elo = [];   // name => [first, last, peak]
+    foreach ($eloData['gp_changelog'] ?? [] as $gpLog) {
+        if (substr($gpLog['date'], 0, 4) !== (string)$year) continue;
+        foreach ($gpLog['racers'] as $rc) {
+            $n = $rc['name'];
+            if (!isset($elo[$n])) $elo[$n] = [$rc['old'], $rc['new'], $rc['new']];
+            else { $elo[$n][1] = $rc['new']; $elo[$n][2] = max($elo[$n][2], $rc['new']); }
+        }
+    }
+
+    $groups = getCharacterGroups();
+    $rosterList = array_values($roster);
+    $bags = [];
+    foreach ($byRacer as $rid => $rows) {
+        $name   = $roster[$rid]['name'] ?? '';
+        $gps    = count($rows);
+        $points = array_sum(array_map(fn($r) => (int)$r['gp_points'], $rows));
+        $avg    = $gps ? round($points / $gps, 1) : 0;
+        $wins = 0; $podiums = 0; $lols = 0; $bestPts = -1;
+        $charTally = []; $cupTally = []; $ranksChrono = [];
+        foreach ($rows as $r) {
+            if ((int)$r['rank'] === 1) $wins++;
+            if ((int)$r['rank'] <= 3) $podiums++;
+            $lols += (int)$r['is_lol'];
+            if ((int)$r['gp_points'] > $bestPts) $bestPts = (int)$r['gp_points'];
+            if ($r['character_used']) $charTally[$r['character_used']] = ($charTally[$r['character_used']] ?? 0) + 1;
+            if ($r['cup_name'])       $cupTally[$r['cup_name']]        = ($cupTally[$r['cup_name']] ?? 0) + 1;
+            $ranksChrono[] = (int)$r['rank'];
+        }
+        $ptVals = array_map(fn($r) => (int)$r['gp_points'], $rows);
+        $mean   = $gps ? array_sum($ptVals) / $gps : 0;
+        $stdDev = $gps ? sqrt(array_sum(array_map(fn($p) => ($p - $mean) ** 2, $ptVals)) / $gps) : 0;
+        $longestPodium = 0; $run = 0;
+        foreach ($ranksChrono as $rk) { if ($rk <= 3) { $run++; $longestPodium = max($longestPodium, $run); } else $run = 0; }
+        $comeback = false;
+        for ($i = 1; $i < count($ranksChrono); $i++) if ($ranksChrono[$i] === 1 && $ranksChrono[$i - 1] >= 10) { $comeback = true; break; }
+        $half = (int)floor($gps / 2); $secondHalfJump = 0;
+        if ($half >= 1) { $first = array_slice($ptVals, 0, $half); $second = array_slice($ptVals, $half); $secondHalfJump = (array_sum($second) / count($second)) - (array_sum($first) / count($first)); }
+        $groupCounts = array_fill_keys(array_keys($groups), 0);
+        foreach ($charTally as $char => $cnt) {
+            $norm = normalizeCharacterName($char);
+            foreach ($groups as $gk => $members) if (in_array($norm, $members, true) || in_array($char, $members, true)) $groupCounts[$gk] += $cnt;
+        }
+        arsort($groupCounts);
+        $topGroup = (max($groupCounts) > 0) ? array_key_first($groupCounts) : null;
+        $ahead = 0; foreach ($rosterList as $o) if ((float)$o['points'] < (float)$points) $ahead++;
+        $pointsPercentile = count($rosterList) > 1 ? round($ahead / (count($rosterList) - 1) * 100) : 100;
+        $attendanceRank = 1; foreach ($rosterList as $o) if ((int)$o['gps'] > $gps) $attendanceRank++;
+        [$eFirst, $eLast, $ePeak] = $elo[$name] ?? [null, null, null];
+        $bags[$rid] = [
+            'gps' => $gps, 'wins' => $wins, 'podiums' => $podiums, 'avg' => $avg, 'points' => $points,
+            'win_rate' => $gps ? $wins / $gps : 0, 'podium_rate' => $gps ? $podiums / $gps : 0,
+            'std_dev' => $stdDev, 'best_pts' => $bestPts, 'has_perfect' => ($bestPts === MK_MAX_GP_POINTS),
+            'peak_elo' => $ePeak ?? 0, 'elo_delta' => ($eFirst !== null && $eLast !== null) ? (int)round($eLast - $eFirst) : 0,
+            'lols' => $lols, 'lol_rate' => $gps ? $lols / $gps : 0,
+            'distinct_chars' => count($charTally), 'cups_raced' => count($cupTally),
+            'cup_concentration' => $gps ? (max($cupTally ?: [0]) / $gps) : 0,
+            'longest_podium_streak' => $longestPodium, 'comeback' => $comeback, 'attendance_rank' => $attendanceRank,
+            'second_half_jump' => $secondHalfJump, 'top_group' => $topGroup, 'points_percentile' => $pointsPercentile,
+        ];
+    }
+    return $cache[$year] = $bags;
+}
+
+/**
+ * Aura / club / personality for EVERY racer this year, rarity-first, cached
+ * in sim_cache on the results signature (the assignment is a pure function
+ * of the year's rows). Returns racer_id => ['aura' => entry, 'club' => entry,
+ * 'personality' => entry].
+ */
+function wrappedAssignments(PDO $pdo, int $year, array $roster): array {
+    static $mem = [];
+    if (isset($mem[$year])) return $mem[$year];
+    if (!function_exists('simCacheGet')) require_once __DIR__ . '/sim_cache.php';
+    $sig = $pdo->query("SELECT COUNT(*) || ':' || COALESCE(MAX(id),0) FROM results")->fetchColumn();
+    $key = 'wrapped:' . $year . ':' . $sig . ':' . crc32((string)@file_get_contents(__FILE__));
+    $catalogs = ['aura' => wrappedAuras(), 'club' => wrappedClubs(), 'personality' => wrappedPersonalities()];
+    $byKey = [];
+    foreach ($catalogs as $kind => $cat) foreach ($cat as $e) $byKey[$kind][$e['key']] = $e;
+
+    $hit = simCacheGet($pdo, $key);
+    if ($hit === null) {
+        $bags = wrappedStatBags($pdo, $year, $roster);
+        $hit = [];
+        foreach ($catalogs as $kind => $cat) foreach (wrappedAssignAll($cat, $bags) as $rid => $e) $hit[$rid][$kind] = $e['key'];
+        simCachePut($pdo, $key, $hit);
+    }
+    $out = [];
+    foreach ($hit as $rid => $kinds) foreach ($kinds as $kind => $k) if (isset($byKey[$kind][$k])) $out[(int)$rid][$kind] = $byKey[$kind][$k];
+    return $mem[$year] = $out;
 }
 
 /** Minimum GPs before a racer is judged on "performance" auras/clubs.
@@ -65,7 +211,10 @@ function wrappedAuras(): array {
         ['key' => 'feral',        'label' => 'Feral',         'grad' => ['#134e5e', '#71b280'], 'meaning' => 'Untamed and a little dangerous — you ran on instinct and teeth all year.',                    'match' => fn($s) => in_array($s['top_group'], ['furry', 'reptiles'], true)],
         // ── Low-GP catch-alls ──
         ['key' => 'rookie_fire',  'label' => 'Rookie Fire',   'grad' => ['#ff4e50', '#f9d423'], 'meaning' => 'You did not race often, but every time you did the field noticed. A spark with range.',      'match' => fn($s) => $s['gps'] < WRAPPED_MIN_GPS && $s['avg'] >= 38],
-        ['key' => 'fresh_tracks', 'label' => 'Fresh Tracks',  'grad' => ['#36d1dc', '#5b86e5'], 'meaning' => 'Only a handful of starts so far — the season is still wide open for you.',                    'match' => fn($s) => $s['gps'] < WRAPPED_MIN_GPS],
+        // Newcomers are judged against each other, in three activity bands.
+        ['key' => 'one_lap',      'label' => 'One Lap',       'grad' => ['#bdc3c7', '#2c3e50'], 'meaning' => 'One start on the board — the grid has your name now, and that is how every season begins.',    'match' => fn($s) => $s['gps'] === 1],
+        ['key' => 'fresh_tracks', 'label' => 'Fresh Tracks',  'grad' => ['#36d1dc', '#5b86e5'], 'meaning' => 'Only a handful of starts so far — the season is still wide open for you.',                    'match' => fn($s) => $s['gps'] >= 2 && $s['gps'] <= 3],
+        ['key' => 'warming_up',   'label' => 'Warming Up',    'grad' => ['#f6d365', '#fda085'], 'meaning' => 'A few nights in and finding the racing line — one more push and you race with the regulars.', 'match' => fn($s) => $s['gps'] >= 4 && $s['gps'] < WRAPPED_MIN_GPS],
         ['key' => 'steady',       'label' => 'Steady Hand',   'grad' => ['#5b6f8c', '#2c3e50'], 'meaning' => 'No drama, no collapse — a season that simply, reliably, got the job done.',                   'match' => fn($s) => true], // default
     ];
 }
@@ -104,7 +253,8 @@ function wrappedClubs(): array {
         ['key' => 'completionists', 'name' => 'The Completionists',  'blurb' => 'Every cup, every circuit. You leave no track unraced.',           'match' => fn($s) => $s['cups_raced'] >= 22],
         ['key' => 'perfectionists', 'name' => 'The Perfectionists', 'blurb' => 'You found the flawless 60 — and clearly liked the taste.',         'match' => fn($s) => $s['has_perfect']],
         ['key' => 'iron',           'name' => 'The Iron Riders',     'blurb' => 'Season after season, GP after GP. Built to last.',                'match' => fn($s) => $s['gps'] >= 20],
-        ['key' => 'newcomers',      'name' => 'The Newcomers',       'blurb' => 'New to the grid this season — the field is still learning your name.', 'match' => fn($s) => $s['gps'] < WRAPPED_MIN_GPS],
+        ['key' => 'debutants',      'name' => 'The Debutants',       'blurb' => 'One GP, one story to tell. Everyone\'s first night looks like this.',      'match' => fn($s) => $s['gps'] === 1],
+        ['key' => 'newcomers',      'name' => 'The Newcomers',       'blurb' => 'New to the grid this season — the field is still learning your name.', 'match' => fn($s) => $s['gps'] >= 2 && $s['gps'] < WRAPPED_MIN_GPS],
         ['key' => 'backmarkers',    'name' => "The Backmarkers' Union", 'blurb' => 'Results be damned — you turn up and you race. Respect.',       'match' => fn($s) => true], // default
     ];
 }
@@ -112,6 +262,9 @@ function wrappedClubs(): array {
 /** ~9 Racing Personalities (the "Listening Personality" analog). */
 function wrappedPersonalities(): array {
     return [
+        // Newcomers get their own two so the default doesn't swallow them.
+        ['key' => 'debut',       'label' => 'The Debut',       'blurb' => 'One night on the grid — the league has seen you now, and it will be asking when you are back.', 'match' => fn($s) => $s['gps'] === 1],
+        ['key' => 'prospect',    'label' => 'The Prospect',    'blurb' => 'A few starts, a lot of upside. The regulars have started paying attention.',                 'match' => fn($s) => $s['gps'] >= 2 && $s['gps'] < WRAPPED_MIN_GPS],
         ['key' => 'frontrunner', 'label' => 'The Frontrunner', 'blurb' => 'When you race, you race to win — and you usually do.',          'match' => fn($s) => $s['win_rate'] >= 0.35],
         ['key' => 'specialist',  'label' => 'The Specialist',  'blurb' => 'Give you the right cup and the league is in trouble.',          'match' => fn($s) => $s['cup_concentration'] >= 0.40 && $s['wins'] >= 1],
         ['key' => 'comebackkid', 'label' => 'The Comeback Kid','blurb' => 'You are at your most dangerous when written off.',             'match' => fn($s) => $s['comeback']],

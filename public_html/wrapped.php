@@ -278,9 +278,12 @@ $statBag = [
     'longest_podium_streak' => $longestPodium, 'comeback' => $comeback, 'attendance_rank' => $attendanceRank,
     'second_half_jump' => $secondHalfJump, 'top_group' => $topGroup, 'points_percentile' => $pointsPercentile,
 ];
-$aura        = wrappedPick(wrappedAuras(), $statBag);
-$club        = wrappedPick(wrappedClubs(), $statBag);
-$personality = wrappedPick(wrappedPersonalities(), $statBag);
+// Rarity-first across the whole roster (see wrappedAssignAll); the
+// single-racer first-match pick is only the fallback.
+$assigned    = wrappedAssignments($pdo, (int)$year, $roster)[$racerId] ?? [];
+$aura        = $assigned['aura']        ?? wrappedPick(wrappedAuras(), $statBag);
+$club        = $assigned['club']        ?? wrappedPick(wrappedClubs(), $statBag);
+$personality = $assigned['personality'] ?? wrappedPick(wrappedPersonalities(), $statBag);
 
 $pageTitle = htmlspecialchars($name) . " — $year Wrapped";
 $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
