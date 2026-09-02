@@ -260,7 +260,7 @@ function badgeSeasonContext($pdo, $season_id) {
         $need = defined('QUESTS_PER_RACER') ? (int)QUESTS_PER_RACER : 2;
         foreach ($assigned as $rid => $keys) {
             if (count($keys) < $need || !function_exists('racerSeasonStats')) continue;
-            $stats = racerSeasonStats($pdo, $rid, $season_id);
+            $stats = racerSeasonStats($pdo, $rid, $season_id, $eloData); // Elo already computed above
             $all = true;
             foreach ($keys as $k) { if (!isset($defs[$k]) || !($defs[$k]['check'])($stats)) { $all = false; break; } }
             if ($all) $questmaster[$rid] = true;

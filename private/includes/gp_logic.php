@@ -2141,7 +2141,7 @@ function getTeamStandings(PDO $pdo, string $season_id): array {
  *   cups_raced, base_cups_raced, has_perfect, longest_win_streak,
  *   longest_podium_streak, comeback, elo_delta, top_char.
  */
-function racerSeasonStats($pdo, $racer_id, $season_id): array {
+function racerSeasonStats($pdo, $racer_id, $season_id, ?array $eloData = null): array {
     if (!defined('MK_BASE_CUPS')) require_once __DIR__ . '/mk_data.php';
     $rows = getRacerSeasonRows($pdo, $racer_id, $season_id);
     // Chronological for streak/comeback logic (cache is gp_points ASC).
@@ -2190,16 +2190,21 @@ function racerSeasonStats($pdo, $racer_id, $season_id): array {
 
     // Season Elo delta from the cached raw changelog.
     $eloDelta = 0;
-    static $nameCache = [];
-    if (!isset($nameCache[$racer_id])) {
-        $ns = $pdo->prepare("SELECT name FROM racers WHERE id = ?");
-        $ns->execute([$racer_id]);
-        $nameCache[$racer_id] = $ns->fetchColumn() ?: '';
-    }
-    $rname = $nameCache[$racer_id];
+    // One names map per request, not one query per racer — this runs for
+    // every quest-holder inside the badge context on the homepage.
+    static $nameCache = null;
+    if ($nameCache === null) $nameCache = $pdo->query("SELECT id, name FROM racers")->fetchAll(PDO::FETCH_KEY_PAIR);
+    $rname = (string)($nameCache[$racer_id] ?? '');
     if ($rname !== '') {
-        if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/elo_engine.php';
-        $elo = calculateAllELORatings($pdo);
+        // Callers that already hold the Elo data (badgeSeasonContext) pass it
+        // in; that skips calculateAllELORatings()'s per-call table-signature
+        // query without weakening its mid-request invalidation for everyone
+        // else. Quests/racer pages pass nothing and behave as before.
+        if ($eloData === null) {
+            if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/elo_engine.php';
+            $eloData = calculateAllELORatings($pdo);
+        }
+        $elo = $eloData;
         $first = $last = null;
         foreach ($elo['gp_changelog'] ?? [] as $gpLog) {
             if (strpos($gpLog['gpid'], $season_id) !== 0) continue;
