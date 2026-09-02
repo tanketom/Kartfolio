@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS season_placements (
     PRIMARY KEY (season_id, racer_id)
 );
 
+-- Simulation cache (predictions Monte Carlo) — see private/includes/sim_cache.php
+CREATE TABLE IF NOT EXISTS sim_cache (
+    cache_key  TEXT PRIMARY KEY,
+    payload    TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Mikkoliiga membership snapshot — captured per-season at archive time so
 -- historical standings stay stable even if a member toggles their flag later.
 CREATE TABLE IF NOT EXISTS mikkoliiga_membership (
@@ -286,15 +293,6 @@ CREATE TABLE IF NOT EXISTS fantasy_bets (
     points_earned INTEGER DEFAULT NULL,
     submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(week_key, predictor_id, bet_type, bet_key)
-);
-
--- Cup head-to-head preferences — feeds /cup-favourites.
-CREATE TABLE IF NOT EXISTS cup_preferences (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    voter_id TEXT NOT NULL,
-    winner_cup TEXT NOT NULL,
-    loser_cup TEXT NOT NULL,
-    voted_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Mac's Mushroom Musings — one cached strategy blurb per track.

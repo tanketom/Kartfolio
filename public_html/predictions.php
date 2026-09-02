@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/elo_engine.php';
+require_once __DIR__ . '/../private/includes/sim_cache.php';
 
 $pageTitle = "Crystal Ball - Kartfolio";
 $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';
@@ -148,6 +149,18 @@ if (!$insufficientData && !$seasonComplete && count($racers) >= 2) {
         $existingPoints[$r['name']] = $ptsStmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
+    // The simulation is a pure function of: the racers' Elo, participation
+    // rate and existing points (all fixed by the results table), the number
+    // of GPs left (fixed by today's date) and N. Cache on exactly that, so
+    // the 430 ms Monte Carlo runs once per new GP or new day rather than on
+    // every view — and the odds stop changing between two reloads.
+    $simInputs = [];
+    foreach ($racers as $r) $simInputs[$r['name']] = [round($r['elo'], 3), round($r['participation_rate'], 4), $existingPoints[$r['name']]];
+    $simKey = 'predictions:' . $currentSeason . ':' . date('Y-m-d') . ':' . $estimatedRemainingGPs . ':' . $simulations . ':' . md5(json_encode($simInputs));
+    $simHit = simCacheGet($pdo, $simKey);
+    if ($simHit !== null && isset($simHit['wins']) && array_keys($simHit['wins']) == array_keys($wins)) {
+        $wins = $simHit['wins'];
+    } else {
     for ($sim = 0; $sim < $simulations; $sim++) {
         // Copy existing points
         $simPoints = [];
@@ -193,6 +206,8 @@ if (!$insufficientData && !$seasonComplete && count($racers) >= 2) {
         $winner = array_key_first($finalScores);
         $wins[$winner]++;
     }
+    simCachePut($pdo, $simKey, ['wins' => $wins]);
+    }   // end cache miss
 
     // Calculate probabilities
     foreach ($wins as $name => $winCount) {

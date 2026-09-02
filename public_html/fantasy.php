@@ -17,40 +17,9 @@ require_once __DIR__ . '/../private/includes/elo_engine.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
 
 // ============================================================
-// 1. Schema – Create tables if needed
+// 1. Schema — the fantasy tables are created by db.php's versioned
+//    migration block (they used to be CREATEd on every render here).
 // ============================================================
-$pdo->exec("CREATE TABLE IF NOT EXISTS fantasy_predictors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    racer_id INTEGER DEFAULT NULL,
-    guest_name TEXT DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(racer_id),
-    UNIQUE(guest_name)
-)");
-
-$pdo->exec("CREATE TABLE IF NOT EXISTS fantasy_weeks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    week_key TEXT NOT NULL UNIQUE,
-    deadline TEXT NOT NULL,
-    scored BOOLEAN DEFAULT 0,
-    scored_at DATETIME DEFAULT NULL
-)");
-
-$pdo->exec("CREATE TABLE IF NOT EXISTS fantasy_bets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    week_key TEXT NOT NULL,
-    predictor_id INTEGER NOT NULL,
-    bet_type TEXT NOT NULL,
-    bet_key TEXT NOT NULL,
-    bet_value TEXT NOT NULL,
-    confidence INTEGER NOT NULL DEFAULT 1,
-    points_earned INTEGER DEFAULT NULL,
-    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(week_key, predictor_id, bet_type, bet_key)
-)");
-// Inline migration for existing DBs (idempotent).
-try { $pdo->exec("ALTER TABLE fantasy_bets ADD COLUMN confidence INTEGER NOT NULL DEFAULT 1"); }
-catch (PDOException $e) {}
 
 // ============================================================
 // 2. Timing – Sunday-to-Sunday window
@@ -83,12 +52,14 @@ if ($timeRemaining->days > 0) {
 // Week key: e.g. "2025-W07" based on the deadline date
 $weekKey = $deadline->format('Y-\\WW');
 
-// Ensure this week exists in fantasy_weeks
-$wkCheck = $pdo->prepare("SELECT id FROM fantasy_weeks WHERE week_key = ?");
-$wkCheck->execute([$weekKey]);
-if (!$wkCheck->fetchColumn()) {
-    $wkIns = $pdo->prepare("INSERT OR IGNORE INTO fantasy_weeks (week_key, deadline) VALUES (?, ?)");
-    $wkIns->execute([$weekKey, $deadline->format('Y-m-d H:i:s')]);
+/**
+ * Make sure this week's row exists — called from the bet-submission POST,
+ * never from a plain page view. (It used to INSERT on every GET, so any
+ * crawler hit took a write lock.) A week nobody bet on simply never exists.
+ */
+function fantasyEnsureWeek(PDO $pdo, string $weekKey, DateTime $deadline): void {
+    $pdo->prepare("INSERT OR IGNORE INTO fantasy_weeks (week_key, deadline) VALUES (?, ?)")
+        ->execute([$weekKey, $deadline->format('Y-m-d H:i:s')]);
 }
 
 // ============================================================
@@ -324,6 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'submit') {
         if (!$predictorId) {
             $submitError = 'Please select who you are or enter a name.';
         } else {
+            fantasyEnsureWeek($pdo, $weekKey, $deadline);   // the week row is born with its first bet
             $betCount = 0;
             $dupeCount = 0;
 

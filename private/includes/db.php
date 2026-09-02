@@ -119,16 +119,9 @@ try {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_track_pref_winner ON track_preferences(winner_track)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_track_pref_loser  ON track_preferences(loser_track)");
 
-    // Cup head-to-head preferences — feeds /cup-favourites ranking. (Missing
-    // migration discovered when the page fataled locally; production had the
-    // table from a manual create.)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS cup_preferences (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        voter_id TEXT NOT NULL,
-        winner_cup TEXT NOT NULL,
-        loser_cup TEXT NOT NULL,
-        voted_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
+    // (cup_preferences is no longer created: /cup-favourites was deleted —
+    // /track-favourites is the one that's used. An existing install keeps
+    // whatever the table holds; nothing reads it.)
 
     // Mac's Mushroom Musings — one cached strategy blurb per track. Generated
     // on demand by admins via /api/generate_track_musings. One row per track;
@@ -289,6 +282,46 @@ try {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_lexicon_category ON lexicon_terms(category, term)");
+
+    // Fantasy predictions — created here (versioned, once) instead of by
+    // fantasy.php on every render. confidence was a later ALTER on old DBs.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fantasy_predictors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        racer_id INTEGER DEFAULT NULL,
+        guest_name TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(racer_id),
+        UNIQUE(guest_name)
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fantasy_weeks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        week_key TEXT NOT NULL UNIQUE,
+        deadline TEXT NOT NULL,
+        scored BOOLEAN DEFAULT 0,
+        scored_at DATETIME DEFAULT NULL
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fantasy_bets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        week_key TEXT NOT NULL,
+        predictor_id INTEGER NOT NULL,
+        bet_type TEXT NOT NULL,
+        bet_key TEXT NOT NULL,
+        bet_value TEXT NOT NULL,
+        confidence INTEGER NOT NULL DEFAULT 1,
+        points_earned INTEGER DEFAULT NULL,
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(week_key, predictor_id, bet_type, bet_key)
+    )");
+    try { $pdo->exec("ALTER TABLE fantasy_bets ADD COLUMN confidence INTEGER NOT NULL DEFAULT 1"); }
+    catch (PDOException $e) {}
+
+    // Simulation cache — see private/includes/sim_cache.php. One row per
+    // (page, inputs signature); a new GP or a new day makes a new key.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS sim_cache (
+        cache_key  TEXT PRIMARY KEY,
+        payload    TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
 
     // Settings table + default rows (INSERT OR IGNORE — never overwrites an
     // admin's values). header.php used to exec this on every render.

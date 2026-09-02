@@ -1,13 +1,13 @@
 <?php
 /**
- * Preference ranking — Elo over head-to-head votes, for cups AND tracks.
+ * Preference ranking — Elo over head-to-head votes (tracks).
  *
  * A vote row says "voter prefers winner over loser". Replaying the votes in
  * order through Elo (K=32, base 1500) gives a global ranking organisers can
- * use as a seed list. cup_ranking.php and track_ranking.php used to be two
- * copies of this engine (identical apart from nouns, table names and three
- * tuning numbers; only the track copy had the per-request memo). They are
- * now thin adapters over prefConfig('cup') / prefConfig('track').
+ * use as a seed list. Parameterised by prefConfig(kind): today only 'track'
+ * (track_favourites.php + api/vote_track_preference.php); a second kind is
+ * one more config entry. (A 'cup' kind existed until /cup-favourites was
+ * retired in favour of /track-favourites.)
  *
  * Path: /cdnmk/private/includes/preference_ranking.php
  */
@@ -22,17 +22,6 @@ function prefConfig(string $kind): array {
     static $cfg = null;
     if ($cfg === null) {
         $cfg = [
-            'cup' => [
-                'table'    => 'cup_preferences',
-                'win_col'  => 'winner_cup',
-                'lose_col' => 'loser_cup',
-                'cookie'   => 'cup_voter',
-                'items'    => fn() => getMKAllCups(),
-                'extra'    => fn(string $item) => [],
-                'pool_base'=> 50,   // weight = max(1, pool_base − appearances)
-                'recent'   => 3,    // don't repeat the voter's last N pairs
-                'attempts' => 12,
-            ],
             'track' => [
                 'table'    => 'track_preferences',
                 'win_col'  => 'winner_track',
