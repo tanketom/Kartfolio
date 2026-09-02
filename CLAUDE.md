@@ -530,6 +530,15 @@ Cross-reference if you find half-implemented work:
 - `/scoring-systems` groups systems by a hand-kept key list and silently
   dropped anything unlisted (five new systems, none shown). Now appends a
   catch-all group for any registry key not placed
+- **Eight more badges** — Landlord / Usurper / Fortress (cup ownership, one
+  chronological pass in `badgeSeasonContext`), Dead Heat (level on score with
+  another qualifier), Dynasty (consecutive archived titles by champion name),
+  Ever-Present, Full Roster, Questmaster. Questmaster reads `racer_quests`
+  directly and evaluates the quest `check` closures itself — never call
+  `getRacerQuests()` from badges, it ASSIGNS quests as a side effect
+- **Badge icons deduplicated** — 84 badges, 84 distinct emoji. Keep it that
+  way: the inventory script in this session's history greps `'icon' =>` in
+  `badges.php` + `badges_overview.php` and reports collisions
 
 ## When in doubt
 

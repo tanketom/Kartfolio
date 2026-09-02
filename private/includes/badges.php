@@ -7,6 +7,7 @@ require_once __DIR__ . '/gp_logic.php';
 require_once __DIR__ . '/mk_data.php';
 require_once __DIR__ . '/stickers.php';
 require_once __DIR__ . '/worldcup_tournament.php';
+require_once __DIR__ . '/quests.php';
 
 /**
  * Season- and career-wide data shared by every racer's badge computation,
@@ -186,12 +187,94 @@ function badgeSeasonContext($pdo, $season_id) {
         }
     }
 
+    // ── Territory (cup ownership) — one chronological pass over the season ──
+    //   held      : racer => cups held at season end (canonical territorySeason)
+    //   takeovers : racer => times they took a cup off a DIFFERENT holder
+    //   fortress  : racer => cups they held unchanged all season through 3+
+    //               challengers (someone else posting on it and failing)
+    $territoryHeld = [];
+    foreach (territorySeason($pdo, $season_id)['by_racer'] as $rid => $cups) $territoryHeld[(int)$rid] = count($cups);
+
+    $cupRows = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        foreach ($rows as $r) {
+            if (($r['cup_name'] ?? '') === '') continue;
+            $cupRows[] = [(string)$r['race_date'], (int)$r['id'], (int)$rid, $r['cup_name'], (int)$r['gp_points']];
+        }
+    }
+    usort($cupRows, fn($x, $y) => strcmp($x[0], $y[0]) ?: ($x[1] <=> $y[1]));
+    $holder = []; $changed = []; $challengers = []; $territoryTakeovers = [];
+    foreach ($cupRows as [$d, $id, $rid, $cup, $pts]) {
+        if (!isset($holder[$cup])) { $holder[$cup] = [$rid, $pts]; $changed[$cup] = false; $challengers[$cup] = 0; continue; }
+        [$h, $hp] = $holder[$cup];
+        if ($rid !== $h) {
+            $challengers[$cup]++;
+            if ($pts > $hp) {   // strictly better takes it; a tie leaves it with the earlier post
+                $holder[$cup] = [$rid, $pts]; $changed[$cup] = true;
+                $territoryTakeovers[$rid] = ($territoryTakeovers[$rid] ?? 0) + 1;
+            }
+        } elseif ($pts > $hp) {
+            $holder[$cup] = [$rid, $pts];   // holder improving on themselves is not a change of hands
+        }
+    }
+    $territoryFortress = [];
+    foreach ($holder as $cup => [$h, $hp]) {
+        if (!$changed[$cup] && $challengers[$cup] >= 3) $territoryFortress[$h] = ($territoryFortress[$h] ?? 0) + 1;
+    }
+
+    // ── Dead Heat: level on score with another qualifying racer this season ──
+    $seasonRulesForTies = getSeasonRules($pdo, $season_id);
+    $scoreGroups = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        if (!racerQualifies(count($rows), $seasonRulesForTies)) continue;
+        $scoreGroups[number_format((float)calculateGPScore($pdo, (int)$rid, $season_id), 2, '.', '')][] = (int)$rid;
+    }
+    $deadHeat = [];
+    foreach ($scoreGroups as $ids) if (count($ids) >= 2) foreach ($ids as $rid) $deadHeat[$rid] = true;
+
+    // ── Ever-Present: GPs held this season (racer counts come from the cache) ──
+    $stG = $pdo->prepare("SELECT COUNT(DISTINCT gpid) FROM results WHERE gpid LIKE ?");
+    $stG->execute([$season_id . '%']);
+    $seasonGpTotal = (int)$stG->fetchColumn();
+
+    // ── Dynasty: longest run of consecutive archived-season titles, by champion name ──
+    $dynastyRun = []; $run = 0; $prevChamp = null;
+    foreach ($pdo->query("SELECT season_id, champion_name FROM season_meta WHERE status = 'archived' AND champion_name IS NOT NULL AND champion_name != '' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+        $n = trim((string)$c['champion_name']);
+        $run = ($n === $prevChamp) ? $run + 1 : 1;
+        $prevChamp = $n;
+        $dynastyRun[$n] = max($dynastyRun[$n] ?? 0, $run);
+    }
+
+    // ── Questmaster: both side quests completed. Reads racer_quests directly —
+    //    getRacerQuests() would ASSIGN quests as a side effect for every racer on
+    //    the board, so we evaluate the same check closures ourselves for racers
+    //    who already have a draw. ──
+    $questmaster = [];
+    try {
+        $stQ = $pdo->prepare("SELECT racer_id, quest_key FROM racer_quests WHERE season_id = ?");
+        $stQ->execute([$season_id]);
+        $assigned = [];
+        foreach ($stQ->fetchAll(PDO::FETCH_ASSOC) as $q) $assigned[(int)$q['racer_id']][] = $q['quest_key'];
+        $defs = function_exists('questByKey') ? questByKey() : [];
+        $need = defined('QUESTS_PER_RACER') ? (int)QUESTS_PER_RACER : 2;
+        foreach ($assigned as $rid => $keys) {
+            if (count($keys) < $need || !function_exists('racerSeasonStats')) continue;
+            $stats = racerSeasonStats($pdo, $rid, $season_id);
+            $all = true;
+            foreach ($keys as $k) { if (!isset($defs[$k]) || !($defs[$k]['check'])($stats)) { $all = false; break; } }
+            if ($all) $questmaster[$rid] = true;
+        }
+    } catch (PDOException $e) { /* quests table absent */ }
+
     return $cache[$season_id] = compact(
         'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader',
         'scoringSystem', 'bbLeaderId', 'careerCups', 'careerPerfectCups', 'careerChars',
         'prevSeasonCount', 'seasonsPlayed', 'racerNames',
         'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened',
-        'tourneyWins', 'pickemOracleIds', 'mikkoLeaderId', 'elo2000'
+        'tourneyWins', 'pickemOracleIds', 'mikkoLeaderId', 'elo2000',
+        'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'deadHeat',
+        'seasonGpTotal', 'dynastyRun', 'questmaster'
     );
 }
 
@@ -235,7 +318,7 @@ function appendCollectionBadges(array &$badges, array $ctx, int $racer_id) {
     // 5 · Foil Hunter — 5+ foils.
     if ($foil >= 5)         $badges[] = ['icon' => '✨', 'title' => 'Foil Hunter', 'desc' => 'Owns five or more shiny foil cards.'];
     // 6 · Got the Bot — the Kartificial chase foil.
-    if (!empty($h['kart'])) $badges[] = ['icon' => '🍄', 'title' => 'Got the Bot', 'desc' => 'Pulled Kartificial #001 — the chase foil.'];
+    if (!empty($h['kart'])) $badges[] = ['icon' => '🎴', 'title' => 'Got the Bot', 'desc' => 'Pulled Kartificial #001 — the chase foil.'];
     // 7 · Stuck With Dupes — 5+ of one card.
     if ($maxDup >= 5)       $badges[] = ['icon' => '♻️', 'title' => 'Stuck With Dupes', 'desc' => 'Hoards 5+ copies of a single card. Got, got, need!'];
     // 9 · Lore Keeper — completed the lore set.
@@ -251,7 +334,7 @@ function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
     if ($tw) {
         // 12 · Tournament Champion — any format.
         if (($tw['total'] ?? 0) >= 1)
-            $badges[] = ['icon' => '🎖️', 'title' => 'Tournament Champion', 'desc' => 'Won a Kartfolio tournament.'];
+            $badges[] = ['icon' => '🏆', 'title' => 'Tournament Champion', 'desc' => 'Won a Kartfolio tournament.'];
         // 11 · Board Breaker — Snakes & Ladders.
         if (!empty($tw['formats']['snakes_ladders']))
             $badges[] = ['icon' => '🐍', 'title' => 'Board Breaker', 'desc' => 'Won a Snakes & Ladders tournament.'];
@@ -267,7 +350,41 @@ function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
         $badges[] = ['icon' => '🌟', 'title' => 'Mikkoligan', 'desc' => 'Tops the Mikkoliiga this season.'];
     // 16 · Ascended — crossed 2000 Elo.
     if (!empty($ctx['elo2000'][$racer_id]))
-        $badges[] = ['icon' => '🧗', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating.'];
+        $badges[] = ['icon' => '🌠', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating.'];
+}
+
+/**
+ * Territory, tie-break, attendance and career-arc badges (all from context;
+ * the only per-racer read is the season cache slice).
+ */
+function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id, string $season_id) {
+    // 🏘️ Landlord — 5+ cups held at once.
+    if (($ctx['territoryHeld'][$racer_id] ?? 0) >= 5)
+        $badges[] = ['icon' => '🏘️', 'title' => 'Landlord', 'desc' => 'Holds five or more cups at once this season.'];
+    // 🗝️ Usurper — took a cup off someone else 5+ times.
+    if (($ctx['territoryTakeovers'][$racer_id] ?? 0) >= 5)
+        $badges[] = ['icon' => '🗝️', 'title' => 'Usurper', 'desc' => 'Took a cup off another racer five or more times this season.'];
+    // 🏯 Fortress — a cup defended all season against 3+ challengers.
+    if (($ctx['territoryFortress'][$racer_id] ?? 0) >= 1)
+        $badges[] = ['icon' => '🏯', 'title' => 'Fortress', 'desc' => 'Held a cup all season through three or more challengers, never overtaken.'];
+    // 🪙 Dead Heat — level on points with someone; the tie-break decided it.
+    if (!empty($ctx['deadHeat'][$racer_id]))
+        $badges[] = ['icon' => '🪙', 'title' => 'Dead Heat', 'desc' => 'Level on points with another racer — separated only by the tie-break.'];
+    // 📅 Ever-Present — every GP of the season (3+ held).
+    $mine = count(getRacerSeasonRows($pdo, $racer_id, $season_id));
+    if (($ctx['seasonGpTotal'] ?? 0) >= 3 && $mine === (int)$ctx['seasonGpTotal'])
+        $badges[] = ['icon' => '📅', 'title' => 'Ever-Present', 'desc' => 'Raced every single GP of the season.'];
+    // 🏵️ Dynasty — 3+ consecutive season titles.
+    $name = trim((string)($ctx['racerNames'][$racer_id] ?? ''));
+    if ($name !== '' && ($ctx['dynastyRun'][$name] ?? 0) >= 3)
+        $badges[] = ['icon' => '🏵️', 'title' => 'Dynasty', 'desc' => 'Won three or more seasons in a row.'];
+    // 🌈 Full Roster — 10+ distinct characters, career.
+    $chars = array_unique(array_map('normalizeCharacterName', $ctx['careerChars'][$racer_id] ?? []));
+    if (count($chars) >= 10)
+        $badges[] = ['icon' => '🌈', 'title' => 'Full Roster', 'desc' => 'Has raced ten or more different characters across their career.'];
+    // 🧭 Questmaster — both side quests done this season.
+    if (!empty($ctx['questmaster'][$racer_id]))
+        $badges[] = ['icon' => '🧭', 'title' => 'Questmaster', 'desc' => 'Completed both side quests this season.'];
 }
 
 function getRacerBadges($pdo, $racer_id, $season_id) {
@@ -281,6 +398,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     //   survive it — a collector who skipped this season still keeps them.
     appendCollectionBadges($badges, $ctx, $racer_id);
     appendCompetitionBadges($badges, $ctx, $racer_id);
+    appendSeasonEventBadges($badges, $ctx, $pdo, $racer_id, $season_id);
 
     // 1. Season results, sorted by date (streak logic needs chronological order).
     //    Served from the shared per-request season cache (gp_points ASC), so we
@@ -429,11 +547,11 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     }
 
     if (($seconds / $totalRaces) >= 0.25) {
-        $badges[] = ['icon' => '🥈', 'title' => 'The Bridesmaid', 'desc' => 'Finishes 2nd place >25% of the time.'];
+        $badges[] = ['icon' => '💐', 'title' => 'The Bridesmaid', 'desc' => 'Finishes 2nd place >25% of the time.'];
     }
 
     if (($fourths / $totalRaces) >= 0.25) {
-        $badges[] = ['icon' => '💀', 'title' => 'The Fourth Wall', 'desc' => 'Stuck in the cursed 4th place position >25% of the time.'];
+        $badges[] = ['icon' => '4️⃣', 'title' => 'The Fourth Wall', 'desc' => 'Stuck in the cursed 4th place position >25% of the time.'];
     }
 
     if ($max_win_streak >= 2) {
@@ -547,7 +665,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
 
     // 21. 🌟 Star Power
     if (($og_stars_count / $totalRaces) >= 0.60) {
-        $badges[] = ['icon' => '🌟', 'title' => 'Star Power', 'desc' => 'Mains original Nintendo stars (Mario, Luigi, Peach, Daisy) 60%+ of the time.'];
+        $badges[] = ['icon' => '⭐', 'title' => 'Star Power', 'desc' => 'Mains original Nintendo stars (Mario, Luigi, Peach, Daisy) 60%+ of the time.'];
     }
 
     // 22. 🏍️ Bike Brigade

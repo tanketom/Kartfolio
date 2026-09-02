@@ -27,8 +27,8 @@ $allBadgeDefinitions = [
     'performance' => [
         ['icon' => '👑', 'title' => 'Podium Royalty', 'desc' => 'Finishes in the Top 3 over 60% of the time', 'key' => 'podium_royalty'],
         ['icon' => '🤖', 'title' => 'Max Output', 'desc' => 'Achieved a perfect 60-point Grand Prix', 'key' => 'max_output'],
-        ['icon' => '🥈', 'title' => 'The Bridesmaid', 'desc' => 'Finishes 2nd place >25% of the time', 'key' => 'bridesmaid'],
-        ['icon' => '💀', 'title' => 'The Fourth Wall', 'desc' => 'Stuck in 4th place >25% of the time', 'key' => 'fourth_wall'],
+        ['icon' => '💐', 'title' => 'The Bridesmaid', 'desc' => 'Finishes 2nd place >25% of the time', 'key' => 'bridesmaid'],
+        ['icon' => '4️⃣', 'title' => 'The Fourth Wall', 'desc' => 'Stuck in 4th place >25% of the time', 'key' => 'fourth_wall'],
         ['icon' => '🔥', 'title' => 'Hot Hand', 'desc' => 'Won back-to-back Grand Prix events', 'key' => 'hot_hand'],
         ['icon' => '🧱', 'title' => 'The Wall', 'desc' => 'Consistently holds the midfield (avg rank 4-7)', 'key' => 'the_wall'],
         ['icon' => '⚓', 'title' => 'The Anchor', 'desc' => 'Average rank ≥10', 'key' => 'the_anchor'],
@@ -41,7 +41,7 @@ $allBadgeDefinitions = [
         ['icon' => '🦖', 'title' => 'Kaiju Protocol', 'desc' => 'Mains heavyweights >50% of the time', 'key' => 'kaiju'],
         ['icon' => '🔰', 'title' => 'The Purist', 'desc' => 'Uses Standard setups >50% of the time', 'key' => 'purist'],
         ['icon' => '👻', 'title' => 'Ghost Rider', 'desc' => 'Mains spooky characters >50% of the time', 'key' => 'ghost_rider'],
-        ['icon' => '🌟', 'title' => 'Star Power', 'desc' => 'Mains original stars >60% of the time', 'key' => 'star_power'],
+        ['icon' => '⭐', 'title' => 'Star Power', 'desc' => 'Mains original stars >60% of the time', 'key' => 'star_power'],
         ['icon' => '🏍️', 'title' => 'Bike Brigade', 'desc' => 'Uses bikes >60% of the time', 'key' => 'bike_brigade'],
     ],
     'volatility' => [
@@ -115,18 +115,30 @@ $allBadgeDefinitions = [
         ['icon' => '🥈', 'title' => 'Set Sweeper, Silver', 'desc' => 'Completed 3 full sticker sets', 'key' => 'set_sweeper_silver'],
         ['icon' => '🥇', 'title' => 'Set Sweeper, Gold', 'desc' => 'Completed 5 or more full sticker sets', 'key' => 'set_sweeper_gold'],
         ['icon' => '✨', 'title' => 'Foil Hunter', 'desc' => 'Owns five or more shiny foil cards', 'key' => 'foil_hunter'],
-        ['icon' => '🍄', 'title' => 'Got the Bot', 'desc' => 'Pulled Kartificial #001, the chase foil', 'key' => 'got_the_bot'],
+        ['icon' => '🎴', 'title' => 'Got the Bot', 'desc' => 'Pulled Kartificial #001, the chase foil', 'key' => 'got_the_bot'],
         ['icon' => '♻️', 'title' => 'Stuck With Dupes', 'desc' => 'Hoards 5+ copies of a single card', 'key' => 'stuck_with_dupes'],
         ['icon' => '📜', 'title' => 'Lore Keeper', 'desc' => 'Completed the Lore set', 'key' => 'lore_keeper'],
         ['icon' => '🐳', 'title' => 'Whale', 'desc' => 'Amassed 250+ total cards', 'key' => 'whale'],
     ],
     'honours' => [
-        ['icon' => '🎖️', 'title' => 'Tournament Champion', 'desc' => 'Won a Kartfolio tournament', 'key' => 'tournament_champion'],
+        ['icon' => '🏆', 'title' => 'Tournament Champion', 'desc' => 'Won a Kartfolio tournament', 'key' => 'tournament_champion'],
         ['icon' => '🐍', 'title' => 'Board Breaker', 'desc' => 'Won a Snakes & Ladders tournament', 'key' => 'board_breaker'],
         ['icon' => '🌍', 'title' => 'On Top of the World', 'desc' => 'Lifted the World Cup trophy', 'key' => 'on_top_of_the_world'],
         ['icon' => '🔮', 'title' => "Pick'em Oracle", 'desc' => "Topped a World Cup Pick'em leaderboard", 'key' => 'pickem_oracle'],
         ['icon' => '🌟', 'title' => 'Mikkoligan', 'desc' => 'Tops the Mikkoliiga this season', 'key' => 'mikkoligan'],
-        ['icon' => '🧗', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating', 'key' => 'ascended'],
+        ['icon' => '🌠', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating', 'key' => 'ascended'],
+    ],
+    'territory' => [
+        ['icon' => '🏘️', 'title' => 'Landlord', 'desc' => 'Holds 5+ cups at once this season', 'key' => 'landlord'],
+        ['icon' => '🗝️', 'title' => 'Usurper', 'desc' => 'Took a cup off another racer 5+ times this season', 'key' => 'usurper'],
+        ['icon' => '🏯', 'title' => 'Fortress', 'desc' => 'Held a cup all season through 3+ challengers, never overtaken', 'key' => 'fortress'],
+        ['icon' => '🪙', 'title' => 'Dead Heat', 'desc' => 'Level on points with another racer — separated only by the tie-break', 'key' => 'dead_heat'],
+    ],
+    'legacy' => [
+        ['icon' => '🏵️', 'title' => 'Dynasty', 'desc' => 'Won 3+ consecutive seasons', 'key' => 'dynasty'],
+        ['icon' => '📅', 'title' => 'Ever-Present', 'desc' => 'Raced every GP of the season', 'key' => 'ever_present'],
+        ['icon' => '🌈', 'title' => 'Full Roster', 'desc' => 'Raced 10+ different characters across their career', 'key' => 'full_roster'],
+        ['icon' => '🧭', 'title' => 'Questmaster', 'desc' => 'Completed both side quests this season', 'key' => 'questmaster'],
     ],
 ];
 
