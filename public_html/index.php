@@ -150,7 +150,7 @@ foreach (getActiveRacers($pdo, $seasonId) as $r) {
         'score'     => calculateGPScore($pdo, $r['id'], $seasonId),
         'breakdown' => getScoringBreakdown($pdo, $r['id'], $seasonId),
         'char'      => getMostUsedCharacter($pdo, $r['id'], $seasonId),
-        'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $seasonId) : [],
+        'badges'    => ($raceCount >= 3) ? sortBadgesByRarity(getRacerBadges($pdo, $r['id'], $seasonId), badgeHolderCounts($pdo, $seasonId)) : [],   // rarest first
         'raceCount' => $raceCount,
     ];
 }
@@ -316,7 +316,8 @@ $liveFormatLabels = [
                 <?php if (!empty($row['badges'])): ?>
                 <div class="badge-container">
                     <?php foreach ($row['badges'] as $badge): ?>
-                        <div class="badge-item" data-tooltip="<?= htmlspecialchars($badge['title']) ?>: <?= htmlspecialchars($badge['desc']) ?>"><?= $badge['icon'] ?></div>
+                        <?php $held = badgeHolderCounts($pdo, $seasonId)[$badge['title']] ?? 1; ?>
+                        <div class="badge-item" data-tooltip="<?= htmlspecialchars($badge['title']) ?>: <?= htmlspecialchars($badge['desc']) ?> · <?= $held === 1 ? 'only you' : "held by $held" ?>"><?= $badge['icon'] ?></div>
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>

@@ -1102,4 +1102,28 @@ function getUniqueBadges($pdo, $racer_id, $season_id) {
 
     return $uniqueBadges;
 }
-?>
+
+// ============================================================================
+// BADGE RARITY — how many racers in a season hold each badge. Pages that show
+// a racer's badges lead with the rarest, and the player card's featured
+// "honour" is the rarest badge the racer holds, not the first one emitted.
+// ============================================================================
+
+/** title => number of racers holding it this season (cached per request). */
+function badgeHolderCounts($pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+    $counts = [];
+    foreach (array_keys(getSeasonResultsByRacer($pdo, $season_id)) as $rid) {
+        foreach (getRacerBadges($pdo, (int)$rid, $season_id) as $bd) $counts[$bd['title']] = ($counts[$bd['title']] ?? 0) + 1;
+    }
+    return $cache[$season_id] = $counts;
+}
+
+/** Rarest first (fewest holders), then catalogue order for stable ties. */
+function sortBadgesByRarity(array $badges, array $counts): array {
+    static $order = null;
+    if ($order === null) $order = array_flip(array_column(badgeCatalog(), 'title'));
+    usort($badges, fn($a, $b) => (($counts[$a['title']] ?? PHP_INT_MAX) <=> ($counts[$b['title']] ?? PHP_INT_MAX)) ?: (($order[$a['title']] ?? PHP_INT_MAX) <=> ($order[$b['title']] ?? PHP_INT_MAX)));
+    return $badges;
+}

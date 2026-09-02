@@ -79,12 +79,14 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
     $uniqueBadges = getUniqueBadges($pdo, $racerId, $currentSeason);
     $currentSeasonBadges = getRacerBadges($pdo, $racerId, $currentSeason);
 
+    // Featured honour: a one-off unique badge if they have one, otherwise the
+    // RAREST badge they hold this season (fewest holders), not the first emitted.
     $featuredBadge = null;
     if (!empty($uniqueBadges)) {
         $featuredBadge = $uniqueBadges[0];
         $featuredBadge['type'] = 'unique';
     } elseif (!empty($currentSeasonBadges)) {
-        $featuredBadge = $currentSeasonBadges[0];
+        $featuredBadge = sortBadgesByRarity($currentSeasonBadges, badgeHolderCounts($pdo, $currentSeason))[0];
         $featuredBadge['type'] = 'season';
     }
 
