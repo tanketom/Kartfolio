@@ -9,6 +9,7 @@ require_once __DIR__ . '/stickers.php';
 require_once __DIR__ . '/worldcup_tournament.php';
 require_once __DIR__ . '/quests.php';
 require_once __DIR__ . '/snl_tournament.php';
+require_once __DIR__ . '/badge_catalog.php';
 
 /**
  * Career-wide badge inputs — season-independent, so built ONCE per request.
@@ -392,30 +393,30 @@ function appendCollectionBadges(array &$badges, array $ctx, int $racer_id) {
     }
 
     // 1 · Wax Cracker — opened your first pack.
-    if ($packs >= 1)  $badges[] = ['icon' => '📦', 'title' => 'Wax Cracker', 'desc' => 'Cracked open your first sticker pack.'];
+    if ($packs >= 1)  $badges[] = badgeDef('wax_cracker');
     // 8 · Pack Rat — opened 25+ packs.
-    if ($packs >= 25) $badges[] = ['icon' => '🐀', 'title' => 'Pack Rat', 'desc' => 'Opened 25 or more sticker packs all-time.'];
+    if ($packs >= 25) $badges[] = badgeDef('pack_rat');
 
     // 3 · Full Album — own every card. 4 · Halfway Hero otherwise at 50%+.
-    if ($distinct >= $grand)        $badges[] = ['icon' => '📖', 'title' => 'Full Album', 'desc' => 'Collected every sticker in the album. Completionist!'];
-    elseif ($pct >= 0.5)            $badges[] = ['icon' => '🌗', 'title' => 'Halfway Hero', 'desc' => 'Collected at least half of the sticker album.'];
+    if ($distinct >= $grand)        $badges[] = badgeDef('full_album');
+    elseif ($pct >= 0.5)            $badges[] = badgeDef('halfway_hero');
 
     // 2 · Set Sweeper (tiered).
-    if ($setsComplete >= 5)     $badges[] = ['icon' => '🥇', 'title' => 'Set Sweeper, Gold',   'desc' => 'Completed 5 or more full sticker sets.'];
-    elseif ($setsComplete >= 3) $badges[] = ['icon' => '🥈', 'title' => 'Set Sweeper, Silver', 'desc' => 'Completed 3 full sticker sets.'];
-    elseif ($setsComplete >= 1) $badges[] = ['icon' => '🥉', 'title' => 'Set Sweeper, Bronze', 'desc' => 'Completed a full sticker set.'];
+    if ($setsComplete >= 5)     $badges[] = badgeDef('set_sweeper_gold');
+    elseif ($setsComplete >= 3) $badges[] = badgeDef('set_sweeper_silver');
+    elseif ($setsComplete >= 1) $badges[] = badgeDef('set_sweeper_bronze');
 
     // 5 · Foil Hunter — 5+ foils.
-    if ($foil >= 5)         $badges[] = ['icon' => '✨', 'title' => 'Foil Hunter', 'desc' => 'Owns five or more shiny foil cards.'];
+    if ($foil >= 5)         $badges[] = badgeDef('foil_hunter');
     // 6 · Got the Bot — the Kartificial chase foil.
-    if (!empty($h['kart'])) $badges[] = ['icon' => '🎴', 'title' => 'Got the Bot', 'desc' => 'Pulled Kartificial #001 — the chase foil.'];
+    if (!empty($h['kart'])) $badges[] = badgeDef('got_the_bot');
     // 7 · Stuck With Dupes — 5+ of one card.
-    if ($maxDup >= 5)       $badges[] = ['icon' => '♻️', 'title' => 'Stuck With Dupes', 'desc' => 'Hoards 5+ copies of a single card. Got, got, need!'];
+    if ($maxDup >= 5)       $badges[] = badgeDef('stuck_with_dupes');
     // 9 · Lore Keeper — completed the lore set.
     if (($setTotals['lore'] ?? 0) > 0 && ($owned['lore'] ?? 0) >= $setTotals['lore'])
-        $badges[] = ['icon' => '📜', 'title' => 'Lore Keeper', 'desc' => 'Completed the Lore set — every in-joke catalogued.'];
+        $badges[] = badgeDef('lore_keeper');
     // 10 · Whale — 250+ total copies.
-    if ($total >= 250)      $badges[] = ['icon' => '🐳', 'title' => 'Whale', 'desc' => 'Amassed 250+ total cards. A true sticker tycoon.'];
+    if ($total >= 250)      $badges[] = badgeDef('whale');
 }
 
 /** Competition badges (11–16) — tournament/Mikkoliiga/Elo honours, from context. */
@@ -424,23 +425,23 @@ function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
     if ($tw) {
         // 12 · Tournament Champion — any format.
         if (($tw['total'] ?? 0) >= 1)
-            $badges[] = ['icon' => '🏆', 'title' => 'Tournament Champion', 'desc' => 'Won a Kartfolio tournament.'];
+            $badges[] = badgeDef('tournament_champion');
         // 11 · Board Breaker — Snakes & Ladders.
         if (!empty($tw['formats']['snakes_ladders']))
-            $badges[] = ['icon' => '🐍', 'title' => 'Board Breaker', 'desc' => 'Won a Snakes & Ladders tournament.'];
+            $badges[] = badgeDef('board_breaker');
         // 13 · On Top of the World — World Cup.
         if (!empty($tw['formats']['world_cup']))
-            $badges[] = ['icon' => '🌍', 'title' => 'On Top of the World', 'desc' => 'Lifted the World Cup trophy.'];
+            $badges[] = badgeDef('on_top_of_the_world');
     }
     // 14 · Pick'em Oracle.
     if (!empty($ctx['pickemOracleIds'][$racer_id]))
-        $badges[] = ['icon' => '🔮', 'title' => "Pick'em Oracle", 'desc' => "Topped a World Cup Pick'em leaderboard."];
+        $badges[] = badgeDef('pickem_oracle');
     // 15 · Mikkoligan — leads this season's Mikkoliiga.
     if (($ctx['mikkoLeaderId'] ?? null) === $racer_id)
-        $badges[] = ['icon' => '🌟', 'title' => 'Mikkoligan', 'desc' => 'Tops the Mikkoliiga this season.'];
+        $badges[] = badgeDef('mikkoligan');
     // 16 · Ascended — crossed 2000 Elo.
     if (!empty($ctx['elo2000'][$racer_id]))
-        $badges[] = ['icon' => '🌠', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating.'];
+        $badges[] = badgeDef('ascended');
 }
 
 /**
@@ -450,31 +451,31 @@ function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
 function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id, string $season_id) {
     // 🏘️ Landlord — 5+ cups held at once.
     if (($ctx['territoryHeld'][$racer_id] ?? 0) >= 5)
-        $badges[] = ['icon' => '🏘️', 'title' => 'Landlord', 'desc' => 'Holds five or more cups at once this season.'];
+        $badges[] = badgeDef('landlord');
     // 🗝️ Usurper — took a cup off someone else 5+ times.
     if (($ctx['territoryTakeovers'][$racer_id] ?? 0) >= 5)
-        $badges[] = ['icon' => '🗝️', 'title' => 'Usurper', 'desc' => 'Took a cup off another racer five or more times this season.'];
+        $badges[] = badgeDef('usurper');
     // 🏯 Fortress — a cup defended all season against 3+ challengers.
     if (($ctx['territoryFortress'][$racer_id] ?? 0) >= 1)
-        $badges[] = ['icon' => '🏯', 'title' => 'Fortress', 'desc' => 'Held a cup all season through three or more challengers, never overtaken.'];
+        $badges[] = badgeDef('fortress');
     // 🪙 Dead Heat — level on points with someone; the tie-break decided it.
     if (!empty($ctx['deadHeat'][$racer_id]))
-        $badges[] = ['icon' => '🪙', 'title' => 'Dead Heat', 'desc' => 'Level on points with another racer — separated only by the tie-break.'];
+        $badges[] = badgeDef('dead_heat');
     // 📅 Ever-Present — every GP of the season (3+ held).
     $mine = count(getRacerSeasonRows($pdo, $racer_id, $season_id));
     if (($ctx['seasonGpTotal'] ?? 0) >= 3 && $mine === (int)$ctx['seasonGpTotal'])
-        $badges[] = ['icon' => '📅', 'title' => 'Ever-Present', 'desc' => 'Raced every single GP of the season.'];
+        $badges[] = badgeDef('ever_present');
     // 🏵️ Dynasty — 3+ consecutive season titles.
     $name = trim((string)($ctx['racerNames'][$racer_id] ?? ''));
     if ($name !== '' && ($ctx['dynastyRun'][$name] ?? 0) >= 3)
-        $badges[] = ['icon' => '🏵️', 'title' => 'Dynasty', 'desc' => 'Won three or more seasons in a row.'];
+        $badges[] = badgeDef('dynasty');
     // 🌈 Full Roster — 10+ distinct characters, career.
     $chars = array_unique(array_map('normalizeCharacterName', $ctx['careerChars'][$racer_id] ?? []));
     if (count($chars) >= 10)
-        $badges[] = ['icon' => '🌈', 'title' => 'Full Roster', 'desc' => 'Has raced ten or more different characters across their career.'];
+        $badges[] = badgeDef('full_roster');
     // 🧭 Questmaster — both side quests done this season.
     if (!empty($ctx['questmaster'][$racer_id]))
-        $badges[] = ['icon' => '🧭', 'title' => 'Questmaster', 'desc' => 'Completed both side quests this season.'];
+        $badges[] = badgeDef('questmaster');
 
     // ── Career arc (archived seasons, in order) ──
     $arc = $ctx['careerPlacements'][$racer_id] ?? [];
@@ -484,14 +485,14 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
         $run = ($arc[$i][1] < $arc[$i - 1][1]) ? $run + 1 : 1;
         if ($run >= 3) { $up = true; break; }
     }
-    if ($up) $badges[] = ['icon' => '🪜', 'title' => 'On the Up', 'desc' => 'Improved their season placement three seasons running.'];
+    if ($up) $badges[] = badgeDef('on_the_up');
     // 🏹 From the Back — won a season after a bottom-half finish in an earlier one.
     $wasBottom = false; $fromBack = false;
     foreach ($arc as [$s, $p, $field]) {
         if ($wasBottom && $p === 1) { $fromBack = true; break; }
         if ($field >= 4 && $p > $field / 2) $wasBottom = true;
     }
-    if ($fromBack) $badges[] = ['icon' => '🏹', 'title' => 'From the Back', 'desc' => 'Won a season after finishing in the bottom half of an earlier one.'];
+    if ($fromBack) $badges[] = badgeDef('from_the_back');
 
     // 🟣 Purple Patch — last-8 form 10+ points above the season average (12+ GPs).
     $rows = getRacerSeasonRows($pdo, $racer_id, $season_id);
@@ -501,18 +502,18 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
         $avg = array_sum($pts) / count($pts);
         $last = array_slice($pts, -8);
         if (array_sum($last) / count($last) - $avg >= 10)
-            $badges[] = ['icon' => '🟣', 'title' => 'Purple Patch', 'desc' => 'Recent form (last 8 GPs) running 10+ points above their season average.'];
+            $badges[] = badgeDef('purple_patch');
     }
 
     // ── Honours from other systems ──
     if (!empty($ctx['constructorWinners'][$racer_id]))
-        $badges[] = ['icon' => '🏗️', 'title' => 'Constructor', 'desc' => 'Member of the winning team in a teams season.'];
+        $badges[] = badgeDef('constructor');
     if (!empty($ctx['fantasyChampions'][$racer_id]))
-        $badges[] = ['icon' => '🧙', 'title' => 'Fantasy Champion', 'desc' => 'Topped a fantasy season.'];
+        $badges[] = badgeDef('fantasy_champion');
     if (!empty($ctx['bracketBusters'][$racer_id]))
-        $badges[] = ['icon' => '💥', 'title' => 'Bracket Buster', 'desc' => 'Won a tournament as the lowest seed.'];
+        $badges[] = badgeDef('bracket_buster');
     if (!empty($ctx['snakeBitten'][$racer_id]))
-        $badges[] = ['icon' => '🩹', 'title' => 'Snake Bitten', 'desc' => 'Landed on a snake in Snakes & Ladders. It happens to everyone.'];
+        $badges[] = badgeDef('snake_bitten');
 }
 
 function getRacerBadges($pdo, $racer_id, $season_id) {
@@ -651,59 +652,59 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     // --- EXISTING BADGES ---
 
     if ($lols >= 3) {
-        $badges[] = ['icon' => '🍌', 'title' => 'Slippery Slope', 'desc' => 'Triggered the "LOL" obstruction frequently.'];
+        $badges[] = badgeDef('slippery');
     }
 
     if ($uniqueChars === 1 && $totalRaces >= 5) {
-        $badges[] = ['icon' => '🎠', 'title' => 'One-Trick Pony', 'desc' => 'Has never changed their character.'];
+        $badges[] = badgeDef('one_trick');
     }
 
     if ($uniqueChars >= 5) {
-        $badges[] = ['icon' => '🎭', 'title' => 'Identity Crisis', 'desc' => 'Played 5+ different characters this season.'];
+        $badges[] = badgeDef('identity_crisis');
     }
 
     if (($podiums / $totalRaces) >= 0.60) {
-        $badges[] = ['icon' => '👑', 'title' => 'Podium Royalty', 'desc' => 'Finishes in the Top 3 over 60% of the time.'];
+        $badges[] = badgeDef('podium_royalty');
     }
 
     if ($avgRank >= 4 && $avgRank <= 7) {
-        $badges[] = ['icon' => '🧱', 'title' => 'The Wall', 'desc' => 'Consistently holds the midfield, another brick in the wall.'];
+        $badges[] = badgeDef('the_wall');
     }
 
     if ($perfect_games >= 1) {
-        $badges[] = ['icon' => '🤖', 'title' => 'Max Output', 'desc' => 'Achieved a perfect 60-point Grand Prix.'];
+        $badges[] = badgeDef('max_output');
     }
 
     if (($seconds / $totalRaces) >= 0.25) {
-        $badges[] = ['icon' => '💐', 'title' => 'The Bridesmaid', 'desc' => 'Finishes 2nd place >25% of the time.'];
+        $badges[] = badgeDef('bridesmaid');
     }
 
     if (($fourths / $totalRaces) >= 0.25) {
-        $badges[] = ['icon' => '4️⃣', 'title' => 'The Fourth Wall', 'desc' => 'Stuck in the cursed 4th place position >25% of the time.'];
+        $badges[] = badgeDef('fourth_wall');
     }
 
     if ($max_win_streak >= 2) {
-        $badges[] = ['icon' => '🔥', 'title' => 'Hot Hand', 'desc' => 'Won back-to-back Grand Prix events.'];
+        $badges[] = badgeDef('hot_hand');
     }
 
     if (($baby_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🍼', 'title' => 'Baby Driver', 'desc' => 'Mains Baby characters over 50% of the time.'];
+        $badges[] = badgeDef('baby_driver');
     }
 
     if (($heavy_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🦖', 'title' => 'Kaiju Protocol', 'desc' => 'Mains heavyweights over 50% of the time.'];
+        $badges[] = badgeDef('kaiju');
     }
 
     if ($avgRank >= 10) {
-        $badges[] = ['icon' => '⚓', 'title' => 'The Anchor', 'desc' => 'For the ship to remain stable, someone needs to be at the bottom.'];
+        $badges[] = badgeDef('the_anchor');
     }
 
     if (count(array_unique($winning_chars)) >= 3) {
-        $badges[] = ['icon' => '🃏', 'title' => 'Jack of All Trades', 'desc' => 'Won a GP with 3 different characters.'];
+        $badges[] = badgeDef('jack_of_trades');
     }
 
     if (($standard_kart_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🔰', 'title' => 'The Purist', 'desc' => 'Refuses to use meta vehicles; prefers Standard setups.'];
+        $badges[] = badgeDef('purist');
     }
 
     $variance = 0;
@@ -713,7 +714,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     $stdDev = sqrt($variance / $totalRaces);
     
     if ($stdDev > 3.5) {
-        $badges[] = ['icon' => '🎢', 'title' => 'Chaos Agent', 'desc' => 'Highly inconsistent results (High variance).'];
+        $badges[] = badgeDef('chaos');
     }
 
     // --- NEW BADGES REQUESTED ---
@@ -721,7 +722,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     // 11. 📈 Vertical Limit
     $lastScore = end($gp_scores_by_date);
     if ($totalRaces >= 4 && $lastScore >= ($seasonAvgPoints + 15)) {
-        $badges[] = ['icon' => '📈', 'title' => 'Vertical Limit', 'desc' => 'Latest performance was significantly higher than season average.'];
+        $badges[] = badgeDef('vertical_limit');
     }
 
     // 12. 🎰 High Roller
@@ -731,7 +732,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     }
     $pointStdDev = sqrt($pointVariance / $totalRaces);
     if ($pointStdDev > 15) {
-        $badges[] = ['icon' => '🎰', 'title' => 'High Roller', 'desc' => 'Extreme swings in point totals between events.'];
+        $badges[] = badgeDef('high_roller');
     }
 
     // 13. 💤 Sandbagger
@@ -739,24 +740,24 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         $firstHalf = array_slice($gp_scores_by_date, 0, floor($totalRaces / 2));
         $secondHalf = array_slice($gp_scores_by_date, -floor($totalRaces / 2));
         if ((array_sum($secondHalf) / count($secondHalf)) > (array_sum($firstHalf) / count($firstHalf)) + 12) {
-            $badges[] = ['icon' => '💤', 'title' => 'Sandbagger', 'desc' => 'Started the season poorly but finished much stronger.'];
+            $badges[] = badgeDef('sandbagger');
         }
     }
 
     // 14. 🗓️ Longevity
     $highestAttendance = $ctx['highestAttendance'];
     if ($totalRaces >= $highestAttendance && $highestAttendance > 0) {
-        $badges[] = ['icon' => '🗓️', 'title' => 'Longevity', 'desc' => 'Highest attendance record in the league.'];
+        $badges[] = badgeDef('longevity');
     }
 
     // 15. 🏛️ Base 12 (Won all Base Game Cups)
     if (empty(array_diff(MK_BASE_CUPS, $won_cups_unique))) {
-        $badges[] = ['icon' => '🏛️', 'title' => 'Base 12', 'desc' => 'Has won a Grand Prix in all 12 Base Game cups.'];
+        $badges[] = badgeDef('base_12');
     }
 
     // 16. 🚀 Booster's Dozen (Won all DLC Cups)
     if (empty(array_diff(MK_BOOSTER_CUPS, $won_cups_unique))) {
-        $badges[] = ['icon' => '🚀', 'title' => 'Booster\'s Dozen', 'desc' => 'Has won a Grand Prix in all 12 Booster Course Pass cups.'];
+        $badges[] = badgeDef('boosters_dozen');
     }
 
     // --- NEW BADGES (2025 EXPANSION) ---
@@ -769,36 +770,36 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         }
     }
     if ($pointStdDev < 8 && ($withinFiveCount / $totalRaces) >= 0.70) {
-        $badges[] = ['icon' => '🎯', 'title' => 'Laser Focus', 'desc' => 'Finished within 5 points of season average in 70%+ of races.'];
+        $badges[] = badgeDef('laser_focus');
     }
 
     // 18. 🏔️ Everest
     $peakDiff = max($gp_scores_by_date) - $seasonAvgPoints;
     if ($peakDiff >= 20) {
-        $badges[] = ['icon' => '🏔️', 'title' => 'Everest', 'desc' => 'Achieved a personal best 20+ points above season average.'];
+        $badges[] = badgeDef('everest');
     }
 
     // 19. 🎪 Comeback Kid
     for ($i = 1; $i < count($results); $i++) {
         if ($results[$i]['rank'] == 1 && $results[$i-1]['rank'] >= 10) {
-            $badges[] = ['icon' => '🎪', 'title' => 'Comeback Kid', 'desc' => 'Won a GP immediately after finishing in last place.'];
+            $badges[] = badgeDef('comeback_kid');
             break;
         }
     }
 
     // 20. 👻 Ghost Rider
     if (($spooky_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '👻', 'title' => 'Ghost Rider', 'desc' => 'Mains spooky characters (Boo, Dry Bones, King Boo) 50%+ of the time.'];
+        $badges[] = badgeDef('ghost_rider');
     }
 
     // 21. 🌟 Star Power
     if (($og_stars_count / $totalRaces) >= 0.60) {
-        $badges[] = ['icon' => '⭐', 'title' => 'Star Power', 'desc' => 'Mains original Nintendo stars (Mario, Luigi, Peach, Daisy) 60%+ of the time.'];
+        $badges[] = badgeDef('star_power');
     }
 
     // 22. 🏍️ Bike Brigade
     if (($bike_count / $totalRaces) >= 0.60) {
-        $badges[] = ['icon' => '🏍️', 'title' => 'Bike Brigade', 'desc' => 'Uses bikes (not karts) in 60%+ of races.'];
+        $badges[] = badgeDef('bike_brigade');
     }
 
     // 24. 🔄 Groundhog Day
@@ -815,17 +816,17 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         }
     }
     if ($maxIdenticalStreak >= 4) {
-        $badges[] = ['icon' => '🔄', 'title' => 'Groundhog Day', 'desc' => 'Finished in the exact same rank 4+ races in a row.'];
+        $badges[] = badgeDef('groundhog');
     }
 
     // 25. 🎲 Lucky 7
     if ($sevenths >= 3) {
-        $badges[] = ['icon' => '🎲', 'title' => 'Lucky 7', 'desc' => 'Finished in 7th place in 3+ races.'];
+        $badges[] = badgeDef('lucky_7');
     }
 
     // 26. 🦅 Perfect Landing
     if ($totalRaces >= 5 && ($podiums / $totalRaces) == 1.0) {
-        $badges[] = ['icon' => '🦅', 'title' => 'Perfect Landing', 'desc' => 'Every race finish was on the podium (100% podium rate).'];
+        $badges[] = badgeDef('perfect_landing');
     }
 
     // --- NEW BADGES ---
@@ -833,40 +834,40 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     // 27. 🏅 Cup Collector — Raced in all 24 cups (any season, career)
     $careerCups = $ctx['careerCups'][$racer_id] ?? [];
     if (empty(array_diff(getMKAllCups(), $careerCups))) {
-        $badges[] = ['icon' => '🏅', 'title' => 'Cup Collector', 'desc' => 'Has raced in all 24 Mario Kart 8 Deluxe cups across their career.'];
+        $badges[] = badgeDef('cup_collector');
     }
 
     // 28. 💎 Perfectionist — Perfect 60 in 3+ different cups (any season)
     $careerPerfectCups = $ctx['careerPerfectCups'][$racer_id] ?? [];
     if (count($careerPerfectCups) >= 3) {
-        $badges[] = ['icon' => '💎', 'title' => 'Perfectionist', 'desc' => 'Achieved a perfect 60 in 3+ different cups across their career.'];
+        $badges[] = badgeDef('perfectionist');
     }
 
     // 30. 🐢 The Tortoise — Avg finish rank 8+ but has at least one win
     if ($avgRank >= 8.0 && $wins >= 1) {
-        $badges[] = ['icon' => '🐢', 'title' => 'The Tortoise', 'desc' => 'Average finish of 8th or worse, yet still managed to win a GP.'];
+        $badges[] = badgeDef('tortoise');
     }
 
     // 31. 🎖️ Old Guard — Participated in both s00 (pre-season) and current season
     $prevSeasonCount = $ctx['prevSeasonCount'][$racer_id] ?? 0;
     if ($prevSeasonCount > 0 && $season_id !== 's00') {
-        $badges[] = ['icon' => '🎖️', 'title' => 'Old Guard', 'desc' => 'A veteran who raced in the pre-season and has returned.'];
+        $badges[] = badgeDef('old_guard');
     }
 
     // 33. 🐓 Early Bird — Participated in the first GP of this season
     if (!empty($ctx['firstGpRacers'][$racer_id])) {
-        $badges[] = ['icon' => '🐓', 'title' => 'Early Bird', 'desc' => 'Participated in the very first GP of this season.'];
+        $badges[] = badgeDef('early_bird');
     }
 
     // 34. 🥊 Giant Killer — Beat the current season leader in a head-to-head GP
     $leaderId = $ctx['leaderId'];
     if ($leaderId && $leaderId !== $racer_id && !empty($ctx['beatLeader'][$racer_id])) {
-        $badges[] = ['icon' => '🥊', 'title' => 'Giant Killer', 'desc' => 'Finished ahead of the current season leader in at least one GP.'];
+        $badges[] = badgeDef('giant_killer');
     }
 
     // 36. 🌸 Princess Protocol — Mains exclusively Peach, Daisy, or Rosalina (50%+)
     if (($royal_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🌸', 'title' => 'Princess Protocol', 'desc' => 'Mains royalty (Peach, Daisy, or Rosalina) in 50%+ of races.'];
+        $badges[] = badgeDef('princess_protocol');
     }
 
     // 37. 🍄 Mushroom Kingdom — Played every Mario-universe character at least once (career)
@@ -877,43 +878,43 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     // Normalise colour variants before comparing (e.g. "Yoshi (Orange)" → "Yoshi")
     $careerCharsNorm = array_unique(array_map('normalizeCharacterName', $careerChars));
     if (empty(array_diff($marioUniverse, $careerCharsNorm))) {
-        $badges[] = ['icon' => '🏰', 'title' => 'Mushroom Kingdom', 'desc' => 'Has raced as every core Mario-universe character at their disposal.'];
+        $badges[] = badgeDef('mushroom_kingdom');
     }
 
     // 38. 🗡️ Link Main — 5+ GPs played as Link this season
     if ($link_count >= 5) {
-        $badges[] = ['icon' => '🗡️', 'title' => 'Link Main', 'desc' => 'Raced as Link in 5 or more GPs this season. Hyah!'];
+        $badges[] = badgeDef('link_main');
     }
 
     // 39. 🍄 What a Fun Guy! — Mains Toad, Toadette, or Peachette ≥50% of the time
     if (($fungi_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🍄', 'title' => 'What a Fun Guy!', 'desc' => 'Mains Toad, Toadette, or Peachette in 50%+ of races. A real fungi.'];
+        $badges[] = badgeDef('fun_guy');
     }
 
     // 40. 🧑 That\'s Just a Person? — Mains Mii, Inklings, or Villager ≥50% of the time
     if (($human_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🧑', 'title' => 'That\'s Just a Person?', 'desc' => 'Mains Mii, Inklings, or Villager in 50%+ of races. Keeping it real.'];
+        $badges[] = badgeDef('just_a_person');
     }
 
     // 41. 🐱 Furcurious! — Mains Tanooki Mario or Cat Peach ≥50% of the time
     if (($furry_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🐱', 'title' => 'Furcurious!', 'desc' => 'Mains Tanooki Mario or Cat Peach in 50%+ of races. Suspiciously furry.'];
+        $badges[] = badgeDef('furcurious');
     }
 
     // 42. 😈 Koopa Klan — Mains Bowser, Koopalings, or Koopa Troopa ≥50% of the time
     if (($koopa_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '😈', 'title' => 'Koopa Klan', 'desc' => 'Mains Bowser and his crew in 50%+ of races. Embrace the dark side.'];
+        $badges[] = badgeDef('koopa_klan');
     }
 
     // ── Playstyle: Cold-Blooded ────────────────────────────────────────────────
     if (($reptile_count / $totalRaces) >= 0.50) {
-        $badges[] = ['icon' => '🦎', 'title' => 'Cold-Blooded', 'desc' => 'Mains reptilian characters (Yoshi, Koopa Troopa, Bowser and kin) in 50%+ of races.'];
+        $badges[] = badgeDef('cold_blooded');
     }
 
     // ── Streaks ───────────────────────────────────────────────────────────────
     // 🎩 Hat Trick — 3 GP wins in a row
     if ($max_win_streak >= 3) {
-        $badges[] = ['icon' => '🎩', 'title' => 'Hat Trick', 'desc' => 'Won 3 Grand Prix events in a row.'];
+        $badges[] = badgeDef('hat_trick');
     }
 
     // ↗️ Ascendant — improved finishing rank in 5 consecutive GPs
@@ -928,13 +929,13 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         }
     }
     if ($maxImprovementStreak >= 5) {
-        $badges[] = ['icon' => '↗️', 'title' => 'Ascendant', 'desc' => 'Improved finishing rank in 5 consecutive Grand Prix events.'];
+        $badges[] = badgeDef('ascendant');
     }
 
     // ── Career ────────────────────────────────────────────────────────────────
     // 🕰️ The Elder — competed in 3+ distinct seasons
     if (($ctx['seasonsPlayed'][$racer_id] ?? 0) >= 3) {
-        $badges[] = ['icon' => '🕰️', 'title' => 'The Elder', 'desc' => 'Competed across 3 or more seasons.'];
+        $badges[] = badgeDef('the_elder');
     }
 
     // ── ELO-based badges ──────────────────────────────────────────────────────
@@ -960,11 +961,11 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
 
             // 🧗 The Climber
             if ($eloDelta >= 100) {
-                $badges[] = ['icon' => '🧗', 'title' => 'The Climber', 'desc' => 'Gained 100+ Elo points during this season.'];
+                $badges[] = badgeDef('elo_climber');
             }
             // 📉 The Fall
             if ($eloDelta <= -100) {
-                $badges[] = ['icon' => '📉', 'title' => 'The Fall', 'desc' => 'Lost 100+ Elo points during this season.'];
+                $badges[] = badgeDef('elo_fall');
             }
         }
 
@@ -984,7 +985,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
             }
         }
         if ($upsetCount >= 3) {
-            $badges[] = ['icon' => '⚡', 'title' => 'Upset King', 'desc' => 'Finished ahead of a racer with 200+ higher Elo in 3 or more GPs.'];
+            $badges[] = badgeDef('upset_king');
         }
 
         // 🥶 Stone Cold — held the #1 Elo spot for 5+ consecutive GPs
@@ -1005,7 +1006,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
             else $scStreak = 0;
         }
         if ($scMax >= 5) {
-            $badges[] = ['icon' => '🥶', 'title' => 'Stone Cold', 'desc' => 'Held the #1 Elo ranking for 5 consecutive Grand Prix events.'];
+            $badges[] = badgeDef('stone_cold');
         }
 
         // ── MONSTER HUNT badges (only for monster_hunt seasons) ───────────────
@@ -1044,22 +1045,22 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
             }
 
             if ($mhDragonSlayer) {
-                $badges[] = ['icon' => '🐉', 'title' => 'Dragon Slayer', 'desc' => 'Finished ahead of a CR 4 Dragon — the most feared Monster rating.'];
+                $badges[] = badgeDef('mh_dragon_slayer');
             }
             if ($mhHuntedCount >= 3) {
-                $badges[] = ['icon' => '👹', 'title' => 'The Hunted', 'desc' => 'Designated as the Monster in 3 or more GPs this season.'];
+                $badges[] = badgeDef('mh_hunted');
             }
             if ($mhWipeCount >= 3) {
-                $badges[] = ['icon' => '🎉', 'title' => 'Wipe Master', 'desc' => 'Participated in a Full Slay — every adventurer ahead of the Monster — in 3 or more GPs.'];
+                $badges[] = badgeDef('mh_wipe_master');
             }
             if ($mhApexCount >= 3) {
-                $badges[] = ['icon' => '💀', 'title' => 'Apex Predator', 'desc' => 'Defeated every adventurer as the Monster in 3 or more GPs.'];
+                $badges[] = badgeDef('mh_apex');
             }
             if ($mhUnderdogDone) {
-                $badges[] = ['icon' => '🌑', 'title' => 'The Underdog', 'desc' => 'Slew the Monster while being the lowest-Elo adventurer in the race.'];
+                $badges[] = badgeDef('mh_underdog');
             }
             if ($mhSurvivedCount >= 5) {
-                $badges[] = ['icon' => '🛡️', 'title' => 'Resilient', 'desc' => 'Survived without slaying the Monster in 5 or more GPs.'];
+                $badges[] = badgeDef('mh_resilient');
             }
         }
     }
@@ -1068,7 +1069,7 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     // 43. ⬛ Black Box — Leader of the Black Box scoring system this season.
     //     Leader computed once for the whole season in badgeSeasonContext().
     if ($ctx['bbLeaderId'] !== null && $ctx['bbLeaderId'] === $racer_id) {
-        $badges[] = ['icon' => '⬛', 'title' => 'Black Box', 'desc' => 'The algorithm thinks you should be in the lead.'];
+        $badges[] = badgeDef('black_box');
     }
 
     return $badges;

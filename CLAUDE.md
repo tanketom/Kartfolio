@@ -380,7 +380,8 @@ deliberate and load-bearing.
 | `private/includes/gemini_client.php` | **Use for every Gemini call.** `callGeminiWithRetry()` + `geminiDefaultModelChain()`. |
 | `private/includes/programs.php` | News program catalog (AI personas + OMK Press Office). |
 | `private/includes/mk_data.php` | Cups and characters. |
-| `private/includes/badges.php` | Badge unlock logic (~27 badges). |
+| `private/includes/badge_catalog.php` | **The** badge definitions — icon, title, earned text, criterion, category for all 91. Add a badge here first. |
+| `private/includes/badges.php` | Badge unlock logic: emits `badgeDef('key')` per rule; career/season contexts. |
 | `private/includes/survivor_tournament.php` | Survivor tournament engine. |
 | `private/includes/season_awards_logic.php` | Season awards generation pipeline. |
 | `public_html/admin/seasons.php` | Season config UI — scoring system per season, per-knob fields, Mikkoliiga re-snapshot button, Scoring Simulator panel (fields + `SIM_SEASON_RULES` seeding). |
@@ -560,9 +561,14 @@ Cross-reference if you find half-implemented work:
   Ever-Present, Full Roster, Questmaster. Questmaster reads `racer_quests`
   directly and evaluates the quest `check` closures itself — never call
   `getRacerQuests()` from badges, it ASSIGNS quests as a side effect
-- **Badge icons deduplicated** — 84 badges, 84 distinct emoji. Keep it that
-  way: the inventory script in this session's history greps `'icon' =>` in
-  `badges.php` + `badges_overview.php` and reports collisions
+- **Badge icons deduplicated** — 91 badges, 91 distinct emoji. Keep it that
+  way: `badgeCatalog()` is the only place icons live now, so the check is
+  `count(array_unique(array_column(badgeCatalog(), 'icon')))`
+- **One badge catalogue** — `badge_catalog.php`. `badges.php` emits
+  `badgeDef('key')` (override a field with the second arg if a rule needs a
+  dynamic desc); `/badges` renders `badgeCatalogByCategory()`. A new badge =
+  one catalogue entry + its rule in `badges.php` + (optionally) a progress
+  entry in `badges_overview.php::calculateBadgeProgress()`
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),
