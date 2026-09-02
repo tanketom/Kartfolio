@@ -695,9 +695,35 @@ function getMonsterHuntEloChangelog($pdo) {
  * Statically cached per racer+season so score + display helpers
  * never run the GP loop twice in the same request.
  */
-function mhComputeRaw($pdo, $racer_id, $season_id, $rules) {
+/** Challenge Rating from the Elo gap Monster → average adventurer: [tier 1-4, XP multiplier]. */
+function mhCrTier(float $gap): array {
+    if ($gap < 50)  return [1, 1.0];
+    if ($gap < 150) return [2, 1.25];
+    if ($gap < 300) return [3, 1.5];
+    return [4, 2.0];
+}
+
+/**
+ * THE MONSTER HUNT engine: every hunt of a season, fully resolved, once per
+ * request. Each entry:
+ *   gpid, date, cup, solo (only one human raced — straight survive XP),
+ *   players (names), elos (name => Elo before the GP), ranks (name => finish),
+ *   monster, monster_elo, monster_rank, gap, cr_tier, cr_mult,
+ *   slayers (beat the Monster), survivors (didn't), full_slay, tpk,
+ *   xp (name => XP earned this GP).
+ * The Monster is pickMonster(): the is_monster admin flag when set, otherwise
+ * the highest Elo with an alphabetical tiebreak.
+ *
+ * This is the ONLY place the walk lives. It used to be copied into
+ * scoring.php, stats.php, mh_dashboard.php, badges.php and badges_overview.php,
+ * and three of those copies picked the Monster by raw Elo, ignoring the
+ * admin flag — on s03 (31 flagged GPs) that credited XP to the wrong racer on
+ * 12 of them. Chronological (race_date, gpid).
+ */
+function mhSeasonHunts($pdo, string $season_id, array $rules): array {
     static $cache = [];
-    $key = "{$racer_id}:{$season_id}";
+    $knobs = ['mh_slay_xp', 'mh_survive_xp', 'mh_party_bonus_xp', 'mh_monster_win_xp', 'mh_monster_partial_xp', 'mh_monster_loss_xp'];
+    $key = $season_id . ':' . json_encode(array_intersect_key($rules, array_flip($knobs)));
     if (isset($cache[$key])) return $cache[$key];
 
     $slay_xp         = (int)($rules['mh_slay_xp']           ?? 100);
@@ -707,94 +733,101 @@ function mhComputeRaw($pdo, $racer_id, $season_id, $rules) {
     $monster_part_xp = (int)($rules['mh_monster_partial_xp'] ?? 30);
     $monster_loss_xp = (int)($rules['mh_monster_loss_xp']    ?? -40);
 
-    // id → name map, one query for all racers per request (this function is
-    // called once per racer on leaderboard pages).
-    static $racerNames = null;
-    if ($racerNames === null) {
-        $racerNames = $pdo->query("SELECT id, name FROM racers")
-                          ->fetchAll(PDO::FETCH_KEY_PAIR);
-    }
-    $racerName = $racerNames[(int)$racer_id] ?? null;
-    if (!$racerName) {
-        return $cache[$key] = ['total_xp' => 0, 'gps' => 0];
-    }
-
     $changelog = getMonsterHuntEloChangelog($pdo);
 
-    // Season GP list is identical for every racer — fetch once per season.
+    // Season GP list is identical for every caller — fetch once per season.
     static $seasonGPCache = [];
     if (!isset($seasonGPCache[$season_id])) {
         $gpStmt = $pdo->prepare("
-            SELECT DISTINCT gpid, race_date
+            SELECT gpid, MIN(race_date) AS race_date, MAX(cup_name) AS cup_name
             FROM results
             WHERE gpid LIKE ?
+            GROUP BY gpid
             ORDER BY race_date ASC, gpid ASC
         ");
         $gpStmt->execute([$season_id . '%']);
         $seasonGPCache[$season_id] = $gpStmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    $seasonGPs = $seasonGPCache[$season_id];
 
-    $totalXP  = 0;
-    $racerGPs = 0;
-    $xpPerGP  = []; // gpid => xp earned
-
-    foreach ($seasonGPs as $gp) {
+    $hunts = [];
+    foreach ($seasonGPCache[$season_id] as $gp) {
         $gpid = $gp['gpid'];
         if (!isset($changelog[$gpid])) continue;
         $gpData = $changelog[$gpid];
-        if (!isset($gpData[$racerName])) continue;
-        $racerGPs++;
+
+        $h = [
+            'gpid' => $gpid, 'date' => $gp['race_date'], 'cup' => $gp['cup_name'],
+            'solo' => false, 'players' => array_keys($gpData), 'elos' => [], 'ranks' => [],
+            'monster' => null, 'monster_elo' => null, 'monster_rank' => null,
+            'gap' => 0.0, 'cr_tier' => null, 'cr_mult' => null,
+            'slayers' => [], 'survivors' => [], 'full_slay' => false, 'tpk' => false, 'xp' => [],
+        ];
+        foreach ($gpData as $name => $d) { $h['elos'][$name] = $d['old_elo']; $h['ranks'][$name] = $d['rank']; }
 
         if (count($gpData) < 2) {
-            $totalXP += $survive_xp;
-            $xpPerGP[$gpid] = $survive_xp;
+            $h['solo'] = true;
+            foreach ($gpData as $name => $d) $h['xp'][$name] = $survive_xp;
+            $hunts[] = $h;
             continue;
         }
 
         [$monsterName, $monsterElo] = pickMonster($gpid, $gpData, $pdo);
+        $monsterRank = $gpData[$monsterName]['rank'];
 
-        $monsterRank    = $gpData[$monsterName]['rank'];
         $adventurerElos = [];
-        foreach ($gpData as $name => $d) {
-            if ($name !== $monsterName) $adventurerElos[] = $d['old_elo'];
-        }
-        $avgAdvElo = count($adventurerElos) > 0
-            ? array_sum($adventurerElos) / count($adventurerElos)
-            : $monsterElo;
-        $eloGap = max(0, $monsterElo - $avgAdvElo);
+        foreach ($gpData as $name => $d) if ($name !== $monsterName) $adventurerElos[] = $d['old_elo'];
+        $avgAdvElo = count($adventurerElos) > 0 ? array_sum($adventurerElos) / count($adventurerElos) : $monsterElo;
+        $gap = max(0, $monsterElo - $avgAdvElo);
+        [$crTier, $crMult] = mhCrTier((float)$gap);
 
-        if      ($eloGap < 50)  $crMult = 1.0;
-        elseif  ($eloGap < 150) $crMult = 1.25;
-        elseif  ($eloGap < 300) $crMult = 1.5;
-        else                    $crMult = 2.0;
-
-        $advWon = $advLost = 0;
         foreach ($gpData as $name => $d) {
             if ($name === $monsterName) continue;
-            if ($d['rank'] < $monsterRank) $advWon++; else $advLost++;
+            if ($d['rank'] < $monsterRank) $h['slayers'][] = $name; else $h['survivors'][] = $name;
         }
-        $fullSlay = ($advLost === 0 && $advWon > 0); // all adventurers beat Monster
-        $isTpk    = ($advWon === 0);                 // Monster beat all (TPK)
+        $fullSlay = (count($h['survivors']) === 0 && count($h['slayers']) > 0); // all adventurers beat Monster
+        $isTpk    = (count($h['slayers']) === 0);                                // Monster beat all (TPK)
 
-        if ($racerName === $monsterName) {
-            if ($isTpk)          $gpXP = $monster_win_xp;
-            elseif ($fullSlay)   $gpXP = $monster_loss_xp;
-            else                 $gpXP = $monster_part_xp;
-        } else {
-            $myRank = $gpData[$racerName]['rank'];
-            if ($myRank < $monsterRank) {
-                $gpXP = (int)round($slay_xp * $crMult);
-                if ($fullSlay) $gpXP += $party_bonus_xp;
+        foreach ($gpData as $name => $d) {
+            if ($name === $monsterName) {
+                if ($isTpk)        $xp = $monster_win_xp;
+                elseif ($fullSlay) $xp = $monster_loss_xp;
+                else               $xp = $monster_part_xp;
+            } elseif ($d['rank'] < $monsterRank) {
+                $xp = (int)round($slay_xp * $crMult);
+                if ($fullSlay) $xp += $party_bonus_xp;
             } else {
-                $gpXP = $survive_xp;
+                $xp = $survive_xp;
             }
+            $h['xp'][$name] = $xp;
         }
 
-        $totalXP += $gpXP;
-        $xpPerGP[$gpid] = $gpXP;
+        $h['monster'] = $monsterName; $h['monster_elo'] = $monsterElo; $h['monster_rank'] = $monsterRank;
+        $h['gap'] = $gap; $h['cr_tier'] = $crTier; $h['cr_mult'] = $crMult;
+        $h['full_slay'] = $fullSlay; $h['tpk'] = $isTpk;
+        $hunts[] = $h;
+    }
+    return $cache[$key] = $hunts;
+}
+
+function mhComputeRaw($pdo, $racer_id, $season_id, $rules) {
+    static $cache = [];
+    $key = "{$racer_id}:{$season_id}";
+    if (isset($cache[$key])) return $cache[$key];
+
+    $racerName = racerNamesMap($pdo)[(int)$racer_id] ?? null;
+    if (!$racerName) {
+        return $cache[$key] = ['total_xp' => 0, 'gps' => 0];
     }
 
+    $totalXP  = 0;
+    $racerGPs = 0;
+    $xpPerGP  = []; // gpid => xp earned
+    foreach (mhSeasonHunts($pdo, $season_id, (array)$rules) as $h) {
+        if (!isset($h['xp'][$racerName])) continue;
+        $racerGPs++;
+        $totalXP += $h['xp'][$racerName];
+        $xpPerGP[$h['gpid']] = $h['xp'][$racerName];
+    }
     return $cache[$key] = ['total_xp' => $totalXP, 'gps' => $racerGPs, 'xp_per_gp' => $xpPerGP];
 }
 
@@ -2914,4 +2947,48 @@ function seasonMatchups(PDO $pdo, string $season_id): array {
 /** Distinct GPs a racer raced in a season, off the cache (was COUNT(DISTINCT gpid) per racer). */
 function racerSeasonGpCount(PDO $pdo, int $racer_id, string $season_id): int {
     return count(array_unique(array_column(getRacerSeasonRows($pdo, $racer_id, $season_id), 'gpid')));
+}
+
+// ============================================================================
+// PROGRESSIVE (REPLAY) SCORING — "what was X's score after GP k?"
+// The season-replay pages (stats chart, season report timeline, animate)
+// re-implement scoring on a growing bag of rows. Systems whose score depends
+// only on the racer's own rows can be replayed exactly; this is the one
+// implementation of those. Returns null for a system that cannot be replayed
+// from one racer's rows alone (Elo-, standings- or league-dependent systems),
+// so callers can label the chart as an approximation instead of mislabelling
+// a GPScore™ curve as that system — which stats.php did for nine systems.
+// Rows need gp_points, race_date, rank, id.
+// ============================================================================
+function progressiveScoreFromRows(string $system, array $rows, array $rules): ?float {
+    switch ($system) {
+        case 'positional_points': {
+            $pts = array_map(fn($r) => positionalPointsForRank((int)$r['rank']), $rows);
+            if (!$pts) return 0.0;
+            rsort($pts);
+            switch ($rules['pos_mode'] ?? 'best_n') {
+                case 'sum':     return (float)array_sum($pts);
+                case 'average': return round(array_sum($pts) / max(1, count($pts)), 1);
+                default:
+                    $n = (int)($rules['best_n_count'] ?? 15); if ($n < 1) $n = 15;
+                    return (float)array_sum(array_slice($pts, 0, $n));
+            }
+        }
+        case 'median':
+            return round(medianOf(array_map(fn($r) => (int)$r['gp_points'], $rows)), 1);
+        case 'form': {
+            usort($rows, fn($a, $b) => strcmp((string)$a['race_date'], (string)$b['race_date']) ?: ((int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0)));
+            $w = max(1, (int)($rules['form_window'] ?? 8));
+            $pts = array_map(fn($r) => (int)$r['gp_points'], array_slice($rows, -$w));
+            return $pts ? round(array_sum($pts) / count($pts), 1) : 0.0;
+        }
+    }
+    return null;
+}
+
+/** Systems the replay pages can reproduce exactly from a racer's own rows. */
+function progressiveReplayableSystems(): array {
+    return ['average_attendance', 'preseason', 'best_n_gps', 'cup_based', 'drop_worst', 'perfect_hunt',
+            'top_12_unique', 'black_box', 'random_cup_draw', 'monster_hunt',
+            'positional_points', 'median', 'form'];
 }

@@ -109,10 +109,8 @@ foreach ($racers as $racer) {
             array_filter($detail['rows'], fn($r) => $r['counted']), 'pts'));
         $entry['pos_wins']     = $detail['pos_counts'][1] ?? 0;
     } elseif ($scoringSystem === 'monster_hunt') {
-        // Walk every GP this racer played and reconstruct per-GP role +
-        // CR + outcome + XP. Mirrors mhComputeRaw() in gp_logic.php so the
-        // numbers line up exactly with the official scoring.
-        $changelog       = getMonsterHuntEloChangelog($pdo);
+        // Per-GP role + CR + outcome + XP, straight from the MONSTER HUNT
+        // engine (mhSeasonHunts) — the same hunts the official score sums.
         $slay_xp         = (int)($rules['mh_slay_xp']           ?? 100);
         $survive_xp      = (int)($rules['mh_survive_xp']         ?? 20);
         $party_bonus_xp  = (int)($rules['mh_party_bonus_xp']     ?? 50);
@@ -123,71 +121,43 @@ foreach ($racers as $racer) {
         $racerName       = $racer['name'];
 
         $hunts = []; // per-GP breakdown
-        $seasonGPsStmt = $pdo->prepare("SELECT DISTINCT gpid, race_date, cup_name FROM results WHERE gpid LIKE ? ORDER BY race_date ASC, gpid ASC");
-        $seasonGPsStmt->execute([$seasonId . '%']);
-        foreach ($seasonGPsStmt->fetchAll(PDO::FETCH_ASSOC) as $gp) {
-            $gpid = $gp['gpid'];
-            if (!isset($changelog[$gpid][$racerName])) continue;
-            $gpData = $changelog[$gpid];
+        foreach (mhSeasonHunts($pdo, $seasonId, $rules) as $h) {
+            if (!isset($h['xp'][$racerName])) continue;
+            $xp = $h['xp'][$racerName];
 
             // Solo GP — straight survive XP.
-            if (count($gpData) < 2) {
+            if ($h['solo']) {
                 $hunts[] = [
-                    'gpid' => $gpid, 'cup' => $gp['cup_name'], 'date' => $gp['race_date'],
+                    'gpid' => $h['gpid'], 'cup' => $h['cup'], 'date' => $h['date'],
                     'role' => 'Lone Adventurer', 'monster' => null,
                     'cr_tier' => null, 'cr_mult' => null,
-                    'outcome' => 'no monster', 'xp' => $survive_xp,
-                    'explanation' => "+$survive_xp (no Monster — solo)",
+                    'outcome' => 'no monster', 'xp' => $xp,
+                    'explanation' => "+$xp (no Monster — solo)",
                 ];
                 continue;
             }
 
-            [$monsterName, $monsterElo] = pickMonster($gpid, $gpData, $pdo);
-            $monsterRank = $gpData[$monsterName]['rank'];
+            $cr = $h['cr_tier']; $crMult = $h['cr_mult'];
+            $outcome = $h['tpk'] ? 'TPK' : ($h['full_slay'] ? 'Full Slay' : 'Partial');
 
-            // CR tier from Elo gap to the average adventurer.
-            $advElos = [];
-            foreach ($gpData as $name => $d) { if ($name !== $monsterName) $advElos[] = $d['old_elo']; }
-            $avgAdv = count($advElos) > 0 ? array_sum($advElos) / count($advElos) : $monsterElo;
-            $eloGap = max(0, $monsterElo - $avgAdv);
-            if      ($eloGap < 50)  { $cr = 1; $crMult = 1.0;  }
-            elseif  ($eloGap < 150) { $cr = 2; $crMult = 1.25; }
-            elseif  ($eloGap < 300) { $cr = 3; $crMult = 1.5;  }
-            else                    { $cr = 4; $crMult = 2.0;  }
-
-            $advWon = $advLost = 0;
-            foreach ($gpData as $name => $d) {
-                if ($name === $monsterName) continue;
-                if ($d['rank'] < $monsterRank) $advWon++; else $advLost++;
-            }
-            $fullSlay = ($advLost === 0 && $advWon > 0);
-            $isTpk    = ($advWon === 0);
-            $outcome  = $isTpk ? 'TPK' : ($fullSlay ? 'Full Slay' : 'Partial');
-
-            // Compute XP + explanation depending on the racer's role.
-            if ($racerName === $monsterName) {
+            if ($racerName === $h['monster']) {
                 $role = 'Monster';
-                if ($isTpk)        { $xp = $monster_win_xp;  $expl = "+$monster_win_xp (Monster Win — beat the whole field)"; }
-                elseif ($fullSlay) { $xp = $monster_loss_xp; $expl = ($monster_loss_xp >= 0 ? '+' : '') . "$monster_loss_xp (Full Slay — every adventurer beat you)"; }
-                else               { $xp = $monster_part_xp; $expl = "+$monster_part_xp (Monster Partial — survived some)"; }
+                if ($h['tpk'])            $expl = "+$monster_win_xp (Monster Win — beat the whole field)";
+                elseif ($h['full_slay'])  $expl = ($monster_loss_xp >= 0 ? '+' : '') . "$monster_loss_xp (Full Slay — every adventurer beat you)";
+                else                      $expl = "+$monster_part_xp (Monster Partial — survived some)";
+            } elseif (in_array($racerName, $h['slayers'], true)) {
+                $role = 'Slayer';
+                $base = (int)round($slay_xp * $crMult);
+                $expl = "+$base ($slay_xp slay × {$crMult} CR{$cr})"
+                      . ($h['full_slay'] ? " + $party_bonus_xp (Party Bonus)" : '');
             } else {
-                $myRank = $gpData[$racerName]['rank'];
-                if ($myRank < $monsterRank) {
-                    $role = 'Slayer';
-                    $base = (int)round($slay_xp * $crMult);
-                    $xp = $base + ($fullSlay ? $party_bonus_xp : 0);
-                    $expl = "+$base ($slay_xp slay × {$crMult} CR{$cr})"
-                          . ($fullSlay ? " + $party_bonus_xp (Party Bonus)" : '');
-                } else {
-                    $role = 'Survivor';
-                    $xp = $survive_xp;
-                    $expl = "+$survive_xp (survived but didn't beat the Monster)";
-                }
+                $role = 'Survivor';
+                $expl = "+$survive_xp (survived but didn't beat the Monster)";
             }
 
             $hunts[] = [
-                'gpid' => $gpid, 'cup' => $gp['cup_name'], 'date' => $gp['race_date'],
-                'role' => $role, 'monster' => $monsterName,
+                'gpid' => $h['gpid'], 'cup' => $h['cup'], 'date' => $h['date'],
+                'role' => $role, 'monster' => $h['monster'],
                 'cr_tier' => $cr, 'cr_mult' => $crMult,
                 'outcome' => $outcome, 'xp' => $xp,
                 'explanation' => $expl,

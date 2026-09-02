@@ -552,51 +552,27 @@ function calculateBadgeProgress($pdo, $racer_id, $season_id) {
             $mhDragon = false; $mhHunted = 0; $mhWipe = 0;
             $mhApex = 0; $mhUnder = false; $mhSurv = 0;
 
-            foreach ($cl as $gpid => $gpData) {
-                if (strpos($gpid, $season_id) !== 0) continue;
-                if (!isset($gpData[$racerName2])) continue;
-                if (count($gpData) < 2) continue;
-
-                $monN = null; $monE = PHP_INT_MIN;
-                foreach ($gpData as $n => $d) {
-                    if ($d['old_elo'] > $monE || ($d['old_elo'] === $monE && strcmp($n, $monN) < 0)) {
-                        $monE = $d['old_elo']; $monN = $n;
-                    }
-                }
-                $monR = $gpData[$monN]['rank'];
-                $advE = [];
-                foreach ($gpData as $n => $d) { if ($n !== $monN) $advE[] = $d['old_elo']; }
-                $gap = max(0, $monE - (count($advE) ? array_sum($advE) / count($advE) : $monE));
-                $cr  = $gap < 50 ? 1 : ($gap < 150 ? 2 : ($gap < 300 ? 3 : 4));
-
-                $aW = $aL = 0;
-                foreach ($gpData as $n => $d) {
-                    if ($n === $monN) continue;
-                    if ($d['rank'] < $monR) $aW++; else $aL++;
-                }
-                $wipe = ($aL === 0 && $aW > 0);
-                $mWon = ($aW === 0);
-
-                if ($racerName2 === $monN) {
+            // From the MONSTER HUNT engine — the copy here picked the Monster by
+            // raw Elo and ignored the is_monster admin flag.
+            foreach (mhSeasonHunts($pdo, $season_id, getSeasonRules($pdo, $season_id)) as $h) {
+                if ($h['solo'] || !isset($h['xp'][$racerName2])) continue;
+                if ($racerName2 === $h['monster']) {
                     $mhHunted++;
-                    if ($mWon) $mhApex++;
-                } else {
-                    $myR2 = $gpData[$racerName2]['rank'];
-                    if ($myR2 < $monR) {
-                        if ($cr === 4) $mhDragon = true;
-                        if ($wipe) $mhWipe++;
-                        if (!$mhUnder) {
-                            $myE2 = $gpData[$racerName2]['old_elo'];
-                            $low  = true;
-                            foreach ($gpData as $n => $d) {
-                                if ($n === $monN || $n === $racerName2) continue;
-                                if ($d['old_elo'] < $myE2) { $low = false; break; }
-                            }
-                            if ($low) $mhUnder = true;
+                    if ($h['tpk']) $mhApex++;
+                } elseif (in_array($racerName2, $h['slayers'], true)) {
+                    if ($h['cr_tier'] === 4) $mhDragon = true;
+                    if ($h['full_slay']) $mhWipe++;
+                    if (!$mhUnder) {
+                        $myE2 = $h['elos'][$racerName2];
+                        $low  = true;
+                        foreach ($h['elos'] as $n => $e) {
+                            if ($n === $h['monster'] || $n === $racerName2) continue;
+                            if ($e < $myE2) { $low = false; break; }
                         }
-                    } else {
-                        $mhSurv++;
+                        if ($low) $mhUnder = true;
                     }
+                } else {
+                    $mhSurv++;
                 }
             }
 

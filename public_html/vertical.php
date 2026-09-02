@@ -29,6 +29,9 @@ foreach (getActiveRacers($pdo, $seasonId) as $r) {
         'char'      => getMostUsedCharacter($pdo, $r['id'], $seasonId),
         'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $seasonId) : [],
         'raceCount' => $raceCount,
+        // "N of 12 cups counted" for Top-12 seasons — read from the breakdown
+        // like index.php does. This key was printed but never set (always 0).
+        'cupsCounted' => (int)(getScoringBreakdown($pdo, $r['id'], $seasonId)['components']['cups_counted'] ?? 0),
     ];
 }
 sortStandingsByScoring($standings, $rules['scoring_system'] ?? 'average_attendance', $pdo, $seasonId);

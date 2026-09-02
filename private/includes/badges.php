@@ -1017,54 +1017,29 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
             $mhUnderdogDone  = false;
             $mhSurvivedCount = 0;
 
-            foreach ($changelog as $gpid => $gpData) {
-                if (strpos($gpid, $season_id) !== 0) continue;
-                if (!isset($gpData[$racerName])) continue;
-                if (count($gpData) < 2) continue;
+            // Every hunt from the MONSTER HUNT engine (mhSeasonHunts) — Monster
+            // pick, CR tier and outcomes are decided in exactly one place.
+            foreach (mhSeasonHunts($pdo, $season_id, getSeasonRules($pdo, $season_id)) as $h) {
+                if ($h['solo'] || !isset($h['xp'][$racerName])) continue;
 
-                // Identify Monster — respects is_monster flag from Add Score form
-                [$monsterName, $monsterElo] = pickMonster($gpid, $gpData, $pdo);
-                if ($monsterName === null) continue;
-                $monsterRank = $gpData[$monsterName]['rank'];
-
-                // CR tier
-                $advElos = [];
-                foreach ($gpData as $n => $d) { if ($n !== $monsterName) $advElos[] = $d['old_elo']; }
-                $avgAdv  = count($advElos) ? array_sum($advElos) / count($advElos) : $monsterElo;
-                $eloGap  = max(0, $monsterElo - $avgAdv);
-                $crTier  = $eloGap < 50 ? 1 : ($eloGap < 150 ? 2 : ($eloGap < 300 ? 3 : 4));
-
-                // Adventurer outcomes
-                $advWon = $advLost = 0;
-                foreach ($gpData as $n => $d) {
-                    if ($n === $monsterName) continue;
-                    if ($d['rank'] < $monsterRank) $advWon++; else $advLost++;
-                }
-                $fullSlay = ($advLost === 0 && $advWon > 0); // all adventurers beat Monster
-                $isTPK    = ($advWon === 0);                 // Monster beat all (TPK)
-
-                if ($racerName === $monsterName) {
+                if ($racerName === $h['monster']) {
                     $mhHuntedCount++;
-                    if ($isTPK) $mhApexCount++;
-                } else {
-                    $myRank = $gpData[$racerName]['rank'];
-                    $iSlew  = $myRank < $monsterRank;
-                    if ($iSlew) {
-                        if ($crTier === 4) $mhDragonSlayer = true;
-                        if ($fullSlay)     $mhWipeCount++;
-                        // Underdog: slew Monster while having lowest Elo among adventurers
-                        if (!$mhUnderdogDone) {
-                            $myElo      = $gpData[$racerName]['old_elo'];
-                            $isLowest   = true;
-                            foreach ($gpData as $n => $d) {
-                                if ($n === $monsterName || $n === $racerName) continue;
-                                if ($d['old_elo'] < $myElo) { $isLowest = false; break; }
-                            }
-                            if ($isLowest) $mhUnderdogDone = true;
+                    if ($h['tpk']) $mhApexCount++;
+                } elseif (in_array($racerName, $h['slayers'], true)) {
+                    if ($h['cr_tier'] === 4) $mhDragonSlayer = true;
+                    if ($h['full_slay'])     $mhWipeCount++;
+                    // Underdog: slew Monster while having lowest Elo among adventurers
+                    if (!$mhUnderdogDone) {
+                        $myElo    = $h['elos'][$racerName];
+                        $isLowest = true;
+                        foreach ($h['elos'] as $n => $e) {
+                            if ($n === $h['monster'] || $n === $racerName) continue;
+                            if ($e < $myElo) { $isLowest = false; break; }
                         }
-                    } else {
-                        $mhSurvivedCount++;
+                        if ($isLowest) $mhUnderdogDone = true;
                     }
+                } else {
+                    $mhSurvivedCount++;
                 }
             }
 

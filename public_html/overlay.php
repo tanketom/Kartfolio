@@ -75,19 +75,11 @@ foreach ($activeRacers as $r) {
         'gps'   => (int)$r['gp_count'],
     ];
 }
-usort($standings, fn($a, $b) => $b['score'] <=> $a['score']);
-
-if ($scoringSystem === 'top_12_unique') {
-    foreach ($standings as &$s) {
-        $pStmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT cup_name) FROM results
-            WHERE racer_id = ? AND gpid LIKE ? AND gp_points = 60
-        ");
-        $pStmt->execute([$s['id'], $seasonId . '%']);
-        $s['tiebreaker'] = (int)$pStmt->fetchColumn();
-    }
-    unset($s);
-}
+// Sort through the registry: this used a score-only usort (ties in whatever
+// order the racers query returned them) and then computed its own Top-12
+// tiebreaker WITHOUT re-sorting by it. sortStandingsByScoring() attaches
+// 'tiebreaker' for Top-12 seasons, which the standings view still prints.
+sortStandingsByScoring($standings, $scoringSystem, $pdo, $seasonId);
 $standings = array_slice($standings, 0, $maxRows);
 
 // ─── VIEW 2: LAST GP ─────────────────────────────────────────────────────

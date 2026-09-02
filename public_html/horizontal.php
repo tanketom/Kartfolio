@@ -30,6 +30,10 @@ foreach (getActiveRacers($pdo, $selectedSeason) as $r) {
         'raceCount' => $raceCount,
         'qualifies' => racerQualifies($raceCount, $rules),
         'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $selectedSeason) : [],
+        // "N of 12 cups counted" for Top-12 seasons — read from the breakdown
+        // like index.php does. This key was printed but never set (a PHP 8
+        // undefined-key warning and an empty number on the sign).
+        'cupsCounted' => (int)(getScoringBreakdown($pdo, $r['id'], $selectedSeason)['components']['cups_counted'] ?? 0),
     ];
 }
 $currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';
@@ -105,7 +109,7 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                     <div class="racer-score">
                         <?php if ($currentScoringSystem === 'top_12_unique'): ?>
                             <?= (int)$entry['score'] ?>
-                            <div class="cup-completion"><?= $entry['cupsCounted'] ?> of 12 cups counted</div>
+                            <div class="cup-completion"><?= (int)($entry['cupsCounted'] ?? 0) ?> of 12 cups counted</div>
                         <?php else: ?>
                             <?= number_format($entry['score'], 2) ?>
                         <?php endif; ?>
@@ -139,7 +143,7 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                     <div class="racer-score">
                         <?php if ($currentScoringSystem === 'top_12_unique'): ?>
                             <?= (int)$entry['score'] ?>
-                            <div class="cup-completion"><?= $entry['cupsCounted'] ?> of 12 cups counted</div>
+                            <div class="cup-completion"><?= (int)($entry['cupsCounted'] ?? 0) ?> of 12 cups counted</div>
                         <?php else: ?>
                             <?= number_format($entry['score'], 2) ?>
                         <?php endif; ?>

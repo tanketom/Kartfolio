@@ -95,19 +95,9 @@ foreach ($activeRacers as $r) {
     ];
 }
 $currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-if ($currentScoringSystem === 'top_12_unique') {
-    foreach ($standings as &$s) {
-        $s['tiebreaker'] = getTop12UniqueTiebreaker($pdo, $s['id'], $seasonId);
-    }
-    unset($s);
-    usort($standings, function($a, $b) {
-        if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-} else {
-    usort($standings, fn($a, $b) => $b['score'] <=> $a['score']);
-}
+// Sort through the registry — this page carried a stale copy of the Top-12
+// sort and a score-only sort for every other system (no tiebreak at all).
+sortStandingsByScoring($standings, $currentScoringSystem, $pdo, $seasonId);
 
 // Calculate rank changes
 foreach ($standings as $index => &$racer) {

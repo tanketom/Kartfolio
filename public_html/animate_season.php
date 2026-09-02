@@ -56,7 +56,7 @@ if (isset($_GET['data'])) {
 
     // Pre-fetch ALL results for performance (avoid N*M queries)
     $allResultsStmt = $pdo->prepare("
-        SELECT gpid, racer_id, gp_points, race_date, cup_name
+        SELECT gpid, racer_id, gp_points, race_date, cup_name, rank, id
         FROM results
         WHERE gpid LIKE ? AND gpid LIKE 's%'
         ORDER BY gpid ASC
@@ -87,12 +87,14 @@ if (isset($_GET['data'])) {
             $racerPointsSoFar = [];
             $racerDatesSoFar = [];
             $racerCupsSoFar = [];
+            $racerRowsSoFar = [];
 
             foreach ($gpIdSet as $gpid) {
                 if (isset($racerResults[$rid][$gpid])) {
                     $res = $racerResults[$rid][$gpid];
                     $racerPointsSoFar[] = (int)$res['gp_points'];
                     $racerDatesSoFar[] = $res['race_date'];
+                    $racerRowsSoFar[] = $res;
                     $racerCupsSoFar[$res['cup_name']] = max(
                         $racerCupsSoFar[$res['cup_name']] ?? 0,
                         (int)$res['gp_points']
@@ -107,6 +109,13 @@ if (isset($_GET['data'])) {
             $score = 0;
 
             switch ($scoringSystem) {
+                case 'positional_points':
+                case 'median':
+                case 'form':
+                    // Exact replays from the racer's own rows (gp_logic).
+                    $score = progressiveScoreFromRows($scoringSystem, $racerRowsSoFar, $rules);
+                    break;
+
                 case 'top_12_unique':
                     $cupBests = array_values($racerCupsSoFar);
                     rsort($cupBests);
@@ -123,6 +132,8 @@ if (isset($_GET['data'])) {
 
                 case 'average_attendance':
                 default:
+                    // Any other system lands here as an APPROXIMATION — the
+                    // payload carries 'approximate' so the page can say so.
                     $attWeight = $rules['attendance_weight'] ?? 1.0;
                     $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
                     $threshold = $rules['min_races_threshold'] ?? 3;
@@ -184,6 +195,8 @@ if (isset($_GET['data'])) {
         'season'       => $seasonId,
         'seasonName'   => $seasonName,
         'scoringSystem' => $scoringSystem,
+        'systemName'   => getScoringSystemDef($scoringSystem)['name'] ?? $scoringSystem,
+        'approximate'  => !in_array($scoringSystem, ['average_attendance', 'preseason', 'top_12_unique', 'positional_points', 'median', 'form'], true),
         'totalGPs'     => count($allGPs),
         'frames'       => $frames
     ], JSON_INVALID_UTF8_SUBSTITUTE);
@@ -311,6 +324,12 @@ include __DIR__ . '/../private/templates/header.php';
         .then(data => {
             animData = data;
             gpLabel.textContent = `GP 0 / ${data.totalGPs}`;
+            if (data.approximate) {
+                // The server couldn't replay this system GP by GP — say so
+                // rather than presenting a GPScore™-style curve as the real thing.
+                const sub = document.querySelector('.anim-subtitle');
+                if (sub) sub.textContent += ` · ${data.systemName} can't be replayed GP by GP — frames show a GPScore™-style average as an approximation`;
+            }
 
             // Assign colors
             const allRacers = new Set();

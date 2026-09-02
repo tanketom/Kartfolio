@@ -106,14 +106,17 @@ function calculateGPScoreUpTo($pdo, $racer_id, $season_id, $date) {
 
     $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
 
-    $stmt = $pdo->prepare("SELECT gp_points, race_date FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' AND race_date <= ? ORDER BY gp_points ASC");
+    $stmt = $pdo->prepare("SELECT gp_points, race_date, rank, id FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' AND race_date <= ? ORDER BY gp_points ASC, id ASC");
     $stmt->execute([$racer_id, $season_id . "%", $date]);
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $totalRaces = count($results);
     if (!racerQualifies($totalRaces, $rules)) return 0;
 
-    // For timeline progression, use simple calculation for all non-average systems
+    // Systems that replay exactly from the racer's own rows (gp_logic).
+    $exact = progressiveScoreFromRows($scoringSystem, $results, $rules);
+    if ($exact !== null) return $exact;
+
     if ($scoringSystem === 'average_attendance') {
         $attWeight = $rules['attendance_weight'] ?? 1.0;
         $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
@@ -142,8 +145,9 @@ function calculateGPScoreUpTo($pdo, $racer_id, $season_id, $date) {
         $filteredPoints = array_slice($pointsOnly, $numToDrop);
         return round(array_sum($filteredPoints) / count($filteredPoints), 2);
     } else {
-        // For cup-based and other systems, show simple average progression
-        // (Full scoring calculation doesn't make sense chronologically)
+        // Cup-, Elo- and field-dependent systems can't be replayed from one
+        // racer's rows: show a plain points average and SAY SO on the page.
+        $GLOBALS['progressionApprox'] = true;
         $pointsOnly = array_column($results, 'gp_points');
         return round(array_sum($pointsOnly) / count($pointsOnly), 2);
     }
@@ -198,7 +202,8 @@ include __DIR__ . '/../private/templates/header.php';
                 <!-- Interactive Season Replay Timeline -->
                 <div class="timeline-container">
                     <h2 class="timeline-heading">📊 Season Replay</h2>
-                    <p class="timeline-desc">Scrub through the season timeline to see standings evolution</p>
+                    <p class="timeline-desc">Scrub through the season timeline to see standings evolution<?php if (!empty($GLOBALS['progressionApprox'])): ?>
+                        &middot; <?= htmlspecialchars((getScoringSystemDef(getSeasonRules($pdo, $sid)['scoring_system'] ?? 'average_attendance')['name'] ?? 'This system')) ?> can't be replayed GP by GP, so these snapshots rank a plain points average — the final standings above are the real ones<?php endif; ?></p>
 
                     <div class="timeline-slider-wrap">
                         <input type="range" id="timelineSlider" min="0" max="<?= count($progressionData) - 1 ?>" value="<?= count($progressionData) - 1 ?>" class="timeline-slider">

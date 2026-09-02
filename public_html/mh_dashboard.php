@@ -75,15 +75,14 @@ $gpStmt = $pdo->prepare("
 $gpStmt->execute([$selectedSeason . '%']);
 $seasonGPs = $gpStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ── Helper: CR tier ───────────────────────────────────────────────────────
+// ── Helper: CR tier → [tier, mult, epithet, colour] (tier/mult from the engine) ──
 function crTierFromGap(float $gap): array {
-    if      ($gap < 50)  return [1, 1.0,  'the Rival',        '#7a5f00'];
-    elseif  ($gap < 150) return [2, 1.25, 'the Beast',        '#7a3a00'];
-    elseif  ($gap < 300) return [3, 1.5,  'the Fearsome One', '#7a1010'];
-    else                 return [4, 2.0,  'the Dragon',       '#4a0020'];
+    [$tier, $mult] = mhCrTier($gap);
+    $look = [1 => ['the Rival', '#7a5f00'], 2 => ['the Beast', '#7a3a00'], 3 => ['the Fearsome One', '#7a1010'], 4 => ['the Dragon', '#4a0020']];
+    return [$tier, $mult, $look[$tier][0], $look[$tier][1]];
 }
 
-// ── Build hunt log ────────────────────────────────────────────────────────
+// ── Build hunt log — every hunt comes from mhSeasonHunts(), the one engine ──
 $huntLog       = [];
 $racerXpLog    = []; // name => [xp, xp, ...]
 $slayCount     = []; // name => int
@@ -92,75 +91,32 @@ $tpkCount      = 0; // Monster beat everyone
 $fullSlayCount = 0; // Everyone beat the Monster
 $totalGPs      = 0;
 
-foreach ($seasonGPs as $gp) {
-    $gpid   = $gp['gpid'];
-    $gpData = $changelog[$gpid] ?? [];
-    if (count($gpData) < 2) continue;
+foreach (mhSeasonHunts($pdo, $selectedSeason, $rules) as $h) {
+    if ($h['solo']) continue;
     $totalGPs++;
+    [, , $crEpithet, $crColor] = crTierFromGap((float)$h['gap']);
 
-    [$monsterName, $monsterOldElo] = pickMonster($gpid, $gpData, $pdo);
+    foreach ($h['xp'] as $name => $xp) $racerXpLog[$name][] = $xp;
 
-    // CR tier
-    $advElos   = [];
-    foreach ($gpData as $name => $d) {
-        if ($name !== $monsterName) $advElos[] = $d['old_elo'];
-    }
-    $avgAdv = count($advElos) > 0 ? array_sum($advElos) / count($advElos) : $monsterOldElo;
-    $gap    = max(0, $monsterOldElo - $avgAdv);
-    [$crTier, $crMult, $crEpithet, $crColor] = crTierFromGap($gap);
-
-    $monsterRank = $gpData[$monsterName]['rank'];
-
-    // Slayers / survivors
-    $slayers   = [];
-    $survivors = [];
-    foreach ($gpData as $name => $d) {
-        if ($name === $monsterName) continue;
-        if ($d['rank'] < $monsterRank) $slayers[] = $name;
-        else                           $survivors[] = $name;
-    }
-    $isFullSlay = (count($slayers) > 0 && count($survivors) === 0); // all adventurers beat Monster
-    $isTPK      = empty($slayers);                                   // Monster beat all adventurers
-
-    // XP
-    $gpXP = [];
-    foreach ($gpData as $name => $d) {
-        if ($name === $monsterName) {
-            if ($isTPK)       $xp = $monster_win_xp;
-            elseif ($isFullSlay) $xp = $monster_loss;
-            else              $xp = $monster_part;
-        } else {
-            if (in_array($name, $slayers)) {
-                $xp = (int)round($slay_xp * $crMult);
-                if ($isFullSlay) $xp += $party_bonus_xp;
-            } else {
-                $xp = $survive_xp;
-            }
-        }
-        $gpXP[$name]         = $xp;
-        $racerXpLog[$name][] = $xp;
-    }
-
-    // Stats tracking
-    if ($isTPK)      $tpkCount++;
-    if ($isFullSlay) $fullSlayCount++;
-    foreach ($slayers as $s) $slayCount[$s]     = ($slayCount[$s]     ?? 0) + 1;
-    $monsterCount[$monsterName] = ($monsterCount[$monsterName] ?? 0) + 1;
+    if ($h['tpk'])       $tpkCount++;
+    if ($h['full_slay']) $fullSlayCount++;
+    foreach ($h['slayers'] as $s) $slayCount[$s] = ($slayCount[$s] ?? 0) + 1;
+    $monsterCount[$h['monster']] = ($monsterCount[$h['monster']] ?? 0) + 1;
 
     $huntLog[] = [
-        'gpid'        => $gpid,
-        'date'        => $gp['gp_date'],
-        'cup'         => $gp['cup_name'],
-        'monster'     => $monsterName,
-        'monster_elo' => $monsterOldElo,
-        'cr_tier'     => $crTier,
+        'gpid'        => $h['gpid'],
+        'date'        => $h['date'],
+        'cup'         => $h['cup'],
+        'monster'     => $h['monster'],
+        'monster_elo' => $h['monster_elo'],
+        'cr_tier'     => $h['cr_tier'],
         'cr_epithet'  => $crEpithet,
         'cr_color'    => $crColor,
-        'slayers'     => $slayers,
-        'survivors'  => $survivors,
-        'full_slay'  => $isFullSlay,
-        'tpk'        => $isTPK,
-        'xp'          => $gpXP,
+        'slayers'     => $h['slayers'],
+        'survivors'  => $h['survivors'],
+        'full_slay'  => $h['full_slay'],
+        'tpk'        => $h['tpk'],
+        'xp'          => $h['xp'],
     ];
 }
 

@@ -36,7 +36,7 @@ if (!$isAllTime) {
 // 2. Fetch Raw Results
 if (!$isAllTime) {
     $stmt = $pdo->prepare("
-        SELECT r.id as racer_id, r.name, res.race_date, res.gp_points, res.cup_name, res.gpid
+        SELECT r.id as racer_id, r.name, res.race_date, res.gp_points, res.cup_name, res.gpid, res.rank, res.id AS result_id
         FROM results res
         JOIN racers r ON res.racer_id = r.id
         WHERE res.gpid LIKE ? AND res.gpid LIKE 's%'
@@ -45,7 +45,7 @@ if (!$isAllTime) {
     $stmt->execute([$currentSeason . "%"]);
 } else {
     $stmt = $pdo->query("
-        SELECT r.id as racer_id, r.name, res.race_date, res.gp_points, res.cup_name, res.gpid
+        SELECT r.id as racer_id, r.name, res.race_date, res.gp_points, res.cup_name, res.gpid, res.rank, res.id AS result_id
         FROM results res
         JOIN racers r ON res.racer_id = r.id
         WHERE res.gpid LIKE 's%'
@@ -63,7 +63,7 @@ foreach ($raw_data as $row) {
     $date = $row['race_date'];
     $name = $row['name'];
     $all_dates[] = $date;
-    $racer_raw_data[$name][] = ['date' => $date, 'points' => $row['gp_points'], 'cup_name' => $row['cup_name'] ?? '', 'gpid' => $row['gpid'] ?? ''];
+    $racer_raw_data[$name][] = ['date' => $date, 'points' => $row['gp_points'], 'cup_name' => $row['cup_name'] ?? '', 'gpid' => $row['gpid'] ?? '', 'rank' => (int)($row['rank'] ?? 0), 'id' => (int)($row['result_id'] ?? 0)];
     $racer_ids[$name] = $row['racer_id']; // Store ID mapping
 }
 
@@ -77,60 +77,18 @@ foreach ($raw_data as $row) {
     if (!isset($gpDates[$row['gpid']])) $gpDates[$row['gpid']] = $row['race_date'];
 }
 if (!$isAllTime && $scoringSystem === 'monster_hunt') {
-    $changelog      = getMonsterHuntEloChangelog($pdo);
-    $mh_slay        = (int)($rules['mh_slay_xp']           ?? 100);
-    $mh_survive     = (int)($rules['mh_survive_xp']         ?? 20);
-    $mh_party       = (int)($rules['mh_party_bonus_xp']     ?? 50);
-    $mh_mon_win     = (int)($rules['mh_monster_win_xp']     ?? 80);
-    $mh_mon_part    = (int)($rules['mh_monster_partial_xp'] ?? 30);
-    $mh_mon_loss    = (int)($rules['mh_monster_loss_xp']    ?? -40);
-
-    foreach ($changelog as $gpid => $gpData) {
-        if (!str_starts_with($gpid, $currentSeason)) continue;
-        if (count($gpData) < 2) continue;
-
-        $monsterName = null; $monsterElo = PHP_INT_MIN;
-        foreach ($gpData as $n => $d) {
-            if ($d['old_elo'] > $monsterElo ||
-                ($d['old_elo'] === $monsterElo && strcmp($n, $monsterName) < 0)) {
-                $monsterElo = $d['old_elo']; $monsterName = $n;
-            }
-        }
-        $monsterRank = $gpData[$monsterName]['rank'];
-
-        $advElos = [];
-        foreach ($gpData as $n => $d) { if ($n !== $monsterName) $advElos[] = $d['old_elo']; }
-        $avgAdv = count($advElos) > 0 ? array_sum($advElos) / count($advElos) : $monsterElo;
-        $gap    = max(0, $monsterElo - $avgAdv);
-        if ($gap < 50) $cr = 1.0; elseif ($gap < 150) $cr = 1.25; elseif ($gap < 300) $cr = 1.5; else $cr = 2.0;
-
-        $advWon = $advLost = 0;
-        foreach ($gpData as $n => $d) {
-            if ($n === $monsterName) continue;
-            if ($d['rank'] < $monsterRank) $advWon++; else $advLost++;
-        }
-        $fullSlay = ($advLost === 0 && $advWon > 0); // all adventurers beat Monster
-        $isTpk    = ($advWon === 0);                 // Monster beat all (TPK)
-
-        foreach ($gpData as $name => $d) {
-            if ($name === $monsterName) {
-                if ($isTpk)        $xp = $mh_mon_win;
-                elseif ($fullSlay) $xp = $mh_mon_loss;
-                else               $xp = $mh_mon_part;
-            } else {
-                if ($d['rank'] < $monsterRank) {
-                    $xp = (int)round($mh_slay * $cr);
-                    if ($fullSlay) $xp += $mh_party;
-                } else {
-                    $xp = $mh_survive;
-                }
-            }
-            $mhXpSeries[$name][$gpid] = $xp;
-        }
+    // Per-GP XP from the MONSTER HUNT engine. The copy that lived here picked
+    // the Monster by raw Elo and ignored the is_monster admin flag, so it
+    // credited XP to the wrong racer on 12 of s03's 31 GPs.
+    foreach (mhSeasonHunts($pdo, $currentSeason, $rules) as $h) {
+        if ($h['solo']) continue;
+        foreach ($h['xp'] as $name => $xp) $mhXpSeries[$name][$h['gpid']] = $xp;
     }
 }
 
 // 4. THE REPLAY ENGINE
+// Can the chart reproduce this system GP by GP, or only approximate it?
+$chartApprox  = !$isAllTime && !in_array($scoringSystem, progressiveReplayableSystems(), true);
 $chart_series = [];
 $stats_summary = [];
 $peak_performances = [];
@@ -165,8 +123,19 @@ foreach ($all_racers as $racer) {
             $pointsOnly = array_column($running_bag, 'points');
 
             switch ($scoringSystem) {
+                case 'positional_points':
+                case 'median':
+                case 'form':
+                    // Exact replays from the racer's own rows (gp_logic).
+                    $chart_points[] = progressiveScoreFromRows($scoringSystem, array_map(fn($e) => ['gp_points' => $e['points'], 'race_date' => $e['date'], 'rank' => $e['rank'], 'id' => $e['id']], $running_bag), $rules);
+                    break;
+
                 case 'average_attendance':
                 default:
+                    // Average + attendance bonus. For a system with no replay
+                    // branch this is an APPROXIMATION and the subtitle says so
+                    // ($chartApprox) — it used to be silently labelled as the
+                    // season's real system.
                     // Average + attendance bonus
                     $numToDrop = ($dropRate > 0) ? floor($count / $dropRate) : 0;
                     $sorted = $pointsOnly;
@@ -444,10 +413,13 @@ foreach ($chart_series as $name => $dataPoints) {
     <div class="racer-card stats-chart-card">
         <h1 class="stats-chart-title">Historical Power Rankings</h1>
         <p class="stats-chart-subtitle">
-            <?= $scoringSystem === 'monster_hunt'
-                ? 'Tracking avg XP/GP over the season. Title and level are shown on the leaderboard.'
-                : 'Tracking GPScore™ progression using ' . htmlspecialchars($scoringInfo['name']) . '.'
-            ?>
+            <?php if ($scoringSystem === 'monster_hunt'): ?>
+                Tracking the best-<?= max(1, (int)($rules['mh_best_x'] ?? 20)) ?> XP sum over the season — the number the leaderboard ranks on. Title and level are shown on the leaderboard.
+            <?php elseif (!empty($chartApprox)): ?>
+                <?= htmlspecialchars($scoringInfo['name']) ?> can't be replayed GP by GP (it depends on the rest of the field), so this chart shows a GPScore™-style average as an approximation.
+            <?php else: ?>
+                Tracking <?= htmlspecialchars($scoringInfo['name']) ?> progression over the season.
+            <?php endif; ?>
             <span class="stats-threshold-note">(All racers shown)</span>
         </p>
 
