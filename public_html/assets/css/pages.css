@@ -3140,43 +3140,69 @@ th.rotate > div {
 .rg-canvas {
     max-width: 960px;
     margin: 0 auto;
-    background: #1a1a2e;
+    /* Poster ground: deep navy with a red-to-transparent glow top-left and a
+       gold one bottom-right, so the podium art has something to sit in.
+       Plain gradients only — html2canvas renders those faithfully. */
+    background:
+        radial-gradient(ellipse at 12% 8%,  rgba(230, 0, 18, 0.35), transparent 55%),
+        radial-gradient(ellipse at 90% 95%, rgba(255, 200, 0, 0.18), transparent 50%),
+        linear-gradient(160deg, #101a33 0%, #1a1a2e 55%, #0d0f1f 100%);
     border-radius: var(--radius-xl);
     padding: var(--space-xl) var(--space-xl);
     color: #fff;
     overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* ---- Header ---- */
+/* ---- Masthead: crest + league + season ---- */
 .rg-header {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 18px;
     margin-bottom: var(--space-xl);
     padding-bottom: var(--space-lg);
     border-bottom: 2px solid rgba(255, 255, 255, 0.1);
 }
 
-.rg-header-league {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 3px;
-    color: rgba(255, 255, 255, 0.5);
-    margin-bottom: 6px;
+.rg-crest {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: var(--nintendo-red);
+    padding: 8px;
+    box-shadow: 0 6px 18px rgba(230, 0, 18, 0.35);
 }
 
-/* Single line: "Season S01: FUNdamentals" */
-.rg-header-season {
-    font-size: 1.8rem;
-    font-weight: 900;
-    background: var(--gold);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+.rg-header-text { min-width: 0; }
+
+.rg-header-league {
+    font-family: 'Fredoka', 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    color: rgba(255, 255, 255, 0.55);
+    margin-bottom: 2px;
 }
+
+.rg-header-season {
+    font-family: 'Fredoka', 'Inter', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1.05;
+    color: #fff;
+    letter-spacing: -0.5px;
+}
+
+.rg-header-sep { color: var(--gold); font-weight: 400; }
 
 .rg-header-scoring {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 8px;
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.45);
+    margin-top: 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
 
 /* ---- Main 2-column grid: #1 left (spans full height) | right col ---- */
@@ -3228,8 +3254,10 @@ th.rotate > div {
     margin-bottom: var(--space-lg);
 }
 
-/* ---- Cards — shared base ---- */
+/* ---- Cards — shared base. position:relative so the art + scrim layers
+   sit behind the content; everything else gets z-index 1. ---- */
 .rg-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -3238,26 +3266,73 @@ th.rotate > div {
     border-radius: var(--radius-lg);
     background: rgba(255, 255, 255, 0.06);
     border: 2px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
 }
+.rg-card > * { position: relative; z-index: 1; }
+
+/* Full-bleed character art behind the podium cards. Oversized and offset
+   so the face fills the top of the card; low opacity does the "blur" job
+   without a filter (html2canvas ignores filters). */
+.rg-card-art {
+    position: absolute !important;
+    inset: -12% -20% auto -20%;
+    height: 120%;
+    z-index: 0 !important;
+    background-size: cover;
+    background-position: center 18%;
+    opacity: 0.22;
+    transform: scale(1.35);
+}
+
+/* Gradient scrim over the art so names and numerals stay legible */
+.rg-card-scrim {
+    position: absolute !important;
+    inset: 0;
+    z-index: 0 !important;
+    background: linear-gradient(180deg, rgba(20, 24, 46, 0.05) 0%, rgba(20, 24, 46, 0.55) 45%, rgba(20, 24, 46, 0.92) 100%);
+}
+.rg-card-scrim--gold   { background: linear-gradient(180deg, rgba(255, 200, 0, 0.10) 0%, rgba(26, 26, 46, 0.55) 45%, rgba(26, 26, 46, 0.95) 100%); }
+.rg-card-scrim--silver { background: linear-gradient(180deg, rgba(220, 220, 230, 0.10) 0%, rgba(26, 26, 46, 0.55) 45%, rgba(26, 26, 46, 0.95) 100%); }
+.rg-card-scrim--bronze { background: linear-gradient(180deg, rgba(205, 127, 50, 0.14) 0%, rgba(26, 26, 46, 0.55) 45%, rgba(26, 26, 46, 0.95) 100%); }
+
+/* Medal ribbons — a pill with the place, replacing the emoji medals */
+.rg-ribbon {
+    display: inline-block;
+    padding: 4px 14px 5px;
+    border-radius: 999px;
+    font-family: 'Fredoka', 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    color: #1a1a2e;
+    margin-bottom: 10px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.rg-ribbon sup { font-size: 0.55em; vertical-align: super; margin-left: 1px; }
+.rg-ribbon--gold   { background: linear-gradient(135deg, #ffe97a, #f2b400); font-size: 1.35rem; padding: 6px 20px 7px; }
+.rg-ribbon--silver { background: linear-gradient(135deg, #f4f4f8, #b9bcc8); }
+.rg-ribbon--bronze { background: linear-gradient(135deg, #f0b27a, #b9772f); }
+.rg-ribbon--plain  { background: rgba(255, 255, 255, 0.14); color: #fff; font-size: 0.85rem; padding: 3px 11px 4px; }
 
 /* Champion card */
 .rg-card--champion {
-    background: rgba(255, 215, 0, 0.12);
+    background: rgba(255, 215, 0, 0.08);
     border-color: var(--gold);
-    box-shadow: 0 0 30px rgba(255, 215, 0, 0.15), inset 0 0 20px rgba(255, 215, 0, 0.05);
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.18), inset 0 0 20px rgba(255, 215, 0, 0.05);
     padding: var(--space-lg);
 }
 
 /* Silver card */
 .rg-card--silver {
-    background: rgba(192, 192, 192, 0.1);
+    background: rgba(192, 192, 192, 0.07);
     border-color: var(--silver);
     box-shadow: 0 0 20px rgba(192, 192, 192, 0.1);
 }
 
 /* Bronze card */
 .rg-card--bronze {
-    background: rgba(205, 127, 50, 0.1);
+    background: rgba(205, 127, 50, 0.07);
     border-color: var(--bronze);
     box-shadow: 0 0 20px rgba(205, 127, 50, 0.1);
 }
@@ -3267,18 +3342,26 @@ th.rotate > div {
     padding: var(--space-sm) var(--space-md);
 }
 
-/* Field card — small square, vertical layout */
+/* Field card — numbered grid: place, portrait, name, score */
 .rg-card--field {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 2px;
-    padding: 8px 6px;
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.05);
+    gap: 3px;
+    padding: 10px 6px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
     border-radius: var(--radius-md);
-    width: 90px;
+    width: 92px;
 }
+
+.rg-field-num {
+    font-family: 'DM Mono', ui-monospace, monospace;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 1px;
+}
+.rg-field-num::before { content: '#'; opacity: 0.6; }
 
 /* Ineligible racers — dimmed with dotted border */
 .rg-card--ineligible {
@@ -3315,7 +3398,13 @@ th.rotate > div {
     object-fit: cover;
     border-radius: var(--radius-full);
     background: rgba(255, 255, 255, 0.1);
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
+.rg-card--champion .rg-portrait img { border-color: var(--gold); }
+.rg-card--silver   .rg-portrait img { border-color: var(--silver); }
+.rg-card--bronze   .rg-portrait img { border-color: var(--bronze); }
+.rg-card--field    .rg-portrait img { border-width: 2px; }
 
 .rg-portrait--lg { width: 130px; height: 130px; }
 .rg-portrait--md { width: 72px; height: 72px; }
@@ -3336,21 +3425,22 @@ th.rotate > div {
 .rg-medal--lg { font-size: 2rem; }
 .rg-medal--md { font-size: 1.4rem; }
 
-/* ---- Names ---- */
-.rg-name { font-weight: 800; }
-.rg-name--lg { font-size: 1.3rem; margin-bottom: 2px; }
+/* ---- Names — Fredoka display ---- */
+.rg-name { font-family: 'Fredoka', 'Inter', sans-serif; font-weight: 700; }
+.rg-name--lg { font-size: 1.6rem; margin-bottom: 2px; }
 .rg-name--md { font-size: 0.9rem; margin-bottom: 1px; }
 .rg-name--sm { font-size: 0.8rem; margin-bottom: 1px; }
 .rg-name--xs { font-size: 0.7rem; }
 
-/* ---- Scores ---- */
+/* ---- Scores — DM Mono numerals ---- */
 .rg-score {
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.7);
-    font-family: 'Courier New', monospace;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    font-family: 'DM Mono', ui-monospace, monospace;
+    letter-spacing: -0.5px;
 }
 
-.rg-score--lg { font-size: 1.2rem; color: var(--gold); }
+.rg-score--lg { font-size: 1.7rem; color: var(--gold); }
 .rg-score--md { font-size: 0.9rem; }
 .rg-score--sm { font-size: 0.8rem; }
 .rg-score--field { font-size: 0.7rem; }

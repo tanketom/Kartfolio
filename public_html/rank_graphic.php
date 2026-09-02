@@ -40,15 +40,9 @@ $activeRacers = $racerStmt->fetchAll();
 
 $standings = [];
 foreach ($activeRacers as $r) {
-    $score = calculateGPScore($pdo, $r['id'], $seasonId);
-
-    $charStmt = $pdo->prepare("SELECT character_used FROM results WHERE racer_id = ? AND gpid LIKE ? GROUP BY character_used ORDER BY COUNT(*) DESC LIMIT 1");
-    $charStmt->execute([$r['id'], $seasonId . "%"]);
-    $char = $charStmt->fetchColumn() ?: 'Mii';
-
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE ?");
-    $countStmt->execute([$r['id'], $seasonId . "%"]);
-    $raceCount = (int)$countStmt->fetchColumn();
+    $score     = calculateGPScore($pdo, $r['id'], $seasonId);
+    $char      = getMostUsedCharacter($pdo, $r['id'], $seasonId) ?: 'Mii';   // season cache
+    $raceCount = getRaceCount($pdo, $r['id'], $seasonId);
 
     $standings[] = [
         'id'        => $r['id'],
@@ -62,20 +56,9 @@ foreach ($activeRacers as $r) {
     ];
 }
 
-// Sort standings
-if ($scoringInfo['system'] === 'top_12_unique') {
-    foreach ($standings as &$s) {
-        $s['tiebreaker'] = getTop12UniqueTiebreaker($pdo, $s['id'], $seasonId);
-    }
-    unset($s);
-    usort($standings, function($a, $b) {
-        if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-} else {
-    usort($standings, fn($a, $b) => ($b['score'] == $a['score']) ? strcmp($a['name'], $b['name']) : $b['score'] <=> $a['score']);
-}
+// Sort through the registry — this page carried a stale copy of the Top-12
+// sort and a score-only sort for every other system.
+sortStandingsByScoring($standings, $scoringInfo['system'], $pdo, $seasonId);
 
 // Filter out racers with 0 GPScore
 $standings = array_values(array_filter($standings, fn($s) => $s['score'] > 0));
@@ -165,9 +148,12 @@ function renderHangingBadges(array $badges, array $unique, string $sizeClass = '
 
         <!-- Header: single line season + name, then scoring system -->
         <div class="rg-header">
-            <div class="rg-header-league"><?= htmlspecialchars($leagueName) ?> Mario Kart League</div>
-            <div class="rg-header-season">Season <?= htmlspecialchars($seasonNumber) ?><?php if (!empty($seasonName)): ?>: <?= htmlspecialchars($seasonName) ?><?php endif; ?></div>
-            <div class="rg-header-scoring">Scoring system: <?= htmlspecialchars($scoringInfo['icon'] ?? '') ?> <?= htmlspecialchars($scoringInfo['name']) ?></div>
+            <img class="rg-crest" src="/assets/img/favicon.svg" alt="">
+            <div class="rg-header-text">
+                <div class="rg-header-league"><?= htmlspecialchars($leagueName) ?></div>
+                <div class="rg-header-season"><?= htmlspecialchars($seasonNumber) ?><?php if (!empty($seasonName)): ?> <span class="rg-header-sep">·</span> <?= htmlspecialchars($seasonName) ?><?php endif; ?></div>
+                <div class="rg-header-scoring"><?= htmlspecialchars($scoringInfo['icon'] ?? '') ?> <?= htmlspecialchars($scoringInfo['name']) ?> standings</div>
+            </div>
         </div>
 
         <!-- Main grid: #1 left (tall) | #2-3 top-right + #4-5-6 bottom-right -->
@@ -177,10 +163,11 @@ function renderHangingBadges(array $badges, array $unique, string $sizeClass = '
             ?>
             <!-- #1 Champion — tall, fills entire left column -->
             <div class="rg-card rg-card--champion<?= !$c['eligible'] ? ' rg-card--ineligible' : '' ?>">
-                <div class="rg-rank rg-rank--gold">#1</div>
+                <div class="rg-card-art" style="background-image:url('/assets/img/<?= htmlspecialchars(rawurlencode($c['char'])) ?>.png')"></div>
+                <div class="rg-card-scrim rg-card-scrim--gold"></div>
+                <span class="rg-ribbon rg-ribbon--gold">1<sup>st</sup></span>
                 <div class="rg-portrait rg-portrait--lg">
                     <img src="/assets/img/<?= htmlspecialchars($c['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="<?= htmlspecialchars($c['name']) ?>">
-                    <span class="rg-medal rg-medal--lg">🥇</span>
                 </div>
                 <?= renderHangingBadges($c['badges'], $c['unique']) ?>
                 <div class="rg-name rg-name--lg"><?= htmlspecialchars($c['name']) ?></div>
@@ -201,10 +188,11 @@ function renderHangingBadges(array $badges, array $unique, string $sizeClass = '
                         $cardClass = $rank === 2 ? 'rg-card--silver' : 'rg-card--bronze';
                     ?>
                     <div class="rg-card <?= $cardClass ?><?= !$p['eligible'] ? ' rg-card--ineligible' : '' ?>">
-                        <div class="rg-rank <?= $rankClass ?>">#<?= $rank ?></div>
+                        <div class="rg-card-art" style="background-image:url('/assets/img/<?= htmlspecialchars(rawurlencode($p['char'])) ?>.png')"></div>
+                        <div class="rg-card-scrim <?= $rank === 2 ? 'rg-card-scrim--silver' : 'rg-card-scrim--bronze' ?>"></div>
+                        <span class="rg-ribbon <?= $rank === 2 ? 'rg-ribbon--silver' : 'rg-ribbon--bronze' ?>"><?= $rank ?><sup><?= $rank === 2 ? 'nd' : 'rd' ?></sup></span>
                         <div class="rg-portrait rg-portrait--md">
                             <img src="/assets/img/<?= htmlspecialchars($p['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="<?= htmlspecialchars($p['name']) ?>">
-                            <span class="rg-medal rg-medal--md"><?= $medalEmoji ?></span>
                         </div>
                         <?= renderHangingBadges($p['badges'], $p['unique'], 'rg-hanging-badges--sm') ?>
                         <div class="rg-name rg-name--md"><?= htmlspecialchars($p['name']) ?></div>
@@ -222,7 +210,9 @@ function renderHangingBadges(array $badges, array $unique, string $sizeClass = '
                         $rank = $i + 4;
                     ?>
                     <div class="rg-card rg-card--contender<?= !$ct['eligible'] ? ' rg-card--ineligible' : '' ?>">
-                        <div class="rg-rank">#<?= $rank ?></div>
+                        <div class="rg-card-art" style="background-image:url('/assets/img/<?= htmlspecialchars(rawurlencode($ct['char'])) ?>.png')"></div>
+                        <div class="rg-card-scrim"></div>
+                        <span class="rg-ribbon rg-ribbon--plain"><?= $rank ?><sup><?= ordinal($rank) === "{$rank}th" ? 'th' : substr(ordinal($rank), -2) ?></sup></span>
                         <div class="rg-portrait rg-portrait--sm">
                             <img src="/assets/img/<?= htmlspecialchars($ct['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="<?= htmlspecialchars($ct['name']) ?>">
                         </div>
@@ -243,23 +233,13 @@ function renderHangingBadges(array $badges, array $unique, string $sizeClass = '
             <?php foreach ($field as $i => $f):
                 $rank = $i + 7;
             ?>
-            <div class="rg-card rg-card--field<?= !$f['eligible'] ? ' rg-card--ineligible' : '' ?>">
-                <div class="rg-rank rg-rank--field">#<?= $rank ?></div>
+            <div class="rg-card rg-card--field<?= !$f['eligible'] ? ' rg-card--ineligible' : '' ?>" title="<?= htmlspecialchars($f['name']) ?> — <?= number_format($f['score'], 2) ?> (<?= $f['raceCount'] ?> GPs)">
+                <span class="rg-field-num"><?= $rank ?></span>
                 <div class="rg-portrait rg-portrait--xs">
                     <img src="/assets/img/<?= htmlspecialchars($f['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="<?= htmlspecialchars($f['name']) ?>">
                 </div>
                 <div class="rg-name rg-name--xs"><?= htmlspecialchars($f['name']) ?></div>
                 <div class="rg-score rg-score--field"><?= number_format($f['score'], 2) ?></div>
-                <?php if (!empty($f['badges']) || !empty($f['unique'])): ?>
-                <div class="rg-field-badges">
-                    <?php foreach ($f['badges'] as $badge): ?>
-                        <span title="<?= htmlspecialchars($badge['title']) ?>"><?= $badge['icon'] ?></span>
-                    <?php endforeach; ?>
-                    <?php foreach ($f['unique'] as $ub): ?>
-                        <img src="<?= htmlspecialchars($ub['img']) ?>" class="rg-field-badge-img" alt="<?= htmlspecialchars($ub['title']) ?>" title="<?= htmlspecialchars($ub['title']) ?>">
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
             </div>
             <?php endforeach; ?>
         </div>
