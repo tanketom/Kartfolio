@@ -1700,13 +1700,8 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
     $top12CupNamesRecent = [];
     $isTop12Unique = ($currentScoringSystem === 'top_12_unique');
     if ($isTop12Unique) {
-        $allCupNames = getMK8DCups();
-        foreach ($allCupNames as $cn) {
-            $biStmt = $pdo->prepare("SELECT MAX(gp_points) as best FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' AND cup_name = ?");
-            $biStmt->execute([$racerId, $currentSeason . '%', $cn]);
-            $best = $biStmt->fetchColumn();
-            if ($best) $bestInCup[$cn] = (int)$best;
-        }
+        // Best per cup off the season cache — this was 24 MAX() queries.
+        $bestInCup = array_filter(getBestScorePerCup($pdo, $racerId, $currentSeason, getMK8DCups()), fn($v) => $v !== null && $v > 0);
         arsort($bestInCup);
         $top12CupNamesRecent = array_slice(array_keys($bestInCup), 0, 12);
     }

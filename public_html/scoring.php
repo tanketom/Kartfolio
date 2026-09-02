@@ -38,15 +38,9 @@ $racerBreakdowns = [];
 foreach ($racers as $racer) {
     $rid = $racer['id'];
 
-    // Fetch all GPs sorted by points ascending (matching the scoring logic)
-    $gpStmt = $pdo->prepare("
-        SELECT res.gpid, res.gp_points, res.race_date, res.cup_name, res.rank
-        FROM results res
-        WHERE res.racer_id = ? AND res.gpid LIKE ? AND res.gpid LIKE 's%'
-        ORDER BY res.gp_points ASC
-    ");
-    $gpStmt->execute([$rid, $seasonId . '%']);
-    $gps = $gpStmt->fetchAll(PDO::FETCH_ASSOC);
+    // All GPs, points ascending (gp_points ASC, id ASC) — the same rows and
+    // the same order the scoring engine drops from, off the season cache.
+    $gps = getRacerSeasonRows($pdo, (int)$rid, $seasonId);
 
     $totalRaces = count($gps);
     $finalScore = calculateGPScore($pdo, $rid, $seasonId);
@@ -95,14 +89,8 @@ foreach ($racers as $racer) {
         $entry['average'] = round($avg, 2);
     } elseif ($scoringSystem === 'top_12_unique') {
         // Best score per cup, top 12
-        $allCups = getMK8DCups();
-        $cupBests = [];
-        foreach ($allCups as $cupName) {
-            $cStmt = $pdo->prepare("SELECT MAX(gp_points) as best FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' AND cup_name = ?");
-            $cStmt->execute([$rid, $seasonId . '%', $cupName]);
-            $best = $cStmt->fetchColumn();
-            if ($best) $cupBests[$cupName] = (int)$best;
-        }
+        // Best per cup off the season cache — this was 24 MAX() queries per racer.
+        $cupBests = array_filter(getBestScorePerCup($pdo, (int)$rid, $seasonId, getMK8DCups()), fn($v) => $v !== null && $v > 0);
         arsort($cupBests);
         $entry['cup_bests'] = $cupBests;
         $top12 = array_slice($cupBests, 0, 12, true);

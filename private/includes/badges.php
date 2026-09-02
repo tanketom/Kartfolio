@@ -11,74 +11,15 @@ require_once __DIR__ . '/quests.php';
 require_once __DIR__ . '/snl_tournament.php';
 
 /**
- * Season- and career-wide data shared by every racer's badge computation,
- * built once per (season) per request. Previously these were re-run as
- * separate queries inside getRacerBadges for EACH racer — on a leaderboard
- * with N racers that meant 6+ identical season queries × N, plus an O(N²)
- * Black Box pass (every racer's BB score recomputed inside every racer's
- * badge call). Memoised here so each underlying query runs once.
+ * Career-wide badge inputs — season-independent, so built ONCE per request.
+ * badgeSeasonContext() used to run all of this again for every season it was
+ * asked about: a racer profile (6 seasons) paid ~60 identical queries and
+ * 6 Elo signature checks for data that cannot differ between seasons.
+ * Returns the career half of the context; badgeSeasonContext() merges it in.
  */
-function badgeSeasonContext($pdo, $season_id) {
-    static $cache = [];
-    if (isset($cache[$season_id])) return $cache[$season_id];
-
-    $like = $season_id . '%';
-
-    // — Highest single-racer attendance this season (badge 14, Longevity) —
-    $st = $pdo->prepare("SELECT COUNT(*) AS c FROM results WHERE gpid LIKE ? GROUP BY racer_id ORDER BY c DESC LIMIT 1");
-    $st->execute([$like]);
-    $highestAttendance = (int)$st->fetchColumn();
-
-    // — First GP of the season + who raced in it (badge 33, Early Bird) —
-    $st = $pdo->prepare("SELECT gpid FROM results WHERE gpid LIKE ? ORDER BY race_date ASC, id ASC LIMIT 1");
-    $st->execute([$like]);
-    $firstGpId = $st->fetchColumn() ?: null;
-    $firstGpRacers = [];
-    if ($firstGpId) {
-        $st = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid = ?");
-        $st->execute([$firstGpId]);
-        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) $firstGpRacers[(int)$rid] = true;
-    }
-
-    // — Current season leader by total points, min 3 GPs (badge 34, Giant Killer) —
-    $st = $pdo->prepare("
-        SELECT racer_id FROM (
-            SELECT racer_id, COUNT(*) as gp_count FROM results WHERE gpid LIKE ? GROUP BY racer_id HAVING gp_count >= 3
-        ) qualified
-        ORDER BY (SELECT SUM(gp_points) FROM results WHERE racer_id = qualified.racer_id AND gpid LIKE ?) DESC
-        LIMIT 1
-    ");
-    $st->execute([$like, $like]);
-    $leaderId = (int)$st->fetchColumn();
-
-    // Racers who finished ahead of the leader in any GP this season.
-    $beatLeader = [];
-    if ($leaderId) {
-        $st = $pdo->prepare("
-            SELECT DISTINCT a.racer_id FROM results a
-            JOIN results b ON a.gpid = b.gpid
-            WHERE b.racer_id = ? AND a.gpid LIKE ? AND a.rank < b.rank
-        ");
-        $st->execute([$leaderId, $like]);
-        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) $beatLeader[(int)$rid] = true;
-    }
-
-    // — Season scoring system (gates MONSTER HUNT badges) —
-    $st = $pdo->prepare("SELECT scoring_system FROM season_meta WHERE season_id = ?");
-    $st->execute([$season_id]);
-    $scoringSystem = $st->fetchColumn() ?: null;
-
-    // — Black Box leader this season (badge 43). One pass over all racers,
-    //   replacing the per-racer O(N²) recompute. —
-    $st = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid LIKE ? AND gpid LIKE 's%'");
-    $st->execute([$like]);
-    $bbScores = [];
-    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) {
-        $score = calculateBlackBoxScore($pdo, (int)$rid, $season_id, []);
-        if ($score > 0) $bbScores[(int)$rid] = $score;
-    }
-    $bbLeaderId = null;
-    if (!empty($bbScores)) { arsort($bbScores); $bbLeaderId = (int)array_key_first($bbScores); }
+function badgeCareerContext($pdo) {
+    static $cache = null;
+    if ($cache !== null) return $cache;
 
     // — Career-wide maps (season-independent), batched one query each —
     $careerCups = [];          // racer_id => [cup_name, ...]
@@ -170,11 +111,6 @@ function badgeSeasonContext($pdo, $season_id) {
         }
     } catch (PDOException $e) { /* WC/predictions tables absent */ }
 
-    // — Mikkoliiga leader for this season (Mikkoligan) — standings[0], score>0. —
-    $mikkoLeaderId = null;
-    $ms = getMikkoliigaStandings($pdo, $season_id);
-    if (!empty($ms) && ($ms[0]['score'] ?? 0) > 0) $mikkoLeaderId = (int)$ms[0]['id'];
-
     // — Racers who have crossed 2000 Elo (Ascended). Ratings are memoised. —
     $elo2000 = [];  // racer_id => true
     if (!function_exists('calculateAllELORatings')) require_once __DIR__ . '/elo_engine.php';
@@ -188,56 +124,6 @@ function badgeSeasonContext($pdo, $season_id) {
         }
     }
 
-    // ── Territory (cup ownership) — one chronological pass over the season ──
-    //   held      : racer => cups held at season end (canonical territorySeason)
-    //   takeovers : racer => times they took a cup off a DIFFERENT holder
-    //   fortress  : racer => cups they held unchanged all season through 3+
-    //               challengers (someone else posting on it and failing)
-    $territoryHeld = [];
-    foreach (territorySeason($pdo, $season_id)['by_racer'] as $rid => $cups) $territoryHeld[(int)$rid] = count($cups);
-
-    $cupRows = [];
-    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
-        foreach ($rows as $r) {
-            if (($r['cup_name'] ?? '') === '') continue;
-            $cupRows[] = [(string)$r['race_date'], (int)$r['id'], (int)$rid, $r['cup_name'], (int)$r['gp_points']];
-        }
-    }
-    usort($cupRows, fn($x, $y) => strcmp($x[0], $y[0]) ?: ($x[1] <=> $y[1]));
-    $holder = []; $changed = []; $challengers = []; $territoryTakeovers = [];
-    foreach ($cupRows as [$d, $id, $rid, $cup, $pts]) {
-        if (!isset($holder[$cup])) { $holder[$cup] = [$rid, $pts]; $changed[$cup] = false; $challengers[$cup] = 0; continue; }
-        [$h, $hp] = $holder[$cup];
-        if ($rid !== $h) {
-            $challengers[$cup]++;
-            if ($pts > $hp) {   // strictly better takes it; a tie leaves it with the earlier post
-                $holder[$cup] = [$rid, $pts]; $changed[$cup] = true;
-                $territoryTakeovers[$rid] = ($territoryTakeovers[$rid] ?? 0) + 1;
-            }
-        } elseif ($pts > $hp) {
-            $holder[$cup] = [$rid, $pts];   // holder improving on themselves is not a change of hands
-        }
-    }
-    $territoryFortress = [];
-    foreach ($holder as $cup => [$h, $hp]) {
-        if (!$changed[$cup] && $challengers[$cup] >= 3) $territoryFortress[$h] = ($territoryFortress[$h] ?? 0) + 1;
-    }
-
-    // ── Dead Heat: level on score with another qualifying racer this season ──
-    $seasonRulesForTies = getSeasonRules($pdo, $season_id);
-    $scoreGroups = [];
-    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
-        if (!racerQualifies(count($rows), $seasonRulesForTies)) continue;
-        $scoreGroups[number_format((float)calculateGPScore($pdo, (int)$rid, $season_id), 2, '.', '')][] = (int)$rid;
-    }
-    $deadHeat = [];
-    foreach ($scoreGroups as $ids) if (count($ids) >= 2) foreach ($ids as $rid) $deadHeat[$rid] = true;
-
-    // ── Ever-Present: GPs held this season (racer counts come from the cache) ──
-    $stG = $pdo->prepare("SELECT COUNT(DISTINCT gpid) FROM results WHERE gpid LIKE ?");
-    $stG->execute([$season_id . '%']);
-    $seasonGpTotal = (int)$stG->fetchColumn();
-
     // ── Dynasty: longest run of consecutive archived-season titles, by champion name ──
     $dynastyRun = []; $run = 0; $prevChamp = null;
     foreach ($pdo->query("SELECT season_id, champion_name FROM season_meta WHERE status = 'archived' AND champion_name IS NOT NULL AND champion_name != '' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_ASSOC) as $c) {
@@ -246,27 +132,6 @@ function badgeSeasonContext($pdo, $season_id) {
         $prevChamp = $n;
         $dynastyRun[$n] = max($dynastyRun[$n] ?? 0, $run);
     }
-
-    // ── Questmaster: both side quests completed. Reads racer_quests directly —
-    //    getRacerQuests() would ASSIGN quests as a side effect for every racer on
-    //    the board, so we evaluate the same check closures ourselves for racers
-    //    who already have a draw. ──
-    $questmaster = [];
-    try {
-        $stQ = $pdo->prepare("SELECT racer_id, quest_key FROM racer_quests WHERE season_id = ?");
-        $stQ->execute([$season_id]);
-        $assigned = [];
-        foreach ($stQ->fetchAll(PDO::FETCH_ASSOC) as $q) $assigned[(int)$q['racer_id']][] = $q['quest_key'];
-        $defs = function_exists('questByKey') ? questByKey() : [];
-        $need = defined('QUESTS_PER_RACER') ? (int)QUESTS_PER_RACER : 2;
-        foreach ($assigned as $rid => $keys) {
-            if (count($keys) < $need || !function_exists('racerSeasonStats')) continue;
-            $stats = racerSeasonStats($pdo, $rid, $season_id, $eloData); // Elo already computed above
-            $all = true;
-            foreach ($keys as $k) { if (!isset($defs[$k]) || !($defs[$k]['check'])($stats)) { $all = false; break; } }
-            if ($all) $questmaster[$rid] = true;
-        }
-    } catch (PDOException $e) { /* quests table absent */ }
 
     // ── Career placements across ARCHIVED seasons, in season order —
     //    On the Up / From the Back. seasonPlacements() is registry-sorted and
@@ -340,15 +205,166 @@ function badgeSeasonContext($pdo, $season_id) {
         }
     } catch (Throwable $e) { /* no S&L data */ }
 
-    return $cache[$season_id] = compact(
-        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader',
-        'scoringSystem', 'bbLeaderId', 'careerCups', 'careerPerfectCups', 'careerChars',
-        'prevSeasonCount', 'seasonsPlayed', 'racerNames',
-        'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened',
-        'tourneyWins', 'pickemOracleIds', 'mikkoLeaderId', 'elo2000',
-        'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'deadHeat',
-        'seasonGpTotal', 'dynastyRun', 'questmaster',
-        'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten'
+    return $cache = compact(
+        'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten'
+    );
+}
+
+/**
+ * Season- and career-wide data shared by every racer's badge computation,
+ * built once per (season) per request. Previously these were re-run as
+ * separate queries inside getRacerBadges for EACH racer — on a leaderboard
+ * with N racers that meant 6+ identical season queries × N, plus an O(N²)
+ * Black Box pass (every racer's BB score recomputed inside every racer's
+ * badge call). Memoised here so each underlying query runs once.
+ */
+function badgeSeasonContext($pdo, $season_id) {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+
+    $like = $season_id . '%';
+
+    // Career-wide inputs (stickers, tournaments, Elo, dynasties, archived
+    // placements, …) come from the once-per-request career context.
+    $career     = badgeCareerContext($pdo);
+    $racerNames = $career['racerNames'];
+    $eloData    = $career['eloData'];
+
+
+    // — Highest single-racer attendance this season (badge 14, Longevity) —
+    $st = $pdo->prepare("SELECT COUNT(*) AS c FROM results WHERE gpid LIKE ? GROUP BY racer_id ORDER BY c DESC LIMIT 1");
+    $st->execute([$like]);
+    $highestAttendance = (int)$st->fetchColumn();
+
+    // — First GP of the season + who raced in it (badge 33, Early Bird) —
+    $st = $pdo->prepare("SELECT gpid FROM results WHERE gpid LIKE ? ORDER BY race_date ASC, id ASC LIMIT 1");
+    $st->execute([$like]);
+    $firstGpId = $st->fetchColumn() ?: null;
+    $firstGpRacers = [];
+    if ($firstGpId) {
+        $st = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid = ?");
+        $st->execute([$firstGpId]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) $firstGpRacers[(int)$rid] = true;
+    }
+
+    // — Current season leader by total points, min 3 GPs (badge 34, Giant Killer) —
+    $st = $pdo->prepare("
+        SELECT racer_id FROM (
+            SELECT racer_id, COUNT(*) as gp_count FROM results WHERE gpid LIKE ? GROUP BY racer_id HAVING gp_count >= 3
+        ) qualified
+        ORDER BY (SELECT SUM(gp_points) FROM results WHERE racer_id = qualified.racer_id AND gpid LIKE ?) DESC
+        LIMIT 1
+    ");
+    $st->execute([$like, $like]);
+    $leaderId = (int)$st->fetchColumn();
+
+    // Racers who finished ahead of the leader in any GP this season.
+    $beatLeader = [];
+    if ($leaderId) {
+        $st = $pdo->prepare("
+            SELECT DISTINCT a.racer_id FROM results a
+            JOIN results b ON a.gpid = b.gpid
+            WHERE b.racer_id = ? AND a.gpid LIKE ? AND a.rank < b.rank
+        ");
+        $st->execute([$leaderId, $like]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) $beatLeader[(int)$rid] = true;
+    }
+
+    // — Season scoring system (gates MONSTER HUNT badges) —
+    $st = $pdo->prepare("SELECT scoring_system FROM season_meta WHERE season_id = ?");
+    $st->execute([$season_id]);
+    $scoringSystem = $st->fetchColumn() ?: null;
+
+    // — Black Box leader this season (badge 43). One pass over all racers,
+    //   replacing the per-racer O(N²) recompute. —
+    $st = $pdo->prepare("SELECT DISTINCT racer_id FROM results WHERE gpid LIKE ? AND gpid LIKE 's%'");
+    $st->execute([$like]);
+    $bbScores = [];
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $rid) {
+        $score = calculateBlackBoxScore($pdo, (int)$rid, $season_id, []);
+        if ($score > 0) $bbScores[(int)$rid] = $score;
+    }
+    $bbLeaderId = null;
+    if (!empty($bbScores)) { arsort($bbScores); $bbLeaderId = (int)array_key_first($bbScores); }
+
+    // — Mikkoliiga leader for this season (Mikkoligan) — standings[0], score>0. —
+    $mikkoLeaderId = null;
+    $ms = getMikkoliigaStandings($pdo, $season_id);
+    if (!empty($ms) && ($ms[0]['score'] ?? 0) > 0) $mikkoLeaderId = (int)$ms[0]['id'];
+
+    // ── Territory (cup ownership) — one chronological pass over the season ──
+    //   held      : racer => cups held at season end (canonical territorySeason)
+    //   takeovers : racer => times they took a cup off a DIFFERENT holder
+    //   fortress  : racer => cups they held unchanged all season through 3+
+    //               challengers (someone else posting on it and failing)
+    $territoryHeld = [];
+    foreach (territorySeason($pdo, $season_id)['by_racer'] as $rid => $cups) $territoryHeld[(int)$rid] = count($cups);
+
+    $cupRows = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        foreach ($rows as $r) {
+            if (($r['cup_name'] ?? '') === '') continue;
+            $cupRows[] = [(string)$r['race_date'], (int)$r['id'], (int)$rid, $r['cup_name'], (int)$r['gp_points']];
+        }
+    }
+    usort($cupRows, fn($x, $y) => strcmp($x[0], $y[0]) ?: ($x[1] <=> $y[1]));
+    $holder = []; $changed = []; $challengers = []; $territoryTakeovers = [];
+    foreach ($cupRows as [$d, $id, $rid, $cup, $pts]) {
+        if (!isset($holder[$cup])) { $holder[$cup] = [$rid, $pts]; $changed[$cup] = false; $challengers[$cup] = 0; continue; }
+        [$h, $hp] = $holder[$cup];
+        if ($rid !== $h) {
+            $challengers[$cup]++;
+            if ($pts > $hp) {   // strictly better takes it; a tie leaves it with the earlier post
+                $holder[$cup] = [$rid, $pts]; $changed[$cup] = true;
+                $territoryTakeovers[$rid] = ($territoryTakeovers[$rid] ?? 0) + 1;
+            }
+        } elseif ($pts > $hp) {
+            $holder[$cup] = [$rid, $pts];   // holder improving on themselves is not a change of hands
+        }
+    }
+    $territoryFortress = [];
+    foreach ($holder as $cup => [$h, $hp]) {
+        if (!$changed[$cup] && $challengers[$cup] >= 3) $territoryFortress[$h] = ($territoryFortress[$h] ?? 0) + 1;
+    }
+
+    // ── Dead Heat: level on score with another qualifying racer this season ──
+    $seasonRulesForTies = getSeasonRules($pdo, $season_id);
+    $scoreGroups = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        if (!racerQualifies(count($rows), $seasonRulesForTies)) continue;
+        $scoreGroups[number_format((float)calculateGPScore($pdo, (int)$rid, $season_id), 2, '.', '')][] = (int)$rid;
+    }
+    $deadHeat = [];
+    foreach ($scoreGroups as $ids) if (count($ids) >= 2) foreach ($ids as $rid) $deadHeat[$rid] = true;
+
+    // ── Ever-Present: GPs held this season (racer counts come from the cache) ──
+    $stG = $pdo->prepare("SELECT COUNT(DISTINCT gpid) FROM results WHERE gpid LIKE ?");
+    $stG->execute([$season_id . '%']);
+    $seasonGpTotal = (int)$stG->fetchColumn();
+
+    // ── Questmaster: both side quests completed. Reads racer_quests directly —
+    //    getRacerQuests() would ASSIGN quests as a side effect for every racer on
+    //    the board, so we evaluate the same check closures ourselves for racers
+    //    who already have a draw. ──
+    $questmaster = [];
+    try {
+        $stQ = $pdo->prepare("SELECT racer_id, quest_key FROM racer_quests WHERE season_id = ?");
+        $stQ->execute([$season_id]);
+        $assigned = [];
+        foreach ($stQ->fetchAll(PDO::FETCH_ASSOC) as $q) $assigned[(int)$q['racer_id']][] = $q['quest_key'];
+        $defs = function_exists('questByKey') ? questByKey() : [];
+        $need = defined('QUESTS_PER_RACER') ? (int)QUESTS_PER_RACER : 2;
+        foreach ($assigned as $rid => $keys) {
+            if (count($keys) < $need || !function_exists('racerSeasonStats')) continue;
+            $stats = racerSeasonStats($pdo, $rid, $season_id, $eloData); // Elo already computed above
+            $all = true;
+            foreach ($keys as $k) { if (!isset($defs[$k]) || !($defs[$k]['check'])($stats)) { $all = false; break; } }
+            if ($all) $questmaster[$rid] = true;
+        }
+    } catch (PDOException $e) { /* quests table absent */ }
+
+    return $cache[$season_id] = $career + compact(
+        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'deadHeat', 'seasonGpTotal', 'questmaster'
     );
 }
 

@@ -1929,53 +1929,44 @@ function snapshotMikkoliigaMembership(PDO $pdo, string $season_id): int {
  * live flag for active ones — see getMikkoliigaMemberIds().
  */
 function mikkoliigaScorePerGP(PDO $pdo, int $racer_id, string $season_id): array {
+    return mikkoliigaSeasonPerGP($pdo, $season_id)[$racer_id] ?? [];
+}
+
+/**
+ * Every member's per-GP Mikkoliiga points for a season, in one pass over the
+ * season-results cache: racer_id => (gpid => points), gpids ascending.
+ * Zero queries beyond the shared season fetch and the membership lookup.
+ * This used to be one query per member per call — 14 on the homepage, ~39
+ * on a racer profile (the standings and badges both walk the roster).
+ *
+ * Within a GP, members rank by gp_points desc, then racer_id asc, so a tie
+ * resolves the same way every request (the old query had no tiebreak).
+ */
+function mikkoliigaSeasonPerGP(PDO $pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+
     $members = getMikkoliigaMemberIds($pdo, $season_id);
-    if (!isset($members[$racer_id])) return [];
-    if (empty($members)) return [];
-
-    $memberIds = array_keys($members);
-    $placeholders = implode(',', array_fill(0, count($memberIds), '?'));
-
-    // Pull every GP this racer played, with all co-participating Mikkoliiga
-    // members and their gp_points.
-    $sql = "
-        SELECT res.gpid, res.racer_id, res.gp_points
-        FROM results res
-        WHERE res.racer_id IN ($placeholders)
-          AND res.gpid LIKE ?
-          AND res.gpid IN (
-              SELECT gpid FROM results WHERE racer_id = ? AND gpid LIKE ?
-          )
-        ORDER BY res.gpid ASC, res.gp_points DESC
-    ";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute(array_merge(
-        $memberIds,
-        [$season_id . '%', $racer_id, $season_id . '%']
-    ));
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($members)) return $cache[$season_id] = [];
 
     $byGP = [];
-    foreach ($rows as $row) {
-        $byGP[$row['gpid']][] = ['rid' => (int)$row['racer_id'], 'pts' => (int)$row['gp_points']];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        if (!isset($members[$rid])) continue;
+        foreach ($rows as $row) $byGP[$row['gpid']][] = ['rid' => (int)$rid, 'pts' => (int)$row['gp_points']];
     }
 
-    $perGP = [];
+    $out = [];
     foreach ($byGP as $gpid => $participants) {
         // Mikkoliiga is a head-to-head among members — a GP only counts if at
         // least TWO Mikkoliiga members raced it. A lone member can't "win" an
         // empty field and bank a free 15.
         if (count($participants) < 2) continue;
-
-        usort($participants, fn($a, $b) => $b['pts'] <=> $a['pts']);
-        foreach ($participants as $i => $p) {
-            if ($p['rid'] === $racer_id) {
-                $perGP[$gpid] = mikkoliigaPointsForRank($i + 1);
-                break;
-            }
-        }
+        usort($participants, fn($a, $b) => ($b['pts'] <=> $a['pts']) ?: ($a['rid'] <=> $b['rid']));
+        foreach ($participants as $i => $p) $out[$p['rid']][$gpid] = mikkoliigaPointsForRank($i + 1);
     }
-    return $perGP;
+    foreach ($out as &$m) ksort($m, SORT_STRING);
+    unset($m);
+    return $cache[$season_id] = $out;
 }
 
 /**

@@ -26,43 +26,35 @@ function initializeSettings($pdo) {
  * @return mixed
  */
 function getSetting($pdo, $key, $default = null) {
-    static $cache = [];
-
-    // Check cache first
-    if (isset($cache[$key])) {
-        return $cache[$key];
+    $map = settingsMap($pdo);
+    if (!array_key_exists($key, $map)) return $default;   // a miss costs no query
+    [$raw, $type] = $map[$key];
+    switch ($type) {
+        case 'boolean': return (bool)$raw;
+        case 'number':  return is_numeric($raw) ? (int)$raw : $default;
+        default:        return $raw;   // text, color, textarea - keep as string
     }
+}
 
-    try {
-        $stmt = $pdo->prepare("SELECT setting_value, setting_type FROM settings WHERE setting_key = ?");
-        $stmt->execute([$key]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$result) {
-            return $default;
+/**
+ * The whole settings table, read once per request: key => [value, type].
+ * Header + footer read six keys on every page — that was six queries, and a
+ * key with no row (or a false/null value) re-queried on every call.
+ * updateSetting() resets it so a write is visible in the same request.
+ */
+function settingsMap($pdo, bool $reset = false): array {
+    static $map = null;
+    if ($reset) { $map = null; return []; }
+    if ($map === null) {
+        $map = [];
+        try {
+            foreach ($pdo->query("SELECT setting_key, setting_value, setting_type FROM settings")->fetchAll(PDO::FETCH_ASSOC) as $r)
+                $map[$r['setting_key']] = [$r['setting_value'], $r['setting_type']];
+        } catch (PDOException $e) {
+            error_log("Error loading settings: " . $e->getMessage());
         }
-
-        // Convert value based on type
-        $value = $result['setting_value'];
-        switch ($result['setting_type']) {
-            case 'boolean':
-                $value = (bool)$value;
-                break;
-            case 'number':
-                $value = is_numeric($value) ? (int)$value : $default;
-                break;
-            default:
-                // text, color, textarea - keep as string
-                break;
-        }
-
-        $cache[$key] = $value;
-        return $value;
-
-    } catch (PDOException $e) {
-        error_log("Error getting setting $key: " . $e->getMessage());
-        return $default;
     }
+    return $map;
 }
 
 /**
@@ -100,6 +92,7 @@ function updateSetting($pdo, $key, $value) {
             WHERE setting_key = ?
         ");
         $stmt->execute([$value, $key]);
+        settingsMap($pdo, true);   // drop the per-request map so the write is visible now
 
         return true;
     } catch (PDOException $e) {
