@@ -2034,3 +2034,20 @@ select, textarea {
         animation-iteration-count: infinite !important;
     }
 }
+
+/* Standings: "tie" pill on a rank that's level with the one above — hover explains the tie-break. */
+.rank-tie {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink, #1a1a1a);
+    background: var(--star-soft, #fff0e0);
+    border: 1.5px solid var(--ink, #1a1a1a);
+    border-radius: 999px;
+    vertical-align: middle;
+    cursor: help;
+}

@@ -517,6 +517,19 @@ Cross-reference if you find half-implemented work:
   0.25) — the "participation" gradation for the last human. `MK_FIELD_SIZE`,
   `headToHeadGrid()` (season cache, zero per-racer queries). Only s05 ever used
   the system, so nothing archived moved
+- **Five new scoring systems** — Blue Shell (catch-up multiplier per place
+  behind the leader, `bs_rate`/`bs_cap`), Territory (hold the most cups),
+  Median, Hard Mode (league-wide cup-difficulty factor, `hm_cap`), Form
+  (rolling `form_window`). All whole-season/cached, all through the registry
+  with knobs in config + simulator. Hard Mode barely moves on this league's
+  data (factors 0.93–1.04) — the cups are similar in difficulty
+- **Tie-break explainer** — registry `tie_explain` fns +
+  `explainStandingsTie()`; a "tie" pill on the standings rank explains what
+  separated two level racers. Pages never dispatch on the system (§2a)
+- **Career arc** — inline SVG of placement per season on the racer profile
+- `/scoring-systems` groups systems by a hand-kept key list and silently
+  dropped anything unlisted (five new systems, none shown). Now appends a
+  catch-all group for any registry key not placed
 
 ## When in doubt
 

@@ -273,8 +273,18 @@ $liveFormatLabels = [
             $tooltip = scoringTooltipFromBreakdown($bd);
         ?>
         <div class="racer-card <?= $rankClass ?><?= !$isQualifying ? ' racer-card--ineligible' : '' ?>">
+            <?php
+            // Level with the racer above? Say what separated them (registry tie_explain, §2a).
+            $tieNote = null;
+            if ($index > 0 && $isQualifying && $standings[$index - 1]['score'] == $row['score']) {
+                $tieNote = explainStandingsTie($pdo, $seasonId, $scoringInfo['system'], $standings[$index - 1], $row);
+            }
+            ?>
             <div class="rank-number">
                 <?= $isQualifying ? "#$rank" : "--" ?>
+                <?php if ($tieNote): ?>
+                    <span class="rank-tie" data-tooltip="<?= htmlspecialchars($tieNote) ?>">tie</span>
+                <?php endif; ?>
                 <?php if (isset($row['rank_change'])): ?>
                     <?php if ($row['rank_change'] > 0): ?>
                         <span class="rank-up" data-tooltip="Up <?= $row['rank_change'] ?> position<?= $row['rank_change'] > 1 ? 's' : '' ?>">↑<?= $row['rank_change'] ?></span>
@@ -336,6 +346,9 @@ $liveFormatLabels = [
                     <div class="cup-completion">
                         <?= htmlspecialchars($c['title'] ?? '') ?> &middot; <span style="opacity:0.6">lv.&nbsp;<?= $c['level'] ?? 0 ?></span>
                     </div>
+                <?php elseif ($bdSystem === 'territory'): ?>
+                    <?= (int)$row['score'] ?>
+                    <div class="cup-completion">of <?= (int)($c['cups_total'] ?? 24) ?> cups held</div>
                 <?php elseif ($bdSystem === 'positional_points'): ?>
                     <?= (int)$row['score'] ?>
                     <div class="cup-completion">

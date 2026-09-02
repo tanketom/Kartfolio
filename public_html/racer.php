@@ -1634,6 +1634,30 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- Season Breakdown -->
     <div class="card">
         <h2 class="card-header">Season Performance</h2>
+        <?php
+        // Career arc — placement per season, chronological. Needs 2+ ranked seasons.
+        $arc = [];
+        foreach ($seasonBreakdown as $sb) {
+            if (is_numeric($sb['placement']) && (int)$sb['placement'] >= 1) $arc[$sb['season']] = (int)$sb['placement'];
+        }
+        ksort($arc, SORT_NATURAL);
+        if (count($arc) >= 2):
+            $n = count($arc); $maxP = max(3, max($arc));
+            $w = 64 * $n + 24; $h = 92; $top = 18; $bot = 66;
+            $pts = []; $i = 0;
+            foreach ($arc as $sid => $p) { $xx = 32 + $i * 64; $yy = $top + ($p - 1) / max(1, $maxP - 1) * ($bot - $top); $pts[] = [$xx, $yy, $sid, $p]; $i++; }
+        ?>
+        <div class="career-arc" title="Where this racer finished each season">
+            <svg viewBox="0 0 <?= $w ?> <?= $h ?>" width="<?= $w ?>" height="<?= $h ?>" role="img" aria-label="Career arc">
+                <polyline class="career-arc-line" fill="none" points="<?= implode(' ', array_map(fn($q) => round($q[0], 1) . ',' . round($q[1], 1), $pts)) ?>"/>
+                <?php foreach ($pts as [$xx, $yy, $sid, $p]): ?>
+                    <circle class="career-arc-dot<?= $p === 1 ? ' career-arc-dot--win' : '' ?>" cx="<?= round($xx, 1) ?>" cy="<?= round($yy, 1) ?>" r="6"/>
+                    <text class="career-arc-place" x="<?= round($xx, 1) ?>" y="<?= round($yy, 1) - 11 ?>" text-anchor="middle">#<?= $p ?></text>
+                    <text class="career-arc-season" x="<?= round($xx, 1) ?>" y="<?= $h - 6 ?>" text-anchor="middle"><?= strtoupper(htmlspecialchars($sid)) ?></text>
+                <?php endforeach; ?>
+            </svg>
+        </div>
+        <?php endif; ?>
         <table class="clean-table racer-mt-20">
             <thead>
                 <tr>

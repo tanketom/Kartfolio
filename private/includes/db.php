@@ -180,6 +180,14 @@ try {
     try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN h2h_npc_weight FLOAT DEFAULT 0.25"); }
     catch (PDOException $e) {}
 
+    // Blue Shell / Hard Mode / Form knobs.
+    foreach ([
+        "bs_rate FLOAT DEFAULT 0.10", "bs_cap FLOAT DEFAULT 2.0",
+        "hm_cap FLOAT DEFAULT 2.0", "form_window INTEGER DEFAULT 8",
+    ] as $col) {
+        try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col"); } catch (PDOException $e) {}
+    }
+
     // Sticker Packs — Panini-style collection. Packs are granted (1 per GP
     // raced from the stickers_epoch setting onward + a one-time Founders
     // pack) with DETERMINISTIC contents via `seed`; opening only reveals.

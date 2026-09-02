@@ -937,3 +937,15 @@
     font-family: var(--font-display);
     font-style: normal;
 }
+
+/* Career arc — placement per season above the Season Performance table. */
+.career-arc {
+    margin: 14px 0 6px;
+    overflow-x: auto;
+}
+.career-arc svg { display: block; max-width: 100%; }
+.career-arc-line { stroke: var(--ink, #1a1a1a); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.career-arc-dot { fill: #fff; stroke: var(--ink, #1a1a1a); stroke-width: 2.5; }
+.career-arc-dot--win { fill: var(--nintendo-red, #e60012); }
+.career-arc-place { font-size: 11px; font-weight: 800; fill: var(--ink, #1a1a1a); }
+.career-arc-season { font-size: 10px; font-weight: 700; fill: var(--gray-600, #6b6355); letter-spacing: 0.04em; }

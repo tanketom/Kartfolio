@@ -34,6 +34,11 @@ $exampleRules = [
     'drop_worst_count'   => 2,
     'perfect_multiplier' => 2.0,
     'pm_ante'            => 100,
+    'h2h_npc_weight'     => 0.25,
+    'bs_rate'            => 0.10,
+    'bs_cap'             => 2.0,
+    'hm_cap'             => 2.0,
+    'form_window'        => 8,
 ];
 
 // Grouped presentation. Order within each group mirrors the registry.
@@ -46,7 +51,7 @@ $groups = [
     [
         'title' => 'Cup-Based & Best-Of',
         'blurb' => 'Reward depth and consistency by counting only the strongest performances or specific cup sets.',
-        'keys'  => ['cup_based', 'best_n_gps', 'drop_worst', 'perfect_hunt', 'top_12_unique', 'random_cup_draw'],
+        'keys'  => ['cup_based', 'best_n_gps', 'drop_worst', 'perfect_hunt', 'top_12_unique', 'random_cup_draw', 'territory', 'hard_mode'],
     ],
     [
         'title' => 'Experimental',
@@ -68,7 +73,25 @@ $groups = [
         'blurb' => 'Score where you finish, not how many points you scored — so a win always feels like a win, regardless of margin. Built to stay fair when racers attend wildly different numbers of GPs.',
         'keys'  => ['positional_points', 'head_to_head'],
     ],
+    [
+        'title' => 'Balance & Form',
+        'blurb' => 'Systems that level the field or track current form instead of season totals — a catch-up multiplier, a median that ignores volume, and a rolling window that forgets the spring.',
+        'keys'  => ['blue_shell', 'median', 'form'],
+    ],
 ];
+
+// Safety net: any registry system not placed in a group above still gets
+// listed. This page used to drop unlisted systems silently — five shipped and
+// none appeared here — so the catalogue can no longer disagree with the code.
+$covered  = array_merge(...array_column($groups, 'keys'));
+$leftover = array_values(array_diff(array_keys($registry), $covered));
+if (!empty($leftover)) {
+    $groups[] = [
+        'title' => 'Also available',
+        'blurb' => 'Systems in the registry that have not been given a home above yet.',
+        'keys'  => $leftover,
+    ];
+}
 
 $pageTitle = "Scoring Systems - Kartfolio";
 $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';

@@ -210,6 +210,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($scoringSystem === 'head_to_head') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['h2h_thresh'] ?? 3));
                 $updateFields['h2h_npc_weight']      = max(0.0, min(1.0, (float)($_POST['h2h_npc_weight'] ?? 0.25)));
+            } elseif ($scoringSystem === 'blue_shell') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['bs_thresh'] ?? 3));
+                $updateFields['bs_rate'] = max(0.0, min(1.0, (float)($_POST['bs_rate'] ?? 0.10)));
+                $updateFields['bs_cap']  = max(1.0, min(5.0, (float)($_POST['bs_cap']  ?? 2.0)));
+            } elseif ($scoringSystem === 'median') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['md_thresh'] ?? 3));
+            } elseif ($scoringSystem === 'hard_mode') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['hm_thresh'] ?? 3));
+                $updateFields['hm_cap'] = max(1.0, min(5.0, (float)($_POST['hm_cap'] ?? 2.0)));
+            } elseif ($scoringSystem === 'form') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['form_thresh'] ?? 3));
+                $updateFields['form_window'] = max(1, min(50, (int)($_POST['form_window'] ?? 8)));
             }
 
             // Build SQL
@@ -498,6 +510,24 @@ include __DIR__ . '/../../private/templates/header.php';
                         <div class="form-field" id="sim-param-h2h-w" style="display:none;">
                             <label>CPU Kart Weight</label>
                             <input type="number" id="sim-h2h-npc-weight" value="0.25" min="0" max="1" step="0.05" onchange="updateSimulator()">
+                        </div>
+
+                        <?php // Blue Shell / Hard Mode / Form ?>
+                        <div class="form-field" id="sim-param-bs-rate" style="display:none;">
+                            <label>Catch-up Rate</label>
+                            <input type="number" id="sim-bs-rate" value="0.10" min="0" max="1" step="0.01" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-bs-cap" style="display:none;">
+                            <label>Multiplier Cap</label>
+                            <input type="number" id="sim-bs-cap" value="2.0" min="1" max="5" step="0.1" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-hm-cap" style="display:none;">
+                            <label>Difficulty Cap</label>
+                            <input type="number" id="sim-hm-cap" value="2.0" min="1" max="5" step="0.1" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-form-w" style="display:none;">
+                            <label>Form Window (GPs)</label>
+                            <input type="number" id="sim-form-window" value="8" min="1" max="50" onchange="updateSimulator()">
                         </div>
                     </div>
                 </div>
@@ -865,6 +895,77 @@ include __DIR__ . '/../../private/templates/header.php';
                             </div>
                         </div>
                     </div>
+                    <div id="fields-<?= $sid ?>-blue_shell" class="scoring-fields" style="<?= $meta['scoring_system'] === 'blue_shell' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🐢 Blue Shell Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['blue_shell']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="bs_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>Below this a racer is shown but ineligible</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Catch-up rate</label>
+                                <input type="number" name="bs_rate" value="<?= htmlspecialchars((string)($meta['bs_rate'] ?? 0.10)) ?>" min="0" max="1" step="0.01">
+                                <small>Multiplier added per place behind the leader (0.10 = +10% per place)</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Multiplier cap</label>
+                                <input type="number" name="bs_cap" value="<?= htmlspecialchars((string)($meta['bs_cap'] ?? 2.0)) ?>" min="1" max="5" step="0.1">
+                                <small>Highest multiplier any GP can get</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="fields-<?= $sid ?>-territory" class="scoring-fields" style="<?= $meta['scoring_system'] === 'territory' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🏰 Territory Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['territory']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field"><label>No knobs</label><small>Hold the most cups. Ties break on points across held cups.</small></div>
+                        </div>
+                    </div>
+                    <div id="fields-<?= $sid ?>-median" class="scoring-fields" style="<?= $meta['scoring_system'] === 'median' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">⚖️ Median Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['median']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="md_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>A median of two GPs is a coin flip — gate it</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="fields-<?= $sid ?>-hard_mode" class="scoring-fields" style="<?= $meta['scoring_system'] === 'hard_mode' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🔥 Hard Mode Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['hard_mode']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="hm_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>Below this a racer is shown but ineligible</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Multiplier cap</label>
+                                <input type="number" name="hm_cap" value="<?= htmlspecialchars((string)($meta['hm_cap'] ?? 2.0)) ?>" min="1" max="5" step="0.1">
+                                <small>Ceiling for the hardest cups (floor is fixed at ×0.5)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="fields-<?= $sid ?>-form" class="scoring-fields" style="<?= $meta['scoring_system'] === 'form' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">📈 Form Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['form']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="form_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>Keeps one-night wonders off the board</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Window (GPs)</label>
+                                <input type="number" name="form_window" value="<?= htmlspecialchars((string)($meta['form_window'] ?? 8)) ?>" min="1" max="50">
+                                <small>How many recent GPs count; older ones fall off</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1197,6 +1298,10 @@ const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
     'pm_ante'           => (int)($m['pm_ante'] ?? 100),
     'pm_payout_preset'  => $m['pm_payout_preset']  ?? 'steep',
     'h2h_npc_weight'    => (float)($m['h2h_npc_weight'] ?? 0.25),
+    'bs_rate'           => (float)($m['bs_rate'] ?? 0.10),
+    'bs_cap'            => (float)($m['bs_cap'] ?? 2.0),
+    'hm_cap'            => (float)($m['hm_cap'] ?? 2.0),
+    'form_window'       => (int)($m['form_window'] ?? 8),
 ], $metaData), JSON_UNESCAPED_SLASHES) ?>;
 
 // Reseed the knob fields from the selected season, then re-run. Called when the
@@ -1217,6 +1322,10 @@ function onSimSelectionChange() {
         set('sim-pm-ante', r.pm_ante);
         set('sim-pm-payout-preset', r.pm_payout_preset);
         set('sim-h2h-npc-weight', r.h2h_npc_weight);
+        set('sim-bs-rate', r.bs_rate);
+        set('sim-bs-cap', r.bs_cap);
+        set('sim-hm-cap', r.hm_cap);
+        set('sim-form-window', r.form_window);
     }
     loadSimData();
 }
@@ -1246,6 +1355,10 @@ function updateSimulator() {
         'sim-param-pm-ante':  system === 'pari_mutuel',
         'sim-param-pm-preset': system === 'pari_mutuel',
         'sim-param-h2h-w':    system === 'head_to_head',
+        'sim-param-bs-rate':  system === 'blue_shell',
+        'sim-param-bs-cap':   system === 'blue_shell',
+        'sim-param-hm-cap':   system === 'hard_mode',
+        'sim-param-form-w':   system === 'form',
     };
     for (const [id, visible] of Object.entries(show)) {
         document.getElementById(id).style.display = visible ? '' : 'none';
@@ -1266,6 +1379,9 @@ function updateSimulator() {
     if (system === 'bounty_hunter')     url += `&bh_multiplier=${val('sim-bh-multiplier')}&bh_carrying_cost=${val('sim-bh-carrying-cost')}`;
     if (system === 'pari_mutuel')       url += `&pm_ante=${val('sim-pm-ante')}&pm_payout_preset=${val('sim-pm-payout-preset')}`;
     if (system === 'head_to_head')      url += `&h2h_npc_weight=${val('sim-h2h-npc-weight')}`;
+    if (system === 'blue_shell')        url += `&bs_rate=${val('sim-bs-rate')}&bs_cap=${val('sim-bs-cap')}`;
+    if (system === 'hard_mode')         url += `&hm_cap=${val('sim-hm-cap')}`;
+    if (system === 'form')              url += `&form_window=${val('sim-form-window')}`;
 
     document.getElementById('sim-standings-table').innerHTML = '<p class="sim-status">Computing...</p>';
     document.getElementById('sim-results').style.display = 'block';

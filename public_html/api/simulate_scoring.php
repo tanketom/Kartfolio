@@ -98,6 +98,13 @@ if ($system === 'head_to_head' && isset($_GET['h2h_npc_weight'])) {
     $rules['h2h_npc_weight'] = max(0.0, min(1.0, (float)$_GET['h2h_npc_weight']));
 }
 
+if ($system === 'blue_shell') {
+    if (isset($_GET['bs_rate'])) $rules['bs_rate'] = max(0.0, min(1.0, (float)$_GET['bs_rate']));
+    if (isset($_GET['bs_cap']))  $rules['bs_cap']  = max(1.0, min(5.0, (float)$_GET['bs_cap']));
+}
+if ($system === 'hard_mode' && isset($_GET['hm_cap'])) $rules['hm_cap'] = max(1.0, min(5.0, (float)$_GET['hm_cap']));
+if ($system === 'form' && isset($_GET['form_window'])) $rules['form_window'] = max(1, min(50, (int)$_GET['form_window']));
+
 // MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's
 // own values (or the scoring function's defaults) stand.
 foreach ([

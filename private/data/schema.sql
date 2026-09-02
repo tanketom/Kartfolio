@@ -110,7 +110,15 @@ CREATE TABLE IF NOT EXISTS season_meta (
     pos_mode TEXT DEFAULT 'best_n',
 
     -- Head-to-Head: CPU kart weight as an opponent (0 = humans only, 1 = full 12-kart grid)
-    h2h_npc_weight FLOAT DEFAULT 0.25
+    h2h_npc_weight FLOAT DEFAULT 0.25,
+
+    -- Blue Shell (catch-up rate per place behind, multiplier cap)
+    bs_rate FLOAT DEFAULT 0.10,
+    bs_cap FLOAT DEFAULT 2.0,
+    -- Hard Mode (max cup-difficulty multiplier)
+    hm_cap FLOAT DEFAULT 2.0,
+    -- Form (rolling window size)
+    form_window INTEGER DEFAULT 8
 );
 
 -- AI Broadcast Archive
