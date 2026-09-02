@@ -275,22 +275,9 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Fantasy / Predictions
--- (fantasy_predictions was an earlier design, superseded by fantasy_bets —
---  dropped from the schema after shipping with zero code references.)
-CREATE TABLE IF NOT EXISTS fantasy_scores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    gpid TEXT NOT NULL,
-    predictor_id INTEGER NOT NULL,
-    points_earned INTEGER DEFAULT 0,
-    winner_correct BOOLEAN DEFAULT 0,
-    dark_horse_correct BOOLEAN DEFAULT 0,
-    over_under_correct BOOLEAN DEFAULT 0,
-    scored_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (predictor_id) REFERENCES racers(id),
-    UNIQUE(gpid, predictor_id)
-);
-
+-- Fantasy / Predictions (fantasy_predictors + fantasy_weeks + fantasy_bets —
+--  the tables /fantasy creates; earlier fantasy_predictions / fantasy_scores
+--  designs were dropped after shipping with zero code references.)
 CREATE TABLE IF NOT EXISTS fantasy_predictors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     racer_id INTEGER DEFAULT NULL,

@@ -145,6 +145,10 @@ foreach ($allResults as $r) {
 
 // Get season-by-season breakdown
 $seasonBreakdown = [];
+// Archived placements come from the snapshot table (one query for all seasons).
+$archivedPlacementMap = [];   // season_id => [racer_id => place]
+foreach (archivedSeasonPlacements($pdo) as $rid => $arcRows)
+    foreach ($arcRows as [$arcSeason, $arcPlace, $arcField]) $archivedPlacementMap[$arcSeason][$rid] = $arcPlace;
 foreach ($seasons as $season) {
     $score = calculateGPScore($pdo, $racerId, $season);
     $breakdown = getScoringBreakdown($pdo, $racerId, $season);
@@ -165,47 +169,15 @@ foreach ($seasons as $season) {
     $seasonStatsStmt->execute([$racerId, $season . "%"]);
     $stats = $seasonStatsStmt->fetch(PDO::FETCH_ASSOC);
 
-    // Calculate season placement
+    // Season placement — the shared, registry-sorted ranking (gp_logic
+    // seasonPlacements / archived snapshot). This used to be a private re-rank
+    // with a COUNT query per racer and a score-only sort that ignored the
+    // registry's count-back, so it could disagree with the homepage on ties.
     $seasonRules = getSeasonRules($pdo, $season);
-
-    // Get all racers for this season and their scores
-    $allRacersStmt = $pdo->prepare("SELECT DISTINCT r.id, r.name FROM racers r JOIN results res ON r.id = res.racer_id WHERE res.gpid LIKE ?");
-    $allRacersStmt->execute([$season . "%"]);
-    $allRacers = $allRacersStmt->fetchAll();
-
-    $seasonStandings = [];
-    foreach ($allRacers as $r) {
-        $rScore = calculateGPScore($pdo, $r['id'], $season);
-        $rCountStmt = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE ?");
-        $rCountStmt->execute([$r['id'], $season . "%"]);
-        $rCount = (int)$rCountStmt->fetchColumn();
-
-        if (racerQualifies($rCount, $seasonRules)) {
-            $seasonStandings[] = ['id' => $r['id'], 'score' => $rScore, 'name' => $r['name']];
-        }
-    }
-    $seasonScoringSystem = $seasonRules['scoring_system'] ?? 'average_attendance';
-    if ($seasonScoringSystem === 'top_12_unique') {
-        foreach ($seasonStandings as &$ss) {
-            $ss['tiebreaker'] = getTop12UniqueTiebreaker($pdo, $ss['id'], $season);
-        }
-        unset($ss);
-        usort($seasonStandings, function($a, $b) {
-            if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
-            if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-            return strcmp($a['name'], $b['name']);
-        });
+    if (($seasonRules['status'] ?? '') === 'archived' && isset($archivedPlacementMap[$season])) {
+        $placement = $archivedPlacementMap[$season][$racerId] ?? 0;
     } else {
-        usort($seasonStandings, fn($a, $b) => ($b['score'] == $a['score']) ? strcmp($a['name'], $b['name']) : $b['score'] <=> $a['score']);
-    }
-
-    // Find this racer's placement
-    $placement = 0;
-    foreach ($seasonStandings as $index => $standing) {
-        if ($standing['id'] == $racerId) {
-            $placement = $index + 1;
-            break;
-        }
+        $placement = (int)(seasonPlacements($pdo, $season)['place'][$racerId] ?? 0);
     }
 
     $seasonBreakdown[] = [

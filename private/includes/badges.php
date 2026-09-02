@@ -285,22 +285,36 @@ function badgeSeasonContext($pdo, $season_id) {
         }
     } catch (PDOException $e) { /* teams tables absent */ }
 
-    // ── Fantasy Champion: top predictor of an archived season, mapped to a racer ──
+    // ── Fantasy Champion: top predictor of an archived season, mapped to a racer.
+    //    Fantasy weeks are keyed by deadline date, not by GP, so a week belongs to
+    //    the season whose race dates contain its deadline (7-day lead for the
+    //    first week). Points come from fantasy_bets — the table /fantasy grades into. ──
     $fantasyChampions = [];
     try {
-        $best = [];
-        $fq = $pdo->query("
-            SELECT SUBSTR(fs.gpid, 1, INSTR(fs.gpid, 'g') - 1) AS season_id, fp.racer_id, SUM(fs.points_earned) AS pts
-            FROM fantasy_scores fs JOIN fantasy_predictors fp ON fp.id = fs.predictor_id
-            WHERE fp.racer_id IS NOT NULL
-            GROUP BY season_id, fp.racer_id");
-        foreach ($fq->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $s = $r['season_id']; $pts = (float)$r['pts']; $rid = (int)$r['racer_id'];
-            if (!isset($best[$s]) || $pts > $best[$s][0]) $best[$s] = [$pts, [$rid]];
-            elseif ($pts == $best[$s][0]) $best[$s][1][] = $rid;
+        $spans = [];   // season_id => [first race − 7d, last race]
+        foreach ($pdo->query("SELECT SUBSTR(gpid, 1, INSTR(gpid, 'g') - 1) AS s, MIN(race_date) AS a, MAX(race_date) AS b FROM results WHERE gpid LIKE 's%' GROUP BY s")->fetchAll(PDO::FETCH_ASSOC) as $r)
+            if (in_array($r['s'], $archivedSeasons, true)) $spans[$r['s']] = [date('Y-m-d', strtotime($r['a'] . ' -7 days')), substr((string)$r['b'], 0, 10)];
+        $weekSeason = [];
+        foreach ($pdo->query("SELECT week_key, deadline FROM fantasy_weeks WHERE scored = 1")->fetchAll(PDO::FETCH_ASSOC) as $w) {
+            $d = substr((string)$w['deadline'], 0, 10);
+            foreach ($spans as $s => [$a, $b]) if ($d >= $a && $d <= $b) { $weekSeason[$w['week_key']] = $s; break; }
         }
-        foreach ($best as $s => [$pts, $ids]) {
-            if ($pts > 0 && in_array($s, $archivedSeasons, true)) foreach ($ids as $rid) $fantasyChampions[$rid] = true;
+        if ($weekSeason) {
+            $best = [];
+            $fq = $pdo->query("
+                SELECT fb.week_key, fp.racer_id, SUM(fb.points_earned) AS pts
+                FROM fantasy_bets fb JOIN fantasy_predictors fp ON fp.id = fb.predictor_id
+                WHERE fp.racer_id IS NOT NULL AND fb.points_earned IS NOT NULL
+                GROUP BY fb.week_key, fp.racer_id");
+            $tot = [];   // season => racer => pts
+            foreach ($fq->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $s = $weekSeason[$r['week_key']] ?? null;
+                if ($s !== null) $tot[$s][(int)$r['racer_id']] = ($tot[$s][(int)$r['racer_id']] ?? 0) + (float)$r['pts'];
+            }
+            foreach ($tot as $s => $byRacer) {
+                $max = max($byRacer);
+                if ($max > 0) foreach ($byRacer as $rid => $pts) if ($pts == $max) $fantasyChampions[$rid] = true;
+            }
         }
     } catch (PDOException $e) { /* fantasy tables absent */ }
 
