@@ -26,10 +26,11 @@ $racers = $racersStmt->fetchAll(PDO::FETCH_ASSOC);
 // Build nodes array with GP count per racer
 $nodes = [];
 $racerMap = [];
+// Pair records and GP counts come from the season cache — this page ran a
+// COUNT per racer and a self-join per pair (330 queries on a 25-racer season).
+$matchups = seasonMatchups($pdo, $selectedSeason);
 foreach ($racers as $idx => $racer) {
-    $gpStmt = $pdo->prepare("SELECT COUNT(DISTINCT gpid) as gps FROM results WHERE racer_id = ? AND gpid LIKE ?");
-    $gpStmt->execute([$racer['id'], $selectedSeason . '%']);
-    $gpCount = (int)$gpStmt->fetchColumn();
+    $gpCount = racerSeasonGpCount($pdo, (int)$racer['id'], $selectedSeason);
 
     $nodes[] = [
         'id' => (int)$racer['id'],
@@ -47,19 +48,10 @@ for ($i = 0; $i < $racerCount; $i++) {
         $p1 = $racers[$i];
         $p2 = $racers[$j];
 
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total,
-                   SUM(CASE WHEN r1.rank < r2.rank THEN 1 ELSE 0 END) as p1_wins
-            FROM results r1
-            JOIN results r2 ON r1.gpid = r2.gpid AND r1.cup_name = r2.cup_name
-            WHERE r1.racer_id = ? AND r2.racer_id = ? AND r1.gpid LIKE ?
-        ");
-        $stmt->execute([$p1['id'], $p2['id'], $selectedSeason . '%']);
-        $data = $stmt->fetch(PDO::FETCH_ASSOC);
-
+        $data  = $matchups[(int)$p1['id']][(int)$p2['id']] ?? ['total' => 0, 'wins' => 0];
         $total = (int)$data['total'];
         if ($total > 0) {
-            $p1Wins = (int)$data['p1_wins'];
+            $p1Wins = (int)$data['wins'];
             $p2Wins = $total - $p1Wins;
             $links[] = [
                 'source' => (int)$p1['id'],

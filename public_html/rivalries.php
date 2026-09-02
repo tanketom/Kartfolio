@@ -53,40 +53,22 @@ try {
     // Fail silently
 }
 
-// 3. Build Matrix & Existing Feuds Logic
+// 3. Build Matrix & Existing Feuds Logic — every pair from the season cache
+//    (seasonMatchups). This was a COUNT + a history query per ordered pair.
+$matchups = seasonMatchups($pdo, $currentSeason);
 foreach ($racers as $p1) {
     foreach ($racers as $p2) {
         if ($p1['id'] == $p2['id']) continue;
+        $data = $matchups[(int)$p1['id']][(int)$p2['id']] ?? null;
 
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total,
-            SUM(CASE WHEN r1.rank < r2.rank THEN 1 ELSE 0 END) as p1_wins
-            FROM results r1
-            JOIN results r2 ON r1.gpid = r2.gpid AND r1.cup_name = r2.cup_name
-            WHERE r1.racer_id = ? AND r2.racer_id = ? AND r1.gpid LIKE ?
-        ");
-        $stmt->execute([$p1['id'], $p2['id'], $currentSeason . "%"]);
-        $data = $stmt->fetch();
-
-        if ($data['total'] > 0) {
-            $rate = ($data['p1_wins'] / $data['total']) * 100;
-
-            // Fetch detailed matchup history
-            $historyStmt = $pdo->prepare("
-                SELECT r1.gpid, r1.race_date, r1.cup_name, r1.rank as p1_rank, r2.rank as p2_rank, r1.gp_points as p1_points, r2.gp_points as p2_points
-                FROM results r1
-                JOIN results r2 ON r1.gpid = r2.gpid AND r1.cup_name = r2.cup_name
-                WHERE r1.racer_id = ? AND r2.racer_id = ? AND r1.gpid LIKE ?
-                ORDER BY r1.race_date DESC
-            ");
-            $historyStmt->execute([$p1['id'], $p2['id'], $currentSeason . "%"]);
-            $history = $historyStmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($data && $data['total'] > 0) {
+            $rate = ($data['wins'] / $data['total']) * 100;
 
             $matrix[$p1['id']][$p2['id']] = [
                 'rate' => $rate,
-                'wins' => $data['p1_wins'],
+                'wins' => $data['wins'],
                 'total' => $data['total'],
-                'history' => $history
+                'history' => $data['history']
             ];
             
             if ($p1['id'] < $p2['id']) {
@@ -174,9 +156,7 @@ usort($feuds, fn($a, $b) => $b['intensity'] <=> $a['intensity']);
         // Build nodes with GP count
         $rwebNodes = [];
         foreach ($racers as $r) {
-            $gpStmt = $pdo->prepare("SELECT COUNT(DISTINCT gpid) as gps FROM results WHERE racer_id = ? AND gpid LIKE ?");
-            $gpStmt->execute([$r['id'], $currentSeason . '%']);
-            $rwebNodes[] = ['id' => (int)$r['id'], 'name' => $r['name'], 'gps' => (int)$gpStmt->fetchColumn()];
+            $rwebNodes[] = ['id' => (int)$r['id'], 'name' => $r['name'], 'gps' => racerSeasonGpCount($pdo, (int)$r['id'], $currentSeason)];
         }
         // Build links for each unique pair
         $rwebLinks = [];
@@ -184,21 +164,13 @@ usort($feuds, fn($a, $b) => $b['intensity'] <=> $a['intensity']);
         for ($i = 0; $i < $rCount; $i++) {
             for ($j = $i + 1; $j < $rCount; $j++) {
                 $p1 = $racers[$i]; $p2 = $racers[$j];
-                $lStmt = $pdo->prepare("
-                    SELECT COUNT(*) as total,
-                           SUM(CASE WHEN r1.rank < r2.rank THEN 1 ELSE 0 END) as p1_wins
-                    FROM results r1
-                    JOIN results r2 ON r1.gpid = r2.gpid AND r1.cup_name = r2.cup_name
-                    WHERE r1.racer_id = ? AND r2.racer_id = ? AND r1.gpid LIKE ?
-                ");
-                $lStmt->execute([$p1['id'], $p2['id'], $currentSeason . '%']);
-                $lData = $lStmt->fetch(PDO::FETCH_ASSOC);
+                $lData  = $matchups[(int)$p1['id']][(int)$p2['id']] ?? ['total' => 0, 'wins' => 0];
                 $lTotal = (int)$lData['total'];
                 if ($lTotal > 0) {
                     $rwebLinks[] = [
                         'source' => (int)$p1['id'], 'target' => (int)$p2['id'],
-                        'matchups' => $lTotal, 'p1_wins' => (int)$lData['p1_wins'],
-                        'p2_wins' => $lTotal - (int)$lData['p1_wins'],
+                        'matchups' => $lTotal, 'p1_wins' => (int)$lData['wins'],
+                        'p2_wins' => $lTotal - (int)$lData['wins'],
                         'p1_name' => $p1['name'], 'p2_name' => $p2['name']
                     ];
                 }

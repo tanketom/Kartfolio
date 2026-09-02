@@ -36,6 +36,13 @@ catch (PDOException $e) {}
 Do **not** ship standalone migration files or require manual runs. The
 deploy model is "deploy and hit any page; the DB catches up."
 
+The whole migration block runs **once per schema change, not once per
+request**: `db.php` stores a crc32 of itself plus `settings_schema.sql` in
+`PRAGMA user_version` and skips the block while it matches. Editing either
+file re-runs the block on the next hit (it is idempotent, so that is safe);
+nothing needs bumping by hand. Steady state is 5 statements per request
+(four pragmas + the version read) instead of ~45 plus a settings write.
+
 These migrations are **upgrade** steps — `ALTER TABLE`s and index creations
 that assume the core tables exist. On a brand-new database they don't, so
 `db.php` first applies `private/data/schema.sql` whenever the `results` table

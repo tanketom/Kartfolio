@@ -55,6 +55,16 @@ $eloMin = !empty($seasonEloValues) ? min($seasonEloValues) : 0;
 $eloMax = !empty($seasonEloValues) ? max($seasonEloValues) : 1;
 $eloRange = max(1, $eloMax - $eloMin);
 
+/**
+ * A racer's season rows newest first (race_date DESC, gpid DESC, id DESC),
+ * regular-season GPs only (gpid LIKE 's%'), from the season cache.
+ */
+function powerRankingRows(PDO $pdo, int $racerId, string $season): array {
+    $rows = array_values(array_filter(getRacerSeasonRows($pdo, $racerId, $season), fn($r) => str_starts_with((string)$r['gpid'], 's')));
+    usort($rows, fn($a, $b) => strcmp((string)$b['race_date'], (string)$a['race_date']) ?: strcmp((string)$b['gpid'], (string)$a['gpid']) ?: ((int)$b['id'] <=> (int)$a['id']));
+    return $rows;
+}
+
 foreach ($seasonRacers as $racer) {
     $racerId = $racer['id'];
     $racerName = $racer['name'];
@@ -63,27 +73,18 @@ foreach ($seasonRacers as $racer) {
     // ----- ELO Component (normalized 0-100) -----
     $eloNorm = (($racerElo - $eloMin) / $eloRange) * 100;
 
+    // This racer's season rows, newest first, off the season cache — the six
+    // per-racer queries below all sliced this same list (6N queries → 0).
+    $prRows = powerRankingRows($pdo, (int)$racerId, $currentSeason);
+    $prPts  = array_map(fn($r) => (int)$r['gp_points'], $prRows);
+
     // ----- Recent Form: last 5 season GPs -----
-    $formStmt = $pdo->prepare("
-        SELECT gp_points FROM results
-        WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'
-        ORDER BY race_date DESC, gpid DESC
-        LIMIT 5
-    ");
-    $formStmt->execute([$racerId, $currentSeason . '%']);
-    $recentPts = $formStmt->fetchAll(PDO::FETCH_COLUMN);
+    $recentPts = array_slice($prPts, 0, 5);
     $formAvg = count($recentPts) > 0 ? array_sum($recentPts) / count($recentPts) : 0;
     $formNorm = ($formAvg / 60) * 100;
 
     // ----- Consistency: last 10 season GPs, inverse stddev -----
-    $consStmt = $pdo->prepare("
-        SELECT gp_points FROM results
-        WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'
-        ORDER BY race_date DESC, gpid DESC
-        LIMIT 10
-    ");
-    $consStmt->execute([$racerId, $currentSeason . '%']);
-    $consPts = $consStmt->fetchAll(PDO::FETCH_COLUMN);
+    $consPts = array_slice($prPts, 0, 10);
 
     if (count($consPts) >= 2) {
         $mean = array_sum($consPts) / count($consPts);
@@ -97,26 +98,15 @@ foreach ($seasonRacers as $racer) {
     // ----- Composite Power Score -----
     $powerScore = ($eloNorm * 0.40) + ($formNorm * 0.35) + ($consNorm * 0.25);
 
-    // ----- Most-Used Character -----
-    $charStmt = $pdo->prepare("
-        SELECT character_used, COUNT(*) as uses
-        FROM results
-        WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'
-        GROUP BY character_used
-        ORDER BY uses DESC
-        LIMIT 1
-    ");
-    $charStmt->execute([$racerId, $currentSeason . '%']);
-    $mainChar = $charStmt->fetchColumn() ?: 'Mii';
+    // ----- Most-Used Character (ties: alphabetically last, as SQLite's
+    //       GROUP BY … ORDER BY COUNT(*) DESC emitted — same as getMostUsedCharacter) -----
+    $charTally = [];
+    foreach ($prRows as $r) { $c = (string)($r['character_used'] ?? ''); $charTally[$c] = ($charTally[$c] ?? 0) + 1; }
+    krsort($charTally, SORT_STRING); arsort($charTally);
+    $mainChar = ($charTally ? (string)array_key_first($charTally) : '') ?: 'Mii';
 
     // ----- Win Streak (consecutive rank=1 from most recent) -----
-    $streakStmt = $pdo->prepare("
-        SELECT rank FROM results
-        WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'
-        ORDER BY race_date DESC, gpid DESC
-    ");
-    $streakStmt->execute([$racerId, $currentSeason . '%']);
-    $streakResults = array_reverse(array_map(fn($r) => ['rank' => (int)$r], $streakStmt->fetchAll(PDO::FETCH_COLUMN)));
+    $streakResults = array_reverse(array_map(fn($r) => ['rank' => (int)$r['rank']], $prRows));
     $winStreaks    = calculateStreaks($streakResults, 'win');
     $podiumStreaks = calculateStreaks($streakResults, 'podium');
 
@@ -158,27 +148,15 @@ foreach ($seasonRacers as $racer) {
     $racerName = $racer['name'];
     $racerElo = $eloRatings[$racerName] ?? 1500;
 
+    $prPts = array_map(fn($r) => (int)$r['gp_points'], powerRankingRows($pdo, (int)$racerId, $currentSeason));
+
     // Form without most recent GP (last 5 becomes items 2-6)
-    $prevFormStmt = $pdo->prepare("
-        SELECT gp_points FROM results
-        WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'
-        ORDER BY race_date DESC, gpid DESC
-        LIMIT 5 OFFSET 1
-    ");
-    $prevFormStmt->execute([$racerId, $currentSeason . '%']);
-    $prevRecentPts = $prevFormStmt->fetchAll(PDO::FETCH_COLUMN);
+    $prevRecentPts = array_slice($prPts, 1, 5);
     $prevFormAvg = count($prevRecentPts) > 0 ? array_sum($prevRecentPts) / count($prevRecentPts) : 0;
     $prevFormNorm = ($prevFormAvg / 60) * 100;
 
     // Consistency without most recent GP (last 10 becomes items 2-11)
-    $prevConsStmt = $pdo->prepare("
-        SELECT gp_points FROM results
-        WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'
-        ORDER BY race_date DESC, gpid DESC
-        LIMIT 10 OFFSET 1
-    ");
-    $prevConsStmt->execute([$racerId, $currentSeason . '%']);
-    $prevConsPts = $prevConsStmt->fetchAll(PDO::FETCH_COLUMN);
+    $prevConsPts = array_slice($prPts, 1, 10);
 
     if (count($prevConsPts) >= 2) {
         $mean = array_sum($prevConsPts) / count($prevConsPts);

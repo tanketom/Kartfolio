@@ -8,14 +8,11 @@
  * Initialize settings table
  */
 function initializeSettings($pdo) {
-    try {
-        $schemaPath = __DIR__ . '/../data/settings_schema.sql';
-        if (file_exists($schemaPath)) {
-            $pdo->exec(file_get_contents($schemaPath));
-        }
-    } catch (PDOException $e) {
-        error_log("Settings initialization error: " . $e->getMessage());
-    }
+    // The settings table and its default rows are laid down by db.php's
+    // versioned migration block (once per schema change). This used to exec
+    // settings_schema.sql — a CREATE plus a 12-row INSERT OR IGNORE, i.e. a
+    // write transaction — on every page render via header.php. Kept as a
+    // no-op so existing callers (header, admin settings, setup) stay valid.
 }
 
 /**

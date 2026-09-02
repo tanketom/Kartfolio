@@ -33,6 +33,22 @@ try {
     // LOWER() explicitly. Measured ~3x on this DB, widening with table size.
     $pdo->exec('PRAGMA case_sensitive_like = ON;');
 
+    // ── Migrations run once per schema change, not once per request ─────
+    // Everything from here to the closing brace at the bottom of this try
+    // block (bootstrap, ~45 ALTER/CREATE statements, the settings seed) used
+    // to run on EVERY page load, and the settings seed opened a write
+    // transaction on every public render. The whole block is now keyed on a
+    // signature of this file plus settings_schema.sql, stored in SQLite's
+    // built-in `PRAGMA user_version`: edit either file and the next hit
+    // re-runs the (idempotent) block once, then records the new signature.
+    // Nothing to bump by hand, so a forgotten constant can't strand a
+    // migration on the live server. The deploy model in CLAUDE.md §1 holds:
+    // deploy, hit any page, the DB catches up.
+    $schemaSig = crc32((string)@file_get_contents(__FILE__) . (string)@file_get_contents(__DIR__ . '/../data/settings_schema.sql'));
+    if ($schemaSig > 0x7FFFFFFF) $schemaSig -= 0x100000000;   // user_version is a signed 32-bit int
+    $dbSig = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
+    if ($dbSig !== $schemaSig) {
+
     // ── Fresh install bootstrap ──────────────────────────────────────────
     // Everything below this point is an UPGRADE step: ALTER TABLEs and index
     // creations that assume the core tables already exist. On a brand-new
@@ -283,6 +299,14 @@ try {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_lexicon_category ON lexicon_terms(category, term)");
+
+    // Settings table + default rows (INSERT OR IGNORE — never overwrites an
+    // admin's values). header.php used to exec this on every render.
+    $settingsSchema = __DIR__ . '/../data/settings_schema.sql';
+    if (is_readable($settingsSchema)) $pdo->exec(file_get_contents($settingsSchema));
+
+    $pdo->exec('PRAGMA user_version = ' . (int)$schemaSig);
+    }   // end of the versioned migration block
 
 } catch (PDOException $e) {
     // If the connection fails, stop the script and show the error

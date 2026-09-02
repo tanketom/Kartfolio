@@ -2852,3 +2852,66 @@ function archivedSeasonPlacements(PDO $pdo): array {
     foreach ($rows as $r) $out[(int)$r['racer_id']][] = [$r['season_id'], (int)$r['place'], (int)$r['field']];
     return $cache = $out;
 }
+
+// ============================================================================
+// HEAD-TO-HEAD MATCHUPS — every ordered pair's record for a season, in one
+// pass over the season cache. rivalries.php and rivalry_web.php used to run
+// a COUNT plus a history query per ordered pair (2·N·(N−1): 1178 queries on
+// a 25-racer season). Two racers "meet" when they have rows in the same GP
+// on the same cup — the old SQL self-join; rows with no cup never join.
+// ============================================================================
+
+/**
+ * [a][b] => ['wins' => a finished ahead, 'total', 'history' => [...]], history
+ * newest first (race_date, gpid, id). Only pairs that actually met appear.
+ * Cached per season per request.
+ */
+function seasonMatchups(PDO $pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+
+    $groups = [];   // "gpid|cup" => [[racer_id, row], ...]
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        foreach ($rows as $r) {
+            if ($r['cup_name'] === null) continue;
+            $groups[$r['gpid'] . '|' . $r['cup_name']][] = [(int)$rid, $r];
+        }
+    }
+    $m = [];
+    foreach ($groups as $g) {
+        $n = count($g);
+        if ($n < 2) continue;
+        for ($i = 0; $i < $n; $i++) {
+            [$a, $ra] = $g[$i];
+            for ($j = 0; $j < $n; $j++) {
+                if ($i === $j) continue;
+                [$b, $rb] = $g[$j];
+                if ($a === $b) continue;
+                if (!isset($m[$a][$b])) $m[$a][$b] = ['wins' => 0, 'total' => 0, 'history' => []];
+                $m[$a][$b]['total']++;
+                if ((int)$ra['rank'] < (int)$rb['rank']) $m[$a][$b]['wins']++;
+                $m[$a][$b]['history'][] = [
+                    'gpid' => $ra['gpid'], 'race_date' => $ra['race_date'], 'cup_name' => $ra['cup_name'],
+                    'p1_rank' => $ra['rank'], 'p2_rank' => $rb['rank'],
+                    'p1_points' => $ra['gp_points'], 'p2_points' => $rb['gp_points'],
+                    '_id' => (int)$ra['id'],
+                ];
+            }
+        }
+    }
+    foreach ($m as &$row) {
+        foreach ($row as &$pair) {
+            usort($pair['history'], fn($x, $y) => strcmp((string)$y['race_date'], (string)$x['race_date']) ?: strcmp((string)$y['gpid'], (string)$x['gpid']) ?: ($y['_id'] <=> $x['_id']));
+            foreach ($pair['history'] as &$h) unset($h['_id']);
+            unset($h);
+        }
+        unset($pair);
+    }
+    unset($row);
+    return $cache[$season_id] = $m;
+}
+
+/** Distinct GPs a racer raced in a season, off the cache (was COUNT(DISTINCT gpid) per racer). */
+function racerSeasonGpCount(PDO $pdo, int $racer_id, string $season_id): int {
+    return count(array_unique(array_column(getRacerSeasonRows($pdo, $racer_id, $season_id), 'gpid')));
+}
