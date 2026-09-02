@@ -58,7 +58,10 @@ source of truth. Adding a new scoring system means:
 
 1. One new entry in the registry array (name, icon, description,
    long_description, `calculate` fn, `breakdown` fn, **`tooltip` fn**,
-   threshold-gating flag, `sort` comparator).
+   threshold-gating flag, and a tie-break: a `tiebreak` entry — `metric`
+   closure + `level` / `ahead` / `both` label strings — gets the generic
+   sort and tie explainer for free; only a genuinely multi-level tie-break
+   (Positional count-back) needs its own `sort` + `tie_explain` fns).
 2. Define your `calculate*Score()`, `breakdown*()` and `tooltip*()` helpers
    in `gp_logic.php` next to the existing ones.
 3. Add an entry to `public_html/admin/seasons.php::$scoringSystems` for

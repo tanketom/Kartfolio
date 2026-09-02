@@ -119,8 +119,13 @@ function getScoringSystemRegistry(): array {
             'breakdown'              => 'breakdownTop12Unique',
             'tooltip'              => 'tooltipTop12Unique',
             'qualifies_by_threshold' => false,
-            'sort'                   => 'sortStandingsTop12Unique',
-            'tie_explain'            => 'tieExplainTop12Unique',
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => getTop12UniqueTiebreaker($pdo, (int)$rid, $season_id),
+                'level'   => 'Level on points',
+                'ahead'   => 'perfect 60s',
+                'both'    => 'Level on points and perfect 60s',
+            ],
         ],
         'random_cup_draw' => [
             'name'                   => 'Random Cup Draw',
@@ -201,8 +206,14 @@ function getScoringSystemRegistry(): array {
             'breakdown'              => 'breakdownHeadToHead',
             'tooltip'              => 'tooltipHeadToHead',
             'qualifies_by_threshold' => true,
-            'sort'                   => 'sortStandingsHeadToHead',
-            'tie_explain'            => 'tieExplainHeadToHead',
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => headToHeadRaw($pdo, (int)$rid, $season_id)['wins'],
+                'level'   => 'Level on win rate',
+                'ahead'   => 'total wins',
+                'both'    => 'Level on win rate and wins',
+                'fmt'     => 'scoreNum',
+            ],
         ],
         'blue_shell' => [
             'name'                   => 'Blue Shell',
@@ -213,8 +224,13 @@ function getScoringSystemRegistry(): array {
             'breakdown'              => 'breakdownBlueShell',
             'tooltip'                => 'tooltipBlueShell',
             'qualifies_by_threshold' => true,
-            'sort'                   => 'sortStandingsBlueShell',
-            'tie_explain'            => 'tieExplainBlueShell',
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => blueShellSeason($pdo, $season_id, (array)$rules)['raw'][(int)$rid] ?? 0,
+                'level'   => 'Level on catch-up points',
+                'ahead'   => 'raw points',
+                'both'    => 'Level on points, raw too',
+            ],
         ],
         'territory' => [
             'name'                   => 'Territory',
@@ -225,8 +241,13 @@ function getScoringSystemRegistry(): array {
             'breakdown'              => 'breakdownTerritory',
             'tooltip'                => 'tooltipTerritory',
             'qualifies_by_threshold' => false,
-            'sort'                   => 'sortStandingsTerritory',
-            'tie_explain'            => 'tieExplainTerritory',
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => array_sum(territorySeason($pdo, $season_id)['by_racer'][(int)$rid] ?? []),
+                'level'   => 'Same number of cups held',
+                'ahead'   => 'points across them',
+                'both'    => 'Same cups held and points',
+            ],
         ],
         'median' => [
             'name'                   => 'Median',
@@ -237,8 +258,15 @@ function getScoringSystemRegistry(): array {
             'breakdown'              => 'breakdownMedian',
             'tooltip'                => 'tooltipMedian',
             'qualifies_by_threshold' => true,
-            'sort'                   => 'sortStandingsMedian',
-            'tie_explain'            => 'tieExplainMedian',
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => ($p = array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id))) ? array_sum($p) / count($p) : 0,
+                'level'   => 'Level on median',
+                'ahead'   => 'mean',
+                'both'    => 'Level on median and mean',
+                'fmt'     => fn($v) => scoreNum(round($v, 1)),
+                'differs' => fn($x, $y) => round($x, 2) != round($y, 2),
+            ],
         ],
         'hard_mode' => [
             'name'                   => 'Hard Mode',
@@ -249,8 +277,13 @@ function getScoringSystemRegistry(): array {
             'breakdown'              => 'breakdownHardMode',
             'tooltip'                => 'tooltipHardMode',
             'qualifies_by_threshold' => true,
-            'sort'                   => 'sortStandingsHardMode',
-            'tie_explain'            => 'tieExplainHardMode',
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => array_sum(array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id))),
+                'level'   => 'Level on weighted points',
+                'ahead'   => 'raw points',
+                'both'    => 'Level on weighted and raw points',
+            ],
         ],
         'form' => [
             'name'                   => 'Form',
@@ -261,8 +294,13 @@ function getScoringSystemRegistry(): array {
             'breakdown'              => 'breakdownForm',
             'tooltip'                => 'tooltipForm',
             'qualifies_by_threshold' => true,
-            'sort'                   => 'sortStandingsForm',
-            'tie_explain'            => 'tieExplainForm',
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => ($f = formRows($pdo, (int)$rid, $season_id, (array)$rules)['all']) ? (int)end($f)['gp_points'] : 0,
+                'level'   => 'Level on form',
+                'ahead'   => 'most recent GP',
+                'both'    => 'Level on form and latest GP',
+            ],
         ],
     ];
     return $registry;
@@ -1346,22 +1384,6 @@ function breakdownHeadToHead($pdo, $racer_id, $season_id, $rules) {
     ];
 }
 
-/**
- * Custom sort for head_to_head — win rate desc, then absolute wins, then name.
- * The registry sort signature carries no rules, so the tiebreak uses the
- * season's saved weight; it only matters on an exact rate tie.
- */
-function sortStandingsHeadToHead(array &$standings, PDO $pdo, string $season_id): void {
-    foreach ($standings as &$s) {
-        $s['tiebreaker'] = headToHeadRaw($pdo, (int)$s['id'], $season_id)['wins'];
-    }
-    unset($s);
-    usort($standings, function ($a, $b) {
-        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-}
 
 /**
  * Returns current season ID. Prefers the season whose start_date/end_date
@@ -2308,6 +2330,44 @@ function racerQualifies($raceCount, $rules) {
     return $raceCount > 0;
 }
 
+// ============================================================================
+// GENERIC SINGLE-METRIC TIE-BREAK — one sort and one explainer for every
+// system whose registry entry declares 'tiebreak':
+//   'metric'  => fn($pdo, $racer_id, $season_id, $rules) => number   (higher wins)
+//   'level'   => 'Level on points'          — clause when the metric separates them
+//   'ahead'   => 'perfect 60s'              — "… X ahead on <ahead>: a vs b"
+//   'both'    => 'Level on points and perfect 60s' — clause when the metric ties too
+//   'fmt'     => optional callable to format the two values (default: integer)
+//   'differs' => optional callable ($a, $b) => bool for the explainer's
+//                "are they really different" test (default: !=)
+// Seven systems used to carry a byte-identical sort function and a
+// same-shaped explainer each (14 functions); now they are seven closures.
+// ============================================================================
+
+/** Attach 'tiebreaker' to every row and sort: score desc, tiebreaker desc, name asc. */
+function sortStandingsByTiebreak(array &$standings, array $tb, PDO $pdo, string $season_id): void {
+    $rules = getSeasonRules($pdo, $season_id);
+    foreach ($standings as &$s) $s['tiebreaker'] = ($tb['metric'])($pdo, (int)$s['id'], $season_id, $rules);
+    unset($s);
+    usort($standings, function ($a, $b) {
+        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
+        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
+        return strcmp($a['name'], $b['name']);
+    });
+}
+
+/** "Level on X · A ahead on Y: a vs b", or "Level on X and Y · ordered alphabetically". */
+function explainTieByTiebreak(array $tb, PDO $pdo, string $season_id, array $rules, array $a, array $b): string {
+    $ma = ($tb['metric'])($pdo, (int)$a['id'], $season_id, $rules);
+    $mb = ($tb['metric'])($pdo, (int)$b['id'], $season_id, $rules);
+    $differs = isset($tb['differs']) ? ($tb['differs'])($ma, $mb) : ($ma != $mb);
+    if ($differs) {
+        $fmt = $tb['fmt'] ?? (fn($v) => (string)(int)$v);
+        return sprintf('%s · %s ahead on %s: %s vs %s', $tb['level'], $a['name'], $tb['ahead'], $fmt($ma), $fmt($mb));
+    }
+    return $tb['both'] . ' · ordered alphabetically';
+}
+
 /**
  * Sort a standings array in-place according to the active scoring system.
  * Each entry must have 'score', 'name', and 'id'.
@@ -2316,10 +2376,13 @@ function racerQualifies($raceCount, $rules) {
 function sortStandingsByScoring(array &$standings, $system, $pdo = null, $season_id = null) {
     $def = getScoringSystemDef($system);
 
-    if ($def['sort'] !== null && $pdo && $season_id) {
-        $fn = $def['sort'];
-        $fn($standings, $pdo, $season_id);
-        return;
+    if ($pdo && $season_id) {
+        // Most systems break ties on ONE metric — declared as the registry's
+        // 'tiebreak' entry and sorted here generically. Only a system whose
+        // tie-break is genuinely multi-level (Positional count-back) keeps a
+        // bespoke 'sort' function.
+        if (!empty($def['tiebreak'])) { sortStandingsByTiebreak($standings, $def['tiebreak'], $pdo, $season_id); return; }
+        if (($def['sort'] ?? null) !== null) { $fn = $def['sort']; $fn($standings, $pdo, $season_id); return; }
     }
     // Default: score desc, then name asc (deterministic).
     usort($standings, fn($a, $b) => $b['score'] != $a['score']
@@ -2327,18 +2390,6 @@ function sortStandingsByScoring(array &$standings, $system, $pdo = null, $season
         : strcmp($a['name'], $b['name']));
 }
 
-/** Custom sort for top_12_unique — uses a unique-60s tiebreaker. */
-function sortStandingsTop12Unique(array &$standings, PDO $pdo, string $season_id): void {
-    foreach ($standings as &$s) {
-        $s['tiebreaker'] = getTop12UniqueTiebreaker($pdo, $s['id'], $season_id);
-    }
-    unset($s);
-    usort($standings, function ($a, $b) {
-        if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-}
 
 // ============================================================================
 // STREAK HELPERS
@@ -2377,6 +2428,7 @@ function calculateStreaks(array $results, string $type = 'win') {
 function explainStandingsTie(PDO $pdo, string $season_id, string $system, array $above, array $below): string {
     $def   = getScoringSystemDef($system);
     $rules = getSeasonRules($pdo, $season_id);
+    if (!empty($def['tiebreak'])) return explainTieByTiebreak($def['tiebreak'], $pdo, $season_id, $rules, $above, $below);
     $fn    = $def['tie_explain'] ?? null;
     if ($fn !== null && function_exists($fn)) {
         $s = $fn($pdo, $season_id, $rules, $above, $below);
@@ -2404,19 +2456,6 @@ function tieExplainPositional($pdo, $season_id, $rules, $a, $b): string {
     return 'Level on points and count-back · ordered alphabetically';
 }
 
-function tieExplainHeadToHead($pdo, $season_id, $rules, $a, $b): string {
-    $wa = headToHeadRaw($pdo, (int)$a['id'], $season_id)['wins'];
-    $wb = headToHeadRaw($pdo, (int)$b['id'], $season_id)['wins'];
-    if ($wa != $wb) return sprintf('Level on win rate · %s ahead on total wins: %s vs %s', $a['name'], scoreNum($wa), scoreNum($wb));
-    return 'Level on win rate and wins · ordered alphabetically';
-}
-
-function tieExplainTop12Unique($pdo, $season_id, $rules, $a, $b): string {
-    $ta = getTop12UniqueTiebreaker($pdo, $a['id'], $season_id);
-    $tb = getTop12UniqueTiebreaker($pdo, $b['id'], $season_id);
-    if ($ta != $tb) return sprintf('Level on points · %s ahead on perfect 60s: %d vs %d', $a['name'], $ta, $tb);
-    return 'Level on points and perfect 60s · ordered alphabetically';
-}
 
 // ============================================================================
 // BLUE SHELL — catch-up multiplier
@@ -2494,23 +2533,6 @@ function tooltipBlueShell(array $c, $score): string {
         (int)round(($c['rate'] ?? 0.1) * 100), scoreNum($c['cap'] ?? 2));
 }
 
-function sortStandingsBlueShell(array &$standings, PDO $pdo, string $season_id): void {
-    $raw = blueShellSeason($pdo, $season_id, getSeasonRules($pdo, $season_id))['raw'];
-    foreach ($standings as &$s) $s['tiebreaker'] = $raw[(int)$s['id']] ?? 0;
-    unset($s);
-    usort($standings, function ($a, $b) {
-        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-}
-
-function tieExplainBlueShell($pdo, $season_id, $rules, $a, $b): string {
-    $raw = blueShellSeason($pdo, $season_id, (array)$rules)['raw'];
-    $ra = $raw[(int)$a['id']] ?? 0; $rb = $raw[(int)$b['id']] ?? 0;
-    if ($ra != $rb) return sprintf('Level on catch-up points · %s ahead on raw points: %d vs %d', $a['name'], $ra, $rb);
-    return 'Level on points, raw too · ordered alphabetically';
-}
 
 // ============================================================================
 // TERRITORY — hold the cups
@@ -2562,23 +2584,6 @@ function tooltipTerritory(array $c, $score): string {
         (int)($c['cups_held'] ?? 0), (int)($c['cups_total'] ?? 24), $list, (int)($c['held_points'] ?? 0));
 }
 
-function sortStandingsTerritory(array &$standings, PDO $pdo, string $season_id): void {
-    $by = territorySeason($pdo, $season_id)['by_racer'];
-    foreach ($standings as &$s) $s['tiebreaker'] = array_sum($by[(int)$s['id']] ?? []);
-    unset($s);
-    usort($standings, function ($a, $b) {
-        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-}
-
-function tieExplainTerritory($pdo, $season_id, $rules, $a, $b): string {
-    $by = territorySeason($pdo, $season_id)['by_racer'];
-    $pa = array_sum($by[(int)$a['id']] ?? []); $pb = array_sum($by[(int)$b['id']] ?? []);
-    if ($pa != $pb) return sprintf('Same number of cups held · %s ahead on points across them: %d vs %d', $a['name'], $pa, $pb);
-    return 'Same cups held and points · ordered alphabetically';
-}
 
 // ============================================================================
 // MEDIAN
@@ -2612,25 +2617,6 @@ function tooltipMedian(array $c, $score): string {
         scoreNum($c['mean'] ?? 0), $c['low'] ?? 0, $c['high'] ?? 0);
 }
 
-function sortStandingsMedian(array &$standings, PDO $pdo, string $season_id): void {
-    foreach ($standings as &$s) {
-        $pts = array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$s['id'], $season_id));
-        $s['tiebreaker'] = $pts ? array_sum($pts) / count($pts) : 0;
-    }
-    unset($s);
-    usort($standings, function ($a, $b) {
-        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-}
-
-function tieExplainMedian($pdo, $season_id, $rules, $a, $b): string {
-    $m = function ($rid) use ($pdo, $season_id) { $p = array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id)); return $p ? array_sum($p) / count($p) : 0; };
-    $ma = $m($a['id']); $mb = $m($b['id']);
-    if (round($ma, 2) != round($mb, 2)) return sprintf('Level on median · %s ahead on mean: %s vs %s', $a['name'], scoreNum(round($ma, 1)), scoreNum(round($mb, 1)));
-    return 'Level on median and mean · ordered alphabetically';
-}
 
 // ============================================================================
 // HARD MODE — cup-difficulty weighting
@@ -2683,22 +2669,6 @@ function tooltipHardMode(array $c, $score): string {
     return $s;
 }
 
-function sortStandingsHardMode(array &$standings, PDO $pdo, string $season_id): void {
-    foreach ($standings as &$s) $s['tiebreaker'] = array_sum(array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$s['id'], $season_id)));
-    unset($s);
-    usort($standings, function ($a, $b) {
-        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-}
-
-function tieExplainHardMode($pdo, $season_id, $rules, $a, $b): string {
-    $raw = fn($rid) => array_sum(array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id)));
-    $ra = $raw($a['id']); $rb = $raw($b['id']);
-    if ($ra != $rb) return sprintf('Level on weighted points · %s ahead on raw points: %d vs %d', $a['name'], $ra, $rb);
-    return 'Level on weighted and raw points · ordered alphabetically';
-}
 
 // ============================================================================
 // FORM — rolling window
@@ -2735,23 +2705,6 @@ function tooltipForm(array $c, $score): string {
         scoreNum($score), $c['gps_used'] ?? 0, $c['gps_played'] ?? 0, ($c['gps_played'] ?? 0) === 1 ? '' : 's', $c['latest'] ?? 0);
 }
 
-function sortStandingsForm(array &$standings, PDO $pdo, string $season_id): void {
-    $rules = getSeasonRules($pdo, $season_id);
-    foreach ($standings as &$s) { $f = formRows($pdo, (int)$s['id'], $season_id, $rules); $s['tiebreaker'] = $f['all'] ? (int)end($f['all'])['gp_points'] : 0; }
-    unset($s);
-    usort($standings, function ($a, $b) {
-        if ($b['score'] != $a['score'])           return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-}
-
-function tieExplainForm($pdo, $season_id, $rules, $a, $b): string {
-    $l = function ($rid) use ($pdo, $season_id, $rules) { $f = formRows($pdo, (int)$rid, $season_id, (array)$rules); return $f['all'] ? (int)end($f['all'])['gp_points'] : 0; };
-    $la = $l($a['id']); $lb = $l($b['id']);
-    if ($la != $lb) return sprintf('Level on form · %s ahead on most recent GP: %d vs %d', $a['name'], $la, $lb);
-    return 'Level on form and latest GP · ordered alphabetically';
-}
 
 // ============================================================================
 // SEASON PLACEMENTS — one ranking per season, shared by badges (On the Up,
