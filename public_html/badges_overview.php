@@ -57,6 +57,7 @@ $allBadgeDefinitions = [
         ['icon' => '🏔️', 'title' => 'Everest', 'desc' => 'Personal best 20+ pts above average', 'key' => 'everest'],
         ['icon' => '🎪', 'title' => 'Comeback Kid', 'desc' => 'Won GP after finishing last', 'key' => 'comeback_kid'],
         ['icon' => '🐢', 'title' => 'The Tortoise', 'desc' => 'Average finish rank ≥8 but still won a GP', 'key' => 'tortoise'],
+        ['icon' => '🟣', 'title' => 'Purple Patch', 'desc' => 'Last-8 form 10+ pts above season average (12+ GPs)', 'key' => 'purple_patch'],
     ],
     'special' => [
         ['icon' => '🎲', 'title' => 'Lucky 7', 'desc' => 'Finished 7th place in 3+ races', 'key' => 'lucky_7'],
@@ -127,6 +128,10 @@ $allBadgeDefinitions = [
         ['icon' => '🔮', 'title' => "Pick'em Oracle", 'desc' => "Topped a World Cup Pick'em leaderboard", 'key' => 'pickem_oracle'],
         ['icon' => '🌟', 'title' => 'Mikkoligan', 'desc' => 'Tops the Mikkoliiga this season', 'key' => 'mikkoligan'],
         ['icon' => '🌠', 'title' => 'Ascended', 'desc' => 'Reached a 2000 Elo rating', 'key' => 'ascended'],
+        ['icon' => '🏗️', 'title' => 'Constructor', 'desc' => 'Member of the winning team in a teams season', 'key' => 'constructor'],
+        ['icon' => '🧙', 'title' => 'Fantasy Champion', 'desc' => 'Topped a fantasy season', 'key' => 'fantasy_champion'],
+        ['icon' => '💥', 'title' => 'Bracket Buster', 'desc' => 'Won a tournament as the lowest seed', 'key' => 'bracket_buster'],
+        ['icon' => '🩹', 'title' => 'Snake Bitten', 'desc' => 'Landed on a snake in Snakes & Ladders', 'key' => 'snake_bitten'],
     ],
     'territory' => [
         ['icon' => '🏘️', 'title' => 'Landlord', 'desc' => 'Holds 5+ cups at once this season', 'key' => 'landlord'],
@@ -139,6 +144,8 @@ $allBadgeDefinitions = [
         ['icon' => '📅', 'title' => 'Ever-Present', 'desc' => 'Raced every GP of the season', 'key' => 'ever_present'],
         ['icon' => '🌈', 'title' => 'Full Roster', 'desc' => 'Raced 10+ different characters across their career', 'key' => 'full_roster'],
         ['icon' => '🧭', 'title' => 'Questmaster', 'desc' => 'Completed both side quests this season', 'key' => 'questmaster'],
+        ['icon' => '🪜', 'title' => 'On the Up', 'desc' => 'Improved placement three seasons running', 'key' => 'on_the_up'],
+        ['icon' => '🏹', 'title' => 'From the Back', 'desc' => 'Won a season after a bottom-half finish in an earlier one', 'key' => 'from_the_back'],
     ],
 ];
 

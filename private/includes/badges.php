@@ -8,6 +8,7 @@ require_once __DIR__ . '/mk_data.php';
 require_once __DIR__ . '/stickers.php';
 require_once __DIR__ . '/worldcup_tournament.php';
 require_once __DIR__ . '/quests.php';
+require_once __DIR__ . '/snl_tournament.php';
 
 /**
  * Season- and career-wide data shared by every racer's badge computation,
@@ -267,6 +268,64 @@ function badgeSeasonContext($pdo, $season_id) {
         }
     } catch (PDOException $e) { /* quests table absent */ }
 
+    // ── Career placements across ARCHIVED seasons, in season order —
+    //    On the Up / From the Back. seasonPlacements() is registry-sorted and
+    //    per-request cached, so this is one season-cache read per archived season. ──
+    $archivedSeasons  = $pdo->query("SELECT season_id FROM season_meta WHERE status = 'archived' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $careerPlacements = archivedSeasonPlacements($pdo);   // snapshot table: one query
+
+    // ── Constructor: members of the winning team in an archived teams season ──
+    $constructorWinners = [];
+    try {
+        foreach ($pdo->query("SELECT DISTINCT season_id FROM teams")->fetchAll(PDO::FETCH_COLUMN) as $ts) {
+            if (!in_array($ts, $archivedSeasons, true)) continue;   // live seasons are provisional
+            $st = getTeamStandings($pdo, $ts);
+            if (empty($st) || ($st[0]['score'] ?? 0) <= 0) continue;
+            foreach (array_keys($st[0]['members']) as $rid) $constructorWinners[(int)$rid] = true;
+        }
+    } catch (PDOException $e) { /* teams tables absent */ }
+
+    // ── Fantasy Champion: top predictor of an archived season, mapped to a racer ──
+    $fantasyChampions = [];
+    try {
+        $best = [];
+        $fq = $pdo->query("
+            SELECT SUBSTR(fs.gpid, 1, INSTR(fs.gpid, 'g') - 1) AS season_id, fp.racer_id, SUM(fs.points_earned) AS pts
+            FROM fantasy_scores fs JOIN fantasy_predictors fp ON fp.id = fs.predictor_id
+            WHERE fp.racer_id IS NOT NULL
+            GROUP BY season_id, fp.racer_id");
+        foreach ($fq->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $s = $r['season_id']; $pts = (float)$r['pts']; $rid = (int)$r['racer_id'];
+            if (!isset($best[$s]) || $pts > $best[$s][0]) $best[$s] = [$pts, [$rid]];
+            elseif ($pts == $best[$s][0]) $best[$s][1][] = $rid;
+        }
+        foreach ($best as $s => [$pts, $ids]) {
+            if ($pts > 0 && in_array($s, $archivedSeasons, true)) foreach ($ids as $rid) $fantasyChampions[$rid] = true;
+        }
+    } catch (PDOException $e) { /* fantasy tables absent */ }
+
+    // ── Bracket Buster: won a completed tournament (4+ entrants) as the lowest seed ──
+    $bracketBusters = [];
+    try {
+        $tq = $pdo->query("
+            SELECT t.winner_id,
+                   (SELECT seed FROM tournament_participants WHERE tournament_id = t.id AND racer_id = t.winner_id) AS wseed,
+                   (SELECT MAX(seed) FROM tournament_participants WHERE tournament_id = t.id) AS maxseed,
+                   (SELECT COUNT(*) FROM tournament_participants WHERE tournament_id = t.id) AS n
+            FROM tournaments t WHERE t.status = 'completed' AND t.winner_id IS NOT NULL");
+        foreach ($tq->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if ($r['wseed'] !== null && (int)$r['n'] >= 4 && (int)$r['wseed'] === (int)$r['maxseed']) $bracketBusters[(int)$r['winner_id']] = true;
+        }
+    } catch (PDOException $e) { /* tournament tables absent */ }
+
+    // ── Snake Bitten: hit a snake in any completed Snakes & Ladders tournament ──
+    $snakeBitten = [];
+    try {
+        foreach ($pdo->query("SELECT id FROM tournaments WHERE format = 'snakes_ladders' AND status = 'completed'")->fetchAll(PDO::FETCH_COLUMN) as $tid) {
+            foreach ((snlReplay($pdo, (int)$tid)['snakeHits'] ?? []) as $rid => $n) if ($n > 0) $snakeBitten[(int)$rid] = true;
+        }
+    } catch (Throwable $e) { /* no S&L data */ }
+
     return $cache[$season_id] = compact(
         'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader',
         'scoringSystem', 'bbLeaderId', 'careerCups', 'careerPerfectCups', 'careerChars',
@@ -274,7 +333,8 @@ function badgeSeasonContext($pdo, $season_id) {
         'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened',
         'tourneyWins', 'pickemOracleIds', 'mikkoLeaderId', 'elo2000',
         'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'deadHeat',
-        'seasonGpTotal', 'dynastyRun', 'questmaster'
+        'seasonGpTotal', 'dynastyRun', 'questmaster',
+        'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten'
     );
 }
 
@@ -385,6 +445,44 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
     // 🧭 Questmaster — both side quests done this season.
     if (!empty($ctx['questmaster'][$racer_id]))
         $badges[] = ['icon' => '🧭', 'title' => 'Questmaster', 'desc' => 'Completed both side quests this season.'];
+
+    // ── Career arc (archived seasons, in order) ──
+    $arc = $ctx['careerPlacements'][$racer_id] ?? [];
+    // 🪜 On the Up — placement improved three seasons running.
+    $run = 1; $up = false;
+    for ($i = 1; $i < count($arc); $i++) {
+        $run = ($arc[$i][1] < $arc[$i - 1][1]) ? $run + 1 : 1;
+        if ($run >= 3) { $up = true; break; }
+    }
+    if ($up) $badges[] = ['icon' => '🪜', 'title' => 'On the Up', 'desc' => 'Improved their season placement three seasons running.'];
+    // 🏹 From the Back — won a season after a bottom-half finish in an earlier one.
+    $wasBottom = false; $fromBack = false;
+    foreach ($arc as [$s, $p, $field]) {
+        if ($wasBottom && $p === 1) { $fromBack = true; break; }
+        if ($field >= 4 && $p > $field / 2) $wasBottom = true;
+    }
+    if ($fromBack) $badges[] = ['icon' => '🏹', 'title' => 'From the Back', 'desc' => 'Won a season after finishing in the bottom half of an earlier one.'];
+
+    // 🟣 Purple Patch — last-8 form 10+ points above the season average (12+ GPs).
+    $rows = getRacerSeasonRows($pdo, $racer_id, $season_id);
+    if (count($rows) >= 12) {
+        usort($rows, fn($a, $b) => strcmp((string)$a['race_date'], (string)$b['race_date']) ?: ((int)$a['id'] <=> (int)$b['id']));
+        $pts = array_map(fn($r) => (int)$r['gp_points'], $rows);
+        $avg = array_sum($pts) / count($pts);
+        $last = array_slice($pts, -8);
+        if (array_sum($last) / count($last) - $avg >= 10)
+            $badges[] = ['icon' => '🟣', 'title' => 'Purple Patch', 'desc' => 'Recent form (last 8 GPs) running 10+ points above their season average.'];
+    }
+
+    // ── Honours from other systems ──
+    if (!empty($ctx['constructorWinners'][$racer_id]))
+        $badges[] = ['icon' => '🏗️', 'title' => 'Constructor', 'desc' => 'Member of the winning team in a teams season.'];
+    if (!empty($ctx['fantasyChampions'][$racer_id]))
+        $badges[] = ['icon' => '🧙', 'title' => 'Fantasy Champion', 'desc' => 'Topped a fantasy season.'];
+    if (!empty($ctx['bracketBusters'][$racer_id]))
+        $badges[] = ['icon' => '💥', 'title' => 'Bracket Buster', 'desc' => 'Won a tournament as the lowest seed.'];
+    if (!empty($ctx['snakeBitten'][$racer_id]))
+        $badges[] = ['icon' => '🩹', 'title' => 'Snake Bitten', 'desc' => 'Landed on a snake in Snakes & Ladders. It happens to everyone.'];
 }
 
 function getRacerBadges($pdo, $racer_id, $season_id) {

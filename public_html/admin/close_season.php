@@ -109,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Freeze the Mikkoliiga roster for this season so historical standings
         // don't shift retroactively if a member toggles their flag later.
         snapshotMikkoliigaMembership($pdo, $seasonId);
+        snapshotSeasonPlacements($pdo, $seasonId);
 
         // Report generation is a POST+CSRF endpoint — a plain redirect can't
         // reach it, so hand off through the auto-submitting token bridge.

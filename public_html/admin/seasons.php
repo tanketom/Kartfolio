@@ -247,8 +247,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sid = $_POST['season_id'];
         $stmt = $pdo->prepare("UPDATE season_meta SET status='archived', closed_at=CURRENT_TIMESTAMP WHERE season_id = ?");
         $stmt->execute([$sid]);
-        // Freeze Mikkoliiga roster at archive time.
+        // Freeze Mikkoliiga roster and final placements at archive time.
         snapshotMikkoliigaMembership($pdo, $sid);
+        snapshotSeasonPlacements($pdo, $sid);
         // Report generation is a POST+CSRF endpoint — a plain redirect can't
         // reach it, so hand off through the auto-submitting token bridge.
         csrf_bridge_post('/api/season-report', ['season' => $sid], 'Generate season report');

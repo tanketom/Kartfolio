@@ -119,18 +119,22 @@ function snlReplay(PDO $pdo, int $tid): array {
         ORDER BY CAST(SUBSTR(m.round, 2) AS INTEGER) ASC, m.match_number ASC, tmp.placement ASC");
     $rows->execute([$tid]);
 
-    $pos = []; $arrival = []; $lastHazard = []; $winner = null; $winRound = null; $step = 0;
+    $pos = []; $arrival = []; $lastHazard = []; $snakeHits = []; $winner = null; $winRound = null; $step = 0;
     foreach ($rows->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $id = (int)$r['racer_id']; $step++;
         if (!isset($pos[$id])) $pos[$id] = 0;
         if ($pos[$id] >= $len) continue;                 // already home
         $raw    = $pos[$id] + snlRoll((int)$r['placement']);
         $landed = ($raw > $len) ? $len - ($raw - $len) : $raw;
-        if (isset($jump[$landed])) { $lastHazard[$id] = [$landed, $jump[$landed]]; $landed = $jump[$landed]; }
+        if (isset($jump[$landed])) {
+            $lastHazard[$id] = [$landed, $jump[$landed]];
+            if ($jump[$landed] < $landed) $snakeHits[$id] = ($snakeHits[$id] ?? 0) + 1;   // a snake sends you backwards
+            $landed = $jump[$landed];
+        }
         $pos[$id] = $landed; $arrival[$id] = $step;
         if ($pos[$id] === $len && $winner === null) { $winner = $id; $winRound = (int)substr($r['round'], 1); }
     }
-    return compact('len', 'jump', 'pos', 'winner', 'winRound', 'arrival', 'lastHazard');
+    return compact('len', 'jump', 'pos', 'winner', 'winRound', 'arrival', 'lastHazard', 'snakeHits');
 }
 
 /** Is the latest round fully recorded? [allDone, roundNum, totalHeats, doneHeats] */

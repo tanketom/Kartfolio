@@ -180,6 +180,19 @@ try {
     try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN h2h_npc_weight FLOAT DEFAULT 0.25"); }
     catch (PDOException $e) {}
 
+    // Final placements per archived season — snapshotted at archive time (and
+    // backfilled once for seasons archived before the table existed). Reading
+    // this is one query; recomputing five seasons' standings on every page
+    // load was ~18. Immutable by design (§8): history must not shift.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS season_placements (
+        season_id TEXT NOT NULL,
+        racer_id  INTEGER NOT NULL,
+        place     INTEGER NOT NULL,
+        field     INTEGER NOT NULL,
+        snapshotted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (season_id, racer_id)
+    )");
+
     // Blue Shell / Hard Mode / Form knobs.
     foreach ([
         "bs_rate FLOAT DEFAULT 0.10", "bs_cap FLOAT DEFAULT 2.0",

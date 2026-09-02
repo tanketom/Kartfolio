@@ -13,6 +13,16 @@ CREATE TABLE IF NOT EXISTS racers (
     in_mikkoliiga BOOLEAN DEFAULT 0
 );
 
+-- Final placements per archived season, snapshotted at archive time. Immutable.
+CREATE TABLE IF NOT EXISTS season_placements (
+    season_id TEXT NOT NULL,
+    racer_id  INTEGER NOT NULL,
+    place     INTEGER NOT NULL,
+    field     INTEGER NOT NULL,
+    snapshotted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (season_id, racer_id)
+);
+
 -- Mikkoliiga membership snapshot — captured per-season at archive time so
 -- historical standings stay stable even if a member toggles their flag later.
 CREATE TABLE IF NOT EXISTS mikkoliiga_membership (

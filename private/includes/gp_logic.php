@@ -2789,3 +2789,74 @@ function tieExplainForm($pdo, $season_id, $rules, $a, $b): string {
     if ($la != $lb) return sprintf('Level on form · %s ahead on most recent GP: %d vs %d', $a['name'], $la, $lb);
     return 'Level on form and latest GP · ordered alphabetically';
 }
+
+// ============================================================================
+// SEASON PLACEMENTS — one ranking per season, shared by badges (On the Up,
+// From the Back) and anything else that needs "where did X finish". Gated by
+// racerQualifies() and sorted through the registry, so it can never disagree
+// with the homepage standings. Cached per request; reads the season cache.
+// ============================================================================
+
+/** id => name, once per request. */
+function racerNamesMap(PDO $pdo): array {
+    static $map = null;
+    if ($map === null) $map = $pdo->query("SELECT id, name FROM racers")->fetchAll(PDO::FETCH_KEY_PAIR);
+    return $map;
+}
+
+/** ['place' => [racer_id => 1-based placement among qualifiers], 'field' => qualifier count] */
+function seasonPlacements(PDO $pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+    $rules = getSeasonRules($pdo, $season_id);
+    $names = racerNamesMap($pdo);
+    $rows  = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rrows) {
+        if (!racerQualifies(count($rrows), $rules)) continue;
+        $rows[] = ['id' => (int)$rid, 'name' => (string)($names[$rid] ?? ''), 'score' => calculateGPScore($pdo, (int)$rid, $season_id)];
+    }
+    sortStandingsByScoring($rows, $rules['scoring_system'] ?? 'average_attendance', $pdo, $season_id);
+    $place = [];
+    foreach ($rows as $i => $r) $place[$r['id']] = $i + 1;
+    return $cache[$season_id] = ['place' => $place, 'field' => count($rows)];
+}
+
+/**
+ * Freeze a season's final placements. Called when a season is archived (next
+ * to snapshotMikkoliigaMembership); safe to re-run — it replaces the season's
+ * rows, so re-opening and re-archiving recomputes. Returns rows written.
+ */
+function snapshotSeasonPlacements(PDO $pdo, string $season_id): int {
+    $sp = seasonPlacements($pdo, $season_id);
+    $pdo->prepare("DELETE FROM season_placements WHERE season_id = ?")->execute([$season_id]);
+    $ins = $pdo->prepare("INSERT INTO season_placements (season_id, racer_id, place, field) VALUES (?, ?, ?, ?)");
+    foreach ($sp['place'] as $rid => $p) $ins->execute([$season_id, (int)$rid, (int)$p, (int)$sp['field']]);
+    return count($sp['place']);
+}
+
+/**
+ * Placements for every ARCHIVED season, from the snapshot table — one query.
+ * Any archived season with no snapshot yet (archived before the table
+ * existed) is computed and written once, here, so the cost is paid a single
+ * time rather than on every page load.
+ * Returns racer_id => [[season_id, place, field], ...] in season order.
+ */
+function archivedSeasonPlacements(PDO $pdo): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $archived = $pdo->query("SELECT season_id FROM season_meta WHERE status = 'archived' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $have = $pdo->query("SELECT DISTINCT season_id FROM season_placements")->fetchAll(PDO::FETCH_COLUMN);
+    foreach (array_diff($archived, $have) as $missing) {
+        try { snapshotSeasonPlacements($pdo, $missing); } catch (PDOException $e) { /* read-only DB etc. — fall through, recompute below */ }
+    }
+
+    $out = [];
+    $rows = $pdo->query("
+        SELECT p.season_id, p.racer_id, p.place, p.field
+        FROM season_placements p JOIN season_meta m ON m.season_id = p.season_id
+        WHERE m.status = 'archived'
+        ORDER BY p.season_id ASC, p.place ASC")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $r) $out[(int)$r['racer_id']][] = [$r['season_id'], (int)$r['place'], (int)$r['field']];
+    return $cache = $out;
+}

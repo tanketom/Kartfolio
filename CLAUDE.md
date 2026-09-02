@@ -539,6 +539,12 @@ Cross-reference if you find half-implemented work:
 - **Badge icons deduplicated** — 84 badges, 84 distinct emoji. Keep it that
   way: the inventory script in this session's history greps `'icon' =>` in
   `badges.php` + `badges_overview.php` and reports collisions
+- **Seven more badges** — On the Up / From the Back (from the new
+  `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
+  cached — the one ranking pages should use for "where did X finish"),
+  Purple Patch, Constructor, Fantasy Champion, Bracket Buster, Snake Bitten
+  (`snlReplay()` now returns `snakeHits`). The last four are empty until
+  teams/fantasy/tournaments have data
 
 ## When in doubt
 
