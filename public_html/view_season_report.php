@@ -117,34 +117,8 @@ function calculateGPScoreUpTo($pdo, $racer_id, $season_id, $date) {
     $exact = progressiveScoreFromRows($scoringSystem, $results, $rules);
     if ($exact !== null) return $exact;
 
-    if ($scoringSystem === 'average_attendance') {
-        $attWeight = $rules['attendance_weight'] ?? 1.0;
-        $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-        $dropRate = $rules['drop_rate'] ?? 10;
-
-        $numToDrop = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-        $pointsOnly = array_column($results, 'gp_points');
-        $filteredPoints = array_slice($pointsOnly, $numToDrop);
-        $average = (count($filteredPoints) > 0) ? array_sum($filteredPoints) / count($filteredPoints) : 0;
-
-        $attendanceBonus = 0;
-        $weeklyTracker = [];
-        foreach ($results as $res) {
-            $weekKey = date('Y-W', strtotime($res['race_date']));
-            if (!isset($weeklyTracker[$weekKey])) $weeklyTracker[$weekKey] = 0;
-            if ($weeklyTracker[$weekKey] < $weeklyCap) {
-                $attendanceBonus += $attWeight;
-                $weeklyTracker[$weekKey] += $attWeight;
-            }
-        }
-
-        return round($average + $attendanceBonus, 2);
-    } elseif ($scoringSystem === 'preseason') {
-        $numToDrop = floor($totalRaces * 0.1);
-        $pointsOnly = array_column($results, 'gp_points');
-        $filteredPoints = array_slice($pointsOnly, $numToDrop);
-        return round(array_sum($filteredPoints) / count($filteredPoints), 2);
-    } else {
+    // Average+Attendance and Pre-Season replay exactly through the helper above.
+    {
         // Cup-, Elo- and field-dependent systems can't be replayed from one
         // racer's rows: show a plain points average and SAY SO on the page.
         $GLOBALS['progressionApprox'] = true;

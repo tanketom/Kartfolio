@@ -55,38 +55,20 @@ foreach ($racers as $racer) {
     ];
 
     if ($scoringSystem === 'average_attendance') {
-        $dropRate = $rules['drop_rate'] ?? 10;
-        $numToDrop = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-        $entry['num_dropped'] = $numToDrop;
-        $entry['dropped'] = array_slice($gps, 0, $numToDrop);
-        $entry['counted'] = array_slice($gps, $numToDrop);
-
-        // Attendance bonus
-        $attWeight = $rules['attendance_weight'] ?? 1.0;
-        $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-        $weeklyTracker = [];
-        $attBonus = 0;
-        foreach ($gps as $g) {
-            $wk = date('Y-W', strtotime($g['race_date']));
-            if (!isset($weeklyTracker[$wk])) $weeklyTracker[$wk] = 0;
-            if ($weeklyTracker[$wk] < $weeklyCap) {
-                $attBonus += $attWeight;
-                $weeklyTracker[$wk] += $attWeight;
-            }
-        }
-        $countedPoints = array_column($entry['counted'], 'gp_points');
-        $avg = count($countedPoints) > 0 ? array_sum($countedPoints) / count($countedPoints) : 0;
-        $entry['average'] = round($avg, 2);
-        $entry['attendance_bonus'] = round($attBonus, 2);
+        // The one formula (gp_logic aaFromRows) — dropped/counted rows and the
+        // two components the page explains.
+        $aa = aaFromRows($gps, $rules);
+        $entry['num_dropped']      = $aa['num_dropped'];
+        $entry['dropped']          = $aa['dropped'];
+        $entry['counted']          = $aa['counted'];
+        $entry['average']          = round($aa['avg'], 2);
+        $entry['attendance_bonus'] = round($aa['att'], 2);
     } elseif ($scoringSystem === 'preseason') {
-        $dropRate = $rules['drop_rate'] ?? 10;
-        $numToDrop = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-        $entry['num_dropped'] = $numToDrop;
-        $entry['dropped'] = array_slice($gps, 0, $numToDrop);
-        $entry['counted'] = array_slice($gps, $numToDrop);
-        $countedPoints = array_column($entry['counted'], 'gp_points');
-        $avg = count($countedPoints) > 0 ? array_sum($countedPoints) / count($countedPoints) : 0;
-        $entry['average'] = round($avg, 2);
+        $ps = preseasonFromRows($gps);
+        $entry['num_dropped'] = $ps['num_dropped'];
+        $entry['dropped']     = $ps['dropped'];
+        $entry['counted']     = $ps['counted'];
+        $entry['average']     = round($ps['avg'], 2);
     } elseif ($scoringSystem === 'top_12_unique') {
         // Best score per cup, top 12
         // Best per cup off the season cache — this was 24 MAX() queries per racer.

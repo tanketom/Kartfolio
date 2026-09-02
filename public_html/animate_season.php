@@ -112,6 +112,7 @@ if (isset($_GET['data'])) {
                 case 'positional_points':
                 case 'median':
                 case 'form':
+                case 'preseason':
                     // Exact replays from the racer's own rows (gp_logic).
                     $score = progressiveScoreFromRows($scoringSystem, $racerRowsSoFar, $rules);
                     break;
@@ -123,47 +124,13 @@ if (isset($_GET['data'])) {
                     $score = array_sum($top12);
                     break;
 
-                case 'preseason':
-                    sort($racerPointsSoFar);
-                    $numToDrop = floor($totalRaces * 0.1);
-                    $filtered = array_slice($racerPointsSoFar, $numToDrop);
-                    $score = count($filtered) > 0 ? round(array_sum($filtered) / count($filtered), 2) : 0;
-                    break;
-
                 case 'average_attendance':
                 default:
                     // Any other system lands here as an APPROXIMATION — the
                     // payload carries 'approximate' so the page can say so.
-                    $attWeight = $rules['attendance_weight'] ?? 1.0;
-                    $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
                     $threshold = $rules['min_races_threshold'] ?? 3;
-                    $dropRate  = $rules['drop_rate'] ?? 10;
-
-                    // Check threshold
-                    if ($threshold > 0 && $totalRaces < $threshold) {
-                        $score = 0;
-                        break;
-                    }
-
-                    // Drop worst
-                    sort($racerPointsSoFar);
-                    $numToDrop = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-                    $filtered = array_slice($racerPointsSoFar, $numToDrop);
-                    $average = count($filtered) > 0 ? array_sum($filtered) / count($filtered) : 0;
-
-                    // Attendance bonus
-                    $attendanceBonus = 0;
-                    $weeklyTracker = [];
-                    foreach ($racerDatesSoFar as $date) {
-                        $weekKey = date('Y-W', strtotime($date));
-                        if (!isset($weeklyTracker[$weekKey])) $weeklyTracker[$weekKey] = 0;
-                        if ($weeklyTracker[$weekKey] < $weeklyCap) {
-                            $attendanceBonus += $attWeight;
-                            $weeklyTracker[$weekKey] += $attWeight;
-                        }
-                    }
-
-                    $score = round($average + $attendanceBonus, 2);
+                    if ($threshold > 0 && $totalRaces < $threshold) { $score = 0; break; }
+                    $score = aaFromRows($racerRowsSoFar, $rules)['score'];
                     break;
             }
 

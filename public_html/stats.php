@@ -121,48 +121,24 @@ foreach ($all_racers as $racer) {
 
         if ($count > 0) {
             $pointsOnly = array_column($running_bag, 'points');
+            $bagRows    = array_map(fn($e) => ['gp_points' => $e['points'], 'race_date' => $e['date'], 'rank' => $e['rank'], 'id' => $e['id']], $running_bag);
 
             switch ($scoringSystem) {
+                case 'average_attendance':
+                case 'preseason':
                 case 'positional_points':
                 case 'median':
                 case 'form':
                     // Exact replays from the racer's own rows (gp_logic).
-                    $chart_points[] = progressiveScoreFromRows($scoringSystem, array_map(fn($e) => ['gp_points' => $e['points'], 'race_date' => $e['date'], 'rank' => $e['rank'], 'id' => $e['id']], $running_bag), $rules);
+                    $chart_points[] = progressiveScoreFromRows($scoringSystem, $bagRows, $rules);
                     break;
 
-                case 'average_attendance':
                 default:
-                    // Average + attendance bonus. For a system with no replay
-                    // branch this is an APPROXIMATION and the subtitle says so
-                    // ($chartApprox) — it used to be silently labelled as the
+                    // No replay for this system — a GPScore™-style
+                    // Average+Attendance APPROXIMATION; the subtitle says so
+                    // ($chartApprox). It used to be silently labelled as the
                     // season's real system.
-                    // Average + attendance bonus
-                    $numToDrop = ($dropRate > 0) ? floor($count / $dropRate) : 0;
-                    $sorted = $pointsOnly;
-                    sort($sorted);
-                    $filtered = array_slice($sorted, $numToDrop);
-                    $avg = (count($filtered) > 0) ? array_sum($filtered) / count($filtered) : 0;
-
-                    $attBonus = 0;
-                    $weeklyTracker = [];
-                    foreach ($running_bag as $entry) {
-                        $weekKey = date('Y-W', strtotime($entry['date']));
-                        if (!isset($weeklyTracker[$weekKey])) $weeklyTracker[$weekKey] = 0;
-                        if ($weeklyTracker[$weekKey] < $weeklyCap) {
-                            $attBonus += $attWeight;
-                            $weeklyTracker[$weekKey] += $attWeight;
-                        }
-                    }
-                    $chart_points[] = round($avg + $attBonus, 2);
-                    break;
-
-                case 'preseason':
-                    // Simple average with 10% drop
-                    $sorted = $pointsOnly;
-                    sort($sorted);
-                    $numToDrop = floor($count * 0.1);
-                    $filtered = array_slice($sorted, $numToDrop);
-                    $chart_points[] = round(array_sum($filtered) / count($filtered), 2);
+                    $chart_points[] = aaFromRows($bagRows, $rules)['score'];
                     break;
 
                 case 'best_n_gps':

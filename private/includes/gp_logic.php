@@ -331,72 +331,75 @@ function calculateGPScore($pdo, $racer_id, $season_id) {
  * Legacy System: Average + Attendance
  * (Average of scores after drops) + (Attendance bonus capped per week)
  */
-function calculateAverageAttendanceScore($pdo, $racer_id, $season_id, $rules) {
-    // Default Fallbacks if rules aren't set yet
-    $attWeight = $rules['attendance_weight'] ?? 1.0;
-    $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-    $threshold = $rules['min_races_threshold'] ?? 3;
-    $dropRate  = $rules['drop_rate'] ?? 10;
+// ============================================================================
+// AVERAGE + ATTENDANCE (GPScore™) and PRE-SEASON — the formulas, once.
+// Pure functions of a row bag (gp_points, race_date, id): drop the worst
+// floor(n / drop_rate) GPs, average the rest, add a weekly-capped attendance
+// bonus. The live calculator, the breakdown, previous-standings and every
+// season-replay page (stats chart, season report, animate) call these. They
+// used to be seven copies of the same 25 lines.
+// ============================================================================
 
-    // All race results for this racer in this season, from the shared
-    // per-request cache (gp_points ASC). Tournament gpids never enter the
-    // cache because the season prefix filter only matches 's%' gpids.
-    $results = getRacerSeasonRows($pdo, $racer_id, $season_id);
-
-    $totalRaces = count($results);
-
-    // Ranking Threshold: Return 0 if they haven't raced enough
-    if ($threshold > 0 && $totalRaces < $threshold) {
-        return 0;
-    }
-
-    // Drop Logic (Worst scores removed)
-    $numToDrop = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-
-    // Extract points and slice off the lowest ones
-    $pointsOnly = array_column($results, 'gp_points');
-    $filteredPoints = array_slice($pointsOnly, $numToDrop);
-
-    // Calculate Average
-    $average = (count($filteredPoints) > 0) ? array_sum($filteredPoints) / count($filteredPoints) : 0;
-
-    // Attendance Bonus with Weekly Cap
-    $attendanceBonus = 0;
-    $weeklyTracker = [];
-
-    foreach ($results as $res) {
-        $weekKey = date('Y-W', strtotime($res['race_date']));
-
-        if (!isset($weeklyTracker[$weekKey])) {
-            $weeklyTracker[$weekKey] = 0;
-        }
-
-        if ($weeklyTracker[$weekKey] < $weeklyCap) {
-            $attendanceBonus += $attWeight;
-            $weeklyTracker[$weekKey] += $attWeight;
-        }
-    }
-
-    return round($average + $attendanceBonus, 2);
+/** Rows in drop order: gp_points ASC, then id ASC (the season cache's order). */
+function aaSortRows(array $rows): array {
+    usort($rows, fn($a, $b) => ((int)$a['gp_points'] <=> (int)$b['gp_points']) ?: ((int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0)));
+    return $rows;
 }
 
 /**
- * Pre-Season System: Simple Average with 10% Drop
- * Used between official seasons for casual play
+ * ['score' (rounded 2dp), 'avg', 'att' (both unrounded), 'total',
+ *  'num_dropped', 'dropped' => rows, 'counted' => rows]
  */
+function aaFromRows(array $rows, array $rules): array {
+    $attWeight = $rules['attendance_weight'] ?? 1.0;
+    $weeklyCap = $rules['weekly_bonus_cap']  ?? 2;
+    $dropRate  = $rules['drop_rate']         ?? 10;
+
+    $rows      = aaSortRows($rows);
+    $n         = count($rows);
+    $numToDrop = ($dropRate > 0) ? (int)floor($n / $dropRate) : 0;
+    $dropped   = array_slice($rows, 0, $numToDrop);
+    $counted   = array_slice($rows, $numToDrop);
+    $pts       = array_column($counted, 'gp_points');
+    $avg       = $pts ? array_sum($pts) / count($pts) : 0;
+
+    // Attendance bonus with a weekly cap (order-independent).
+    $att = 0; $weekly = [];
+    foreach ($rows as $r) {
+        $wk = date('Y-W', strtotime($r['race_date']));
+        $weekly[$wk] = $weekly[$wk] ?? 0;
+        if ($weekly[$wk] < $weeklyCap) { $att += $attWeight; $weekly[$wk] += $attWeight; }
+    }
+    return ['score' => round($avg + $att, 2), 'avg' => $avg, 'att' => $att, 'total' => $n,
+            'num_dropped' => $numToDrop, 'dropped' => $dropped, 'counted' => $counted];
+}
+
+/** Pre-Season: drop the worst 10 % (rounded down), plain average. Same keys as aaFromRows minus 'att'. */
+function preseasonFromRows(array $rows): array {
+    $rows      = aaSortRows($rows);
+    $n         = count($rows);
+    $numToDrop = (int)floor($n * 0.1);
+    $dropped   = array_slice($rows, 0, $numToDrop);
+    $counted   = array_slice($rows, $numToDrop);
+    $pts       = array_column($counted, 'gp_points');
+    $avg       = $pts ? array_sum($pts) / count($pts) : 0;
+    return ['score' => round($avg, 2), 'avg' => $avg, 'total' => $n,
+            'num_dropped' => $numToDrop, 'dropped' => $dropped, 'counted' => $counted];
+}
+
+function calculateAverageAttendanceScore($pdo, $racer_id, $season_id, $rules) {
+    $threshold = $rules['min_races_threshold'] ?? 3;
+    // Tournament gpids never enter the season cache (prefix filter is 's%').
+    $results = getRacerSeasonRows($pdo, $racer_id, $season_id);
+    // Ranking threshold: 0 until they've raced enough.
+    if ($threshold > 0 && count($results) < $threshold) return 0;
+    return aaFromRows($results, (array)$rules)['score'];
+}
+
 function calculatePreSeasonScore($pdo, $racer_id, $season_id, $rules) {
-    // All GP points for this racer, ASC, from the shared per-request cache.
-    $results = array_column(getRacerSeasonRows($pdo, $racer_id, $season_id), 'gp_points');
-
-    $totalRaces = count($results);
-    if ($totalRaces === 0) return 0;
-
-    // Drop 10% of worst scores (rounded down)
-    $numToDrop = floor($totalRaces * 0.1);
-    $filteredPoints = array_slice($results, $numToDrop);
-
-    // Return average
-    return round(array_sum($filteredPoints) / count($filteredPoints), 2);
+    $rows = getRacerSeasonRows($pdo, $racer_id, $season_id);
+    if (!$rows) return 0;
+    return preseasonFromRows($rows)['score'];
 }
 
 /**
@@ -1698,36 +1701,22 @@ function tooltipHeadToHead(array $c, $score): string {
 // ── Breakdown helpers (registry-referenced) ──────────────────────────────
 
 function breakdownAverageAttendance($pdo, $racer_id, $season_id, $rules) {
-    $attWeight = $rules['attendance_weight'] ?? 1.0;
-    $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-    $dropRate  = $rules['drop_rate'] ?? 10;
-    $aaResults = getRacerSeasonRows($pdo, $racer_id, $season_id);
-    $totalRaces = count($aaResults);
-    $numDropped = ($dropRate > 0) ? floor($totalRaces / $dropRate) : 0;
-    $filtered = array_slice(array_column($aaResults, 'gp_points'), $numDropped);
-    $avg = count($filtered) > 0 ? round(array_sum($filtered) / count($filtered), 2) : 0;
-    $att = 0; $weeklyTracker = [];
-    foreach ($aaResults as $res) {
-        $wk = date('Y-W', strtotime($res['race_date']));
-        if (!isset($weeklyTracker[$wk])) $weeklyTracker[$wk] = 0;
-        if ($weeklyTracker[$wk] < $weeklyCap) { $att += $attWeight; $weeklyTracker[$wk] += $attWeight; }
-    }
+    $aa = aaFromRows(getRacerSeasonRows($pdo, $racer_id, $season_id), (array)$rules);
     return [
-        'total_races'   => $totalRaces,
-        'races_counted' => $totalRaces - $numDropped,
-        'races_dropped' => $numDropped,
-        'avg'           => $avg,
-        'att'           => round($att, 2),
+        'total_races'   => $aa['total'],
+        'races_counted' => $aa['total'] - $aa['num_dropped'],
+        'races_dropped' => $aa['num_dropped'],
+        'avg'           => $aa['counted'] ? round($aa['avg'], 2) : 0,
+        'att'           => round($aa['att'], 2),
     ];
 }
 
 function breakdownPreseason($pdo, $racer_id, $season_id, $rules) {
-    $psTotalRaces = count(getRacerSeasonRows($pdo, $racer_id, $season_id));
-    $psDropped = floor($psTotalRaces * 0.1);
+    $ps = preseasonFromRows(getRacerSeasonRows($pdo, $racer_id, $season_id));
     return [
-        'total_races'   => $psTotalRaces,
-        'races_counted' => $psTotalRaces - $psDropped,
-        'races_dropped' => $psDropped,
+        'total_races'   => $ps['total'],
+        'races_counted' => $ps['total'] - $ps['num_dropped'],
+        'races_dropped' => $ps['num_dropped'],
     ];
 }
 
@@ -2283,29 +2272,15 @@ function calculatePreviousStandings($pdo, $season_id, $latestDate, $rules = []) 
     $prevDate = $stmt->fetchColumn();
     if (!$prevDate) return [];
 
-    $attWeight = $rules['attendance_weight'] ?? 1.0;
-    $weeklyCap = $rules['weekly_bonus_cap']  ?? 2;
-    $dropRate  = $rules['drop_rate']         ?? 10;
-
-    // The shared season cache holds every row with race_date; filtering in
-    // PHP replaces the old one-query-per-racer loop. Cache order is
-    // gp_points ASC, which is exactly what the drop logic below needs.
+    // The shared season cache holds every row with race_date; filter in PHP
+    // to the rows that existed before the latest race night and score them
+    // with the one formula (unrounded, for ranking).
     $temp = [];
     foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $allRows) {
         $rows = array_values(array_filter($allRows, fn($r) => $r['race_date'] <= $prevDate));
         if (empty($rows)) continue;
-
-        $numToDrop = $dropRate > 0 ? (int)floor(count($rows) / $dropRate) : 0;
-        $filtered  = array_slice(array_column($rows, 'gp_points'), $numToDrop);
-        $average   = $filtered ? array_sum($filtered) / count($filtered) : 0;
-
-        $bonus = 0; $weekly = [];
-        foreach ($rows as $row) {
-            $wk = date('Y-W', strtotime($row['race_date']));
-            $weekly[$wk] = $weekly[$wk] ?? 0;
-            if ($weekly[$wk] < $weeklyCap) { $bonus += $attWeight; $weekly[$wk] += $attWeight; }
-        }
-        $temp[] = ['id' => $rid, 'score' => $average + $bonus];
+        $aa = aaFromRows($rows, (array)$rules);
+        $temp[] = ['id' => $rid, 'score' => $aa['avg'] + $aa['att']];
     }
 
     // Equal scores tie-break by racer id ASC — the order the old per-racer
@@ -2937,6 +2912,10 @@ function progressiveScoreFromRows(string $system, array $rows, array $rules): ?f
                     return (float)array_sum(array_slice($pts, 0, $n));
             }
         }
+        case 'average_attendance':
+            return aaFromRows($rows, $rules)['score'];
+        case 'preseason':
+            return $rows ? preseasonFromRows($rows)['score'] : 0.0;
         case 'median':
             return round(medianOf(array_map(fn($r) => (int)$r['gp_points'], $rows)), 1);
         case 'form': {
