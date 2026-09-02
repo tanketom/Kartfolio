@@ -295,7 +295,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                 </p>
                 <?php $posOrdinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th']; ?>
                 <div class="scr-pos-ladder">
-                    <?php foreach (POSITIONAL_POINTS_SCALE as $i => $pts): ?>
+                    <?php foreach (MK_POINTS_SCALE as $i => $pts): ?>
                         <div class="scr-pos-rung<?= $i === 0 ? ' scr-pos-rung--win' : '' ?>">
                             <span class="scr-pos-place"><?= $posOrdinals[$i] ?? ($i + 1) ?></span>
                             <span class="scr-pos-pts"><?= $pts ?></span>
@@ -440,7 +440,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
             <div class="scr-pos-counts">
                 <?php foreach ($pos['pos_counts'] as $place => $n): if ($n === 0) continue; ?>
                     <span class="scr-pos-count<?= $place === 1 ? ' scr-pos-count--win' : '' ?>"
-                          title="<?= $n ?>× <?= $ords[$place-1] ?? $place ?> place @ <?= POSITIONAL_POINTS_SCALE[$place-1] ?? 0 ?> pts">
+                          title="<?= $n ?>× <?= $ords[$place-1] ?? $place ?> place @ <?= MK_POINTS_SCALE[$place-1] ?? 0 ?> pts">
                         <?= $n ?>× <?= $ords[$place - 1] ?? $place ?>
                     </span>
                 <?php endforeach; ?>

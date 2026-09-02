@@ -47,19 +47,6 @@ CREATE INDEX IF NOT EXISTS idx_track_pref_voter  ON track_preferences(voter_id, 
 CREATE INDEX IF NOT EXISTS idx_track_pref_winner ON track_preferences(winner_track);
 CREATE INDEX IF NOT EXISTS idx_track_pref_loser  ON track_preferences(loser_track);
 
--- AI-generated coaching reports per racer. Kept as a history (id PK), with
--- the latest = most recent generated_at. Generation is throttled.
-CREATE TABLE IF NOT EXISTS coaching_reports (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    racer_id INTEGER NOT NULL,
-    body TEXT NOT NULL,
-    model_used TEXT,
-    season_id TEXT,
-    generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (racer_id) REFERENCES racers(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_coaching_reports_racer ON coaching_reports(racer_id, generated_at DESC);
-
 -- GP Results
 CREATE TABLE IF NOT EXISTS results (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -151,13 +138,6 @@ CREATE TABLE IF NOT EXISTS gp_stories (
     story_text TEXT NOT NULL,
     story_data TEXT DEFAULT NULL,
     generated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Cup Picker History
-CREATE TABLE IF NOT EXISTS cup_picks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cup_name TEXT NOT NULL,
-    picked_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Season Awards

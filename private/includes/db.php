@@ -89,18 +89,8 @@ try {
         FOREIGN KEY (racer_id) REFERENCES racers(id) ON DELETE CASCADE
     )");
 
-    // Coaching reports — AI-generated personalised "what to work on" notes
-    // per racer. History kept; latest is the most recent generated_at.
-    $pdo->exec("CREATE TABLE IF NOT EXISTS coaching_reports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        racer_id INTEGER NOT NULL,
-        body TEXT NOT NULL,
-        model_used TEXT,
-        season_id TEXT,
-        generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (racer_id) REFERENCES racers(id) ON DELETE CASCADE
-    )");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_coaching_reports_racer ON coaching_reports(racer_id, generated_at DESC)");
+    // (coaching_reports is no longer created — the feature was retired and
+    // nothing reads or writes the table; an existing install keeps its rows.)
 
     // Fantasy bets — confidence picker (1 light, 2 medium, 3 lock). Default 1
     // so legacy bets continue scoring at base × 1 = unchanged.

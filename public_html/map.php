@@ -49,7 +49,6 @@ $sections = [
         ['/predictions',       '🔮', 'Crystal Ball',            'Monte Carlo simulations of the current season — championship probabilities.'],
         ['/scoring-systems',   '🧮', 'Scoring systems catalog', 'Descriptive reference for every scoring system the platform ships with — what each one rewards and how it tunes.'],
         ['/scoring',           '🔢', 'Current-season scoring',  'Live breakdown of how the active season\'s standings are computed under its scoring system.'],
-        ['/compare',           '⚖️', 'Compare',                 'Head-to-head comparison between any two racers — career, season, badges, character usage.'],
     ],
 
     'Per-racer profiles' => [

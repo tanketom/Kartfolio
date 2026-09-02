@@ -584,16 +584,17 @@ document.addEventListener('keydown', function(e) {
     $scoreB = calculateGPScore($pdo, $racerB, $currentSeason);
 
     // --- Cup-by-cup comparison ---
+    // Career best per cup for both racers in ONE grouped query (this was
+    // 24 MAX() queries per racer). Career-wide, so the season cache doesn't apply.
     $allCups = getMK8DCups();
     $cupComparison = [];
+    $cupBest = [];   // racer_id => cup => best
+    $cupQ = $pdo->prepare("SELECT racer_id, cup_name, MAX(gp_points) AS best FROM results WHERE racer_id IN (?, ?) AND gpid LIKE 's%' AND cup_name IS NOT NULL GROUP BY racer_id, cup_name");
+    $cupQ->execute([$racerA, $racerB]);
+    foreach ($cupQ->fetchAll(PDO::FETCH_ASSOC) as $r) $cupBest[(int)$r['racer_id']][$r['cup_name']] = (int)$r['best'];
     foreach ($allCups as $cupName) {
-        $cupQ = $pdo->prepare("SELECT MAX(gp_points) as best FROM results WHERE racer_id = ? AND gpid LIKE 's%' AND cup_name = ?");
-        $cupQ->execute([$racerA, $cupName]);
-        $bestA = (int)($cupQ->fetch(PDO::FETCH_ASSOC)['best'] ?? 0);
-
-        $cupQ->execute([$racerB, $cupName]);
-        $bestB = (int)($cupQ->fetch(PDO::FETCH_ASSOC)['best'] ?? 0);
-
+        $bestA = $cupBest[(int)$racerA][$cupName] ?? 0;
+        $bestB = $cupBest[(int)$racerB][$cupName] ?? 0;
         if ($bestA > 0 || $bestB > 0) {
             $cupComparison[$cupName] = ['a' => $bestA, 'b' => $bestB];
         }

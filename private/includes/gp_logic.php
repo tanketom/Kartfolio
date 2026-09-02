@@ -1070,11 +1070,12 @@ function breakdownParimutuel($pdo, $racer_id, $season_id, $rules) {
 // min_races_threshold gate (qualifies_by_threshold = true).
 // ============================================================================
 
-const POSITIONAL_POINTS_SCALE = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+/** The canonical Mario Kart 12-place points ladder — Positional Points and Mikkoliiga both rank on it. */
+const MK_POINTS_SCALE = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 
-/** Positional points for a 1-based finish rank. 0 past the scale. */
-function positionalPointsForRank(int $rank): int {
-    return POSITIONAL_POINTS_SCALE[$rank - 1] ?? 0;
+/** Points for a finishing place on MK_POINTS_SCALE (0 beyond 12th). */
+function mkPointsForRank(int $rank): int {
+    return MK_POINTS_SCALE[$rank - 1] ?? 0;
 }
 
 /**
@@ -1089,7 +1090,7 @@ function positionalPointsRaw(PDO $pdo, int $racer_id, string $season_id): array 
 
     $perGP = [];
     foreach (getRacerSeasonRows($pdo, $racer_id, $season_id) as $row) {
-        $perGP[$row['gpid']] = positionalPointsForRank((int)$row['rank']);
+        $perGP[$row['gpid']] = mkPointsForRank((int)$row['rank']);
     }
     $sorted = array_values($perGP);
     rsort($sorted); // best nights first, for best-N
@@ -1119,7 +1120,7 @@ function breakdownPositional($pdo, $racer_id, $season_id, $rules) {
     $vals = $raw['sorted_desc'];
     $wins = 0;
     foreach ($raw['per_gp'] as $pts) {
-        if ($pts === POSITIONAL_POINTS_SCALE[0]) $wins++; // top of the ladder = a GP win
+        if ($pts === MK_POINTS_SCALE[0]) $wins++; // top of the ladder = a GP win
     }
     $mode     = $rules['pos_mode'] ?? 'best_n';
     $bestN    = (int)($rules['best_n_count'] ?? 15);
@@ -1155,7 +1156,7 @@ function positionalPointsDetail(PDO $pdo, int $racer_id, string $season_id, arra
             'date' => $r['race_date'],
             'cup'  => $r['cup_name'] ?? '',
             'rank' => $rank,
-            'pts'  => positionalPointsForRank($rank),
+            'pts'  => mkPointsForRank($rank),
         ];
     }
     usort($rows, function ($a, $b) {
@@ -1169,7 +1170,7 @@ function positionalPointsDetail(PDO $pdo, int $racer_id, string $season_id, arra
     if ($n < 1) $n = 15;
     $countedCount = ($mode === 'best_n') ? min($n, count($rows)) : count($rows);
 
-    $posCounts = array_fill(1, count(POSITIONAL_POINTS_SCALE), 0);
+    $posCounts = array_fill(1, count(MK_POINTS_SCALE), 0);
     foreach ($rows as $i => &$row) {
         $row['counted'] = $i < $countedCount;
         if (isset($posCounts[$row['rank']])) $posCounts[$row['rank']]++;
@@ -1248,8 +1249,8 @@ function sortStandingsPositional(array &$standings, PDO $pdo, string $season_id)
 // grid below compares against the other humans' actual ranks instead.
 // ============================================================================
 
-/** Karts on a Mario Kart grid — humans plus CPU fillers. Same as ELO_FIELD_SIZE. */
-const MK_FIELD_SIZE = 12;
+/** Karts on a Mario Kart grid — humans plus CPU fillers. Shared with elo_engine.php (which guards the same define). */
+if (!defined('ELO_FIELD_SIZE')) define('ELO_FIELD_SIZE', 12);
 
 /** NPC weight for seasons that predate the knob. */
 const H2H_NPC_WEIGHT_DEFAULT = 0.25;
@@ -1300,7 +1301,7 @@ function headToHeadRaw(PDO $pdo, int $racer_id, string $season_id, ?float $npcWe
             if ($rk > $mine) $hb++; elseif ($rk < $mine) $ha++;
         }
         // Everyone else on the grid is a CPU kart.
-        $nb = max(0, (MK_FIELD_SIZE - $mine) - $hb);
+        $nb = max(0, (ELO_FIELD_SIZE - $mine) - $hb);
         $na = max(0, ($mine - 1) - $ha);
 
         $gpWins = $hb + $w * $nb;
@@ -1357,21 +1358,6 @@ function sortStandingsHeadToHead(array &$standings, PDO $pdo, string $season_id)
         if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
         return strcmp($a['name'], $b['name']);
     });
-}
-
-/**
- * Helper to get the next GPID (e.g., s01-14) based on existing data
- */
-function getNextGPID($pdo) {
-    $stmt = $pdo->query("SELECT gpid FROM results ORDER BY id DESC LIMIT 1");
-    $last = $stmt->fetchColumn();
-    if (!$last) return "s01-01";
-
-    $parts = explode('-', $last);
-    if (count($parts) < 2) return "s01-01";
-
-    $num = (int)$parts[1] + 1;
-    return $parts[0] . "-" . str_pad($num, 2, '0', STR_PAD_LEFT);
 }
 
 /**
@@ -1689,7 +1675,7 @@ function tooltipPositional(array $c, $score): string {
     // win there's no headroom left, so say that instead of "beat 15 pts".
     $cut = (int)($c['cut_line'] ?? 0);
     if ($cut > 0) {
-        $parts[] = $cut >= POSITIONAL_POINTS_SCALE[0]
+        $parts[] = $cut >= MK_POINTS_SCALE[0]
             ? 'every counted night is a win — maxed out'
             : sprintf('beat %d pts to improve on a counted night', $cut);
     }
@@ -1876,17 +1862,11 @@ function getMostUsedCharacter($pdo, $racer_id, $season_id) {
 // season standing is the sum of a member's best MIKKOLIIGA_BEST_X scores.
 // ============================================================================
 
-/** Canonical Mario Kart 12-position points scale. Index 0 = 1st place. */
-const MIKKOLIIGA_POINTS_SCALE = [15, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 
 /** How many of a member's GPs count toward their season total. Drives every
  *  user-visible "best N counted" string too — change here, change everywhere. */
 const MIKKOLIIGA_BEST_X = 10;
 
-/** Internal score for an internal rank (1-based). 0 if past the scale. */
-function mikkoliigaPointsForRank(int $internalRank): int {
-    return MIKKOLIIGA_POINTS_SCALE[$internalRank - 1] ?? 0;
-}
 
 /**
  * Mikkoliiga membership for a season.
@@ -1995,28 +1975,11 @@ function mikkoliigaSeasonPerGP(PDO $pdo, string $season_id): array {
         // empty field and bank a free 15.
         if (count($participants) < 2) continue;
         usort($participants, fn($a, $b) => ($b['pts'] <=> $a['pts']) ?: ($a['rid'] <=> $b['rid']));
-        foreach ($participants as $i => $p) $out[$p['rid']][$gpid] = mikkoliigaPointsForRank($i + 1);
+        foreach ($participants as $i => $p) $out[$p['rid']][$gpid] = mkPointsForRank($i + 1);
     }
     foreach ($out as &$m) ksort($m, SORT_STRING);
     unset($m);
     return $cache[$season_id] = $out;
-}
-
-/**
- * Total Mikkoliiga season score for a racer: sum of best MIKKOLIIGA_BEST_X
- * internal GPs. Returns 0 if the racer isn't a Mikkoliiga member for that
- * season (live flag for active, snapshot for archived).
- */
-function calculateMikkoliigaScore(PDO $pdo, int $racer_id, string $season_id): int {
-    $members = getMikkoliigaMemberIds($pdo, $season_id);
-    if (!isset($members[$racer_id])) return 0;
-
-    $perGP = mikkoliigaScorePerGP($pdo, $racer_id, $season_id);
-    if (empty($perGP)) return 0;
-
-    $scores = array_values($perGP);
-    rsort($scores);
-    return array_sum(array_slice($scores, 0, MIKKOLIIGA_BEST_X));
 }
 
 /**
@@ -2963,7 +2926,7 @@ function racerSeasonGpCount(PDO $pdo, int $racer_id, string $season_id): int {
 function progressiveScoreFromRows(string $system, array $rows, array $rules): ?float {
     switch ($system) {
         case 'positional_points': {
-            $pts = array_map(fn($r) => positionalPointsForRank((int)$r['rank']), $rows);
+            $pts = array_map(fn($r) => mkPointsForRank((int)$r['rank']), $rows);
             if (!$pts) return 0.0;
             rsort($pts);
             switch ($rules['pos_mode'] ?? 'best_n') {
