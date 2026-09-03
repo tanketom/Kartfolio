@@ -15,6 +15,14 @@
 /** A perfect Grand Prix: 4 races × 15 points. The magic number 60 lived in ~30 places. */
 const MK_MAX_GP_POINTS = 60;
 
+/**
+ * Most human players a single Grand Prix can have. MK8 Deluxe raised local
+ * multiplayer from 4 to 8; the AI fills the remaining karts up to the 12-place
+ * finishing field (which is why rank stays 1–12, not 1–8). The add-result form
+ * renders this many racer rows; scoring/Elo already count real participants.
+ */
+const MK_MAX_HUMAN_PLAYERS = 8;
+
 /** 1 → "1st", 2 → "2nd", 11 → "11th", 22 → "22nd". */
 function ordinal(int $n): string {
     if ($n % 100 >= 11 && $n % 100 <= 13) return $n . 'th';

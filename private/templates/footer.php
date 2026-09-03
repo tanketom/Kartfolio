@@ -89,7 +89,7 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
         <div class="cup-racer-panel" id="cup-racer-panel">
             <div class="cup-racer-label">Who's playing?</div>
             <div class="cup-racer-chips" id="cup-racer-chips"></div>
-            <div class="cup-racer-hint">Select 2-4 racers to find a cup most haven't done</div>
+            <div class="cup-racer-hint">Select 2-<?= MK_MAX_HUMAN_PLAYERS ?> racers to find a cup most haven't done</div>
         </div>
 
         <div class="cup-wheel" id="cup-wheel">
@@ -591,7 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cupLogBtn.addEventListener('click', function() {
             if (!cupLastPicked) return;
             // Order racers so the monster (if any) lands in slot 1.
-            // The form has 4 racer rows; we fill 1..N in order.
+            // The form has MK_MAX_HUMAN_PLAYERS racer rows; we fill 1..N in order.
             const ids = cupLastPicked.racerIds.slice();
             if (cupLastPicked.monsterId !== null) {
                 const i = ids.indexOf(cupLastPicked.monsterId);
@@ -599,7 +599,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const params = new URLSearchParams();
             params.set('cup', cupLastPicked.cup);
-            ids.slice(0, 4).forEach((id, i) => params.set('r' + (i + 1), id));
+            ids.slice(0, <?= MK_MAX_HUMAN_PLAYERS ?>).forEach((id, i) => params.set('r' + (i + 1), id));
             if (cupLastPicked.monsterId !== null) {
                 params.set('monster', cupLastPicked.monsterId);
             }
@@ -652,7 +652,7 @@ document.addEventListener('DOMContentLoaded', function() {
             cupSelectedRacers.delete(racerId);
             chip.classList.remove('selected');
         } else {
-            if (cupSelectedRacers.size >= 4) return; // Max 4
+            if (cupSelectedRacers.size >= <?= MK_MAX_HUMAN_PLAYERS ?>) return; // Max MK_MAX_HUMAN_PLAYERS
             cupSelectedRacers.add(racerId);
             chip.classList.add('selected');
         }
@@ -661,7 +661,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (hint) {
             const count = cupSelectedRacers.size;
             if (count === 0) {
-                hint.textContent = 'Select 2\u20134 racers to find a cup most haven\u2019t done';
+                hint.textContent = 'Select 2\u2013<?= MK_MAX_HUMAN_PLAYERS ?> racers to find a cup most haven\u2019t done';
             } else if (count < 2) {
                 hint.textContent = 'Select at least 1 more racer to roll a cup';
             } else if (count < 3) {

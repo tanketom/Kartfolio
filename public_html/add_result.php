@@ -35,10 +35,11 @@ foreach (getMKCupsByGroup() as $group => $cups) {
 
 $mk8Characters = getMKCharacters();
 
-// Pre-fill from the What Cup? modal: ?cup=X&r1=ID&r2=ID&r3=ID&r4=ID&monster=ID
+// Pre-fill from the What Cup? modal: ?cup=X&r1=ID&r2=ID&…&rN=ID&monster=ID
+// (N = MK_MAX_HUMAN_PLAYERS)
 $prefillCup = trim($_GET['cup'] ?? '');
 $prefillRacers = [];
-for ($i = 1; $i <= 4; $i++) {
+for ($i = 1; $i <= MK_MAX_HUMAN_PLAYERS; $i++) {
     $val = (int)($_GET["r$i"] ?? 0);
     $prefillRacers[$i] = $val > 0 ? $val : null;
 }
@@ -79,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Count how many racer slots are actually filled in. A GP needs at
     // least 3 racers — anything less isn't really a Grand Prix.
     $filledRacers = 0;
-    for ($i = 1; $i <= 4; $i++) {
+    for ($i = 1; $i <= MK_MAX_HUMAN_PLAYERS; $i++) {
         if (!empty($_POST["racer_$i"])) $filledRacers++;
     }
 
@@ -94,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     try {
         $packRacers = [];
-        for ($i = 1; $i <= 4; $i++) {
+        for ($i = 1; $i <= MK_MAX_HUMAN_PLAYERS; $i++) {
             if (!empty($_POST["racer_$i"])) {
                 $stmt = $pdo->prepare("INSERT INTO results (gpid, racer_id, gp_points, rank, character_used, kart_setup, cup_name, is_lol, is_monster, race_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([
@@ -177,7 +178,7 @@ include __DIR__ . '/../private/templates/header.php';
                     </tr>
                 </thead>
                 <tbody>
-                    <?php for($i=1;$i<=4;$i++):
+                    <?php for($i=1;$i<=MK_MAX_HUMAN_PLAYERS;$i++):
                         $prefRid = $prefillRacers[$i] ?? null;
                         $rowClass = $prefRid ? 'active-row' : 'inactive-row';
                     ?>
@@ -241,6 +242,9 @@ include __DIR__ . '/../private/templates/header.php';
 <script>
 // --- CORE FORM LOGIC ---
 
+// Number of racer rows the form renders (MK_MAX_HUMAN_PLAYERS, server-side).
+const MAX_PLAYERS = <?= MK_MAX_HUMAN_PLAYERS ?>;
+
 // 1. Highlight Row Logic
 function activateRow(id) {
     const row = document.getElementById('row_' + id);
@@ -260,7 +264,7 @@ function activateRow(id) {
 // the user gets immediate feedback.
 function refreshSubmitGate() {
     let filled = 0;
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= MAX_PLAYERS; i++) {
         const sel = document.getElementById('r_' + i);
         if (sel && sel.value) filled++;
     }
@@ -298,7 +302,7 @@ function autoFill(rowId) {
 
 // 3. Monster checkbox — only one racer can be the Monster per GP
 function setMonster(rowId) {
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= MAX_PLAYERS; i++) {
         if (i !== rowId) {
             const cb = document.querySelector('input[name="monster_' + i + '"]');
             if (cb) cb.checked = false;
@@ -323,7 +327,7 @@ function updatePortrait(rowId) {
 // a racer manually. That populates character + kart from the data
 // attributes and renders the portrait.
 document.addEventListener('DOMContentLoaded', function () {
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= MAX_PLAYERS; i++) {
         const sel = document.getElementById('r_' + i);
         if (sel && sel.value) {
             activateRow(i);
