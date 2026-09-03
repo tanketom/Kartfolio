@@ -839,6 +839,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- Secret Easter Egg -->
-<script src="/assets/js/easter_egg.js"></script>
+<script src="<?= assetUrl('/assets/js/easter_egg.js') ?>"></script>
 </body>
 </html>

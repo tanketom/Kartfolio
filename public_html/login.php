@@ -1,11 +1,12 @@
 <?php
 require_once __DIR__ . '/../private/includes/auth.php';
+require_once __DIR__ . '/../private/includes/assets.php';
 ?>
 <!DOCTYPE html>
 <html>
 <head>
     <title>Admin Login</title>
-    <link rel="stylesheet" href="assets/css/global.css">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/global.css') ?>">
 </head>
 <body>
     <div class="container login-container">

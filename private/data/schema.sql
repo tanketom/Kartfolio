@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS results (
     race_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     cup_name TEXT,
     kart_setup TEXT,
+    is_monster BOOLEAN DEFAULT 0,   -- MONSTER HUNT admin override: this racer was the Monster in this GP
     FOREIGN KEY (racer_id) REFERENCES racers(id) ON DELETE CASCADE
 );
 

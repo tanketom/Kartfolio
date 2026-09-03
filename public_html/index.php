@@ -264,8 +264,8 @@ $liveFormatLabels = [
         <div class="tt-tip" id="tt-tip"></div>
     </div>
     <script id="tt-data" type="application/json"><?= json_encode($ttMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
-    <script src="/assets/js/overworld.js"></script>
-    <script src="/assets/js/territory_map.js"></script>
+    <script src="<?= assetUrl('/assets/js/overworld.js') ?>"></script>
+    <script src="<?= assetUrl('/assets/js/territory_map.js') ?>"></script>
     <?php endif; ?>
 
     <?php if (empty($standings)): ?>

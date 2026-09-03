@@ -628,8 +628,9 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         if (in_array($charNorm, $furry)) $furry_count++;
         if (in_array($charNorm, $koopa_clan)) $koopa_count++;
         if (in_array($charNorm, $reptiles)) $reptile_count++;
-        if (stripos($r['kart_setup'], 'Standard') !== false) $standard_kart_count++;
-        if (stripos($r['kart_setup'], 'Bike') !== false) $bike_count++;
+        $kart = (string)($r['kart_setup'] ?? '');   // NULL on rows logged without a kart
+        if (stripos($kart, 'Standard') !== false) $standard_kart_count++;
+        if (stripos($kart, 'Bike') !== false) $bike_count++;
 
         $prev_rank = $r['rank'];
     }

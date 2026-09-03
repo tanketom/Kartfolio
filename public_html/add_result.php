@@ -10,9 +10,7 @@ require_once __DIR__ . '/../private/includes/settings.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
 require_once __DIR__ . '/../private/includes/mk_data.php';
 
-// 0. Inline migration — add is_monster column if it doesn't exist yet
-try { $pdo->exec("ALTER TABLE results ADD COLUMN is_monster BOOLEAN DEFAULT 0"); }
-catch (PDOException $e) {}
+// (is_monster is created by db.php's versioned migration block.)
 
 // 1. Fetch Racers (with favorites for auto-fill)
 $racerQuery = $pdo->query("
@@ -189,9 +187,9 @@ include __DIR__ . '/../private/templates/header.php';
                                 <?php foreach($racerQuery as $r): ?>
                                     <option value="<?= $r['id'] ?>"
                                             data-name="<?= htmlspecialchars($r['name']) ?>"
-                                            data-nick="<?= htmlspecialchars($r['nickname']) ?>"
-                                            data-char="<?= htmlspecialchars($r['fav_char']) ?>"
-                                            data-kart="<?= htmlspecialchars($r['fav_kart']) ?>"
+                                            data-nick="<?= htmlspecialchars((string)($r['nickname'] ?? '')) ?>"
+                                            data-char="<?= htmlspecialchars((string)($r['fav_char'] ?? '')) ?>"
+                                            data-kart="<?= htmlspecialchars((string)($r['fav_kart'] ?? '')) ?>"
                                             <?= ($prefRid !== null && (int)$r['id'] === $prefRid) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($r['name']) ?>
                                     </option>

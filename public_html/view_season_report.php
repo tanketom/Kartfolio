@@ -169,7 +169,7 @@ include __DIR__ . '/../private/templates/header.php';
                         </span>
                     </div>
                     <div class="report-date">
-                        OFFICIAL REPORT RELEASED: <?= date('F j, Y', strtotime($seasonMeta['closed_at'])) ?>
+                        OFFICIAL REPORT RELEASED: <?= !empty($seasonMeta['closed_at']) ? date('F j, Y', strtotime($seasonMeta['closed_at'])) : 'not yet closed' ?>
                     </div>
                 </div>
 
@@ -193,7 +193,7 @@ include __DIR__ . '/../private/templates/header.php';
 
                 <div class="report-body">
                     <?php
-                        $cleanText = preg_replace('/^1\.?\s*HEADLINE:/i', '', $seasonMeta['ecology_report']);
+                        $cleanText = preg_replace('/^1\.?\s*HEADLINE:/i', '', (string)($seasonMeta['ecology_report'] ?? ''));
                         $cleanText = trim($cleanText);
                         echo formatTranscript($cleanText);
                     ?>
@@ -207,7 +207,7 @@ include __DIR__ . '/../private/templates/header.php';
                         <form method="POST" action="/api/update_season_report.php">
                             <?= csrf_field() ?>
                             <input type="hidden" name="season_id" value="<?= htmlspecialchars($sid) ?>">
-                            <textarea name="ecology_report" id="reportEditor" class="report-editor"><?= htmlspecialchars($seasonMeta['ecology_report']) ?></textarea>
+                            <textarea name="ecology_report" id="reportEditor" class="report-editor"><?= htmlspecialchars((string)($seasonMeta['ecology_report'] ?? '')) ?></textarea>
                             <div class="edit-form-actions">
                                 <button type="submit" class="btn-success">💾 Save Changes</button>
                                 <button type="button" onclick="toggleEditMode()" class="btn-secondary">Cancel</button>

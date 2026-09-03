@@ -5,6 +5,7 @@
  * Path: /cdnmk/public_html/underground.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/assets.php';
 
 // For now, hardcode wallet balance (Phase 2 will connect to database)
 $walletBalance = 2450; // OMK
@@ -33,7 +34,7 @@ $apePrices = [0.42, 0.69, 1.33, 0.88, 1.11, 2.22, 3.33, 0.55, 0.77, 1.69, 4.20, 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚠️ UNAUTHORIZED ACCESS - RAINBOW ROAD 2.0</title>
-    <link rel="stylesheet" href="/assets/css/underground.css">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/underground.css') ?>">
     <link rel="icon" href="/assets/img/favicon.ico" type="image/x-icon">
 </head>
 <body class="underground">

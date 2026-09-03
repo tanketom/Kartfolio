@@ -4,6 +4,7 @@
  * Optimized for 1920x1080 TV - 16:9 Aspect Ratio
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/assets.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
 require_once __DIR__ . '/../private/includes/settings.php';
@@ -66,8 +67,8 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
     <meta charset="UTF-8">
     <title>Lounge Display - Horizontal</title>
     <meta http-equiv="refresh" content="60">
-    <link rel="stylesheet" href="/assets/css/global.css">
-    <link rel="stylesheet" href="/assets/css/screen-h.css">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/global.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/screen-h.css') ?>">
 </head>
 <body class="lounge-body">
     

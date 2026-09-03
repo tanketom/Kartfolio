@@ -5,6 +5,7 @@
  * Cycles: Rankings -> Nemesis Spotlight -> Latest Recap
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/assets.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/settings.php';
 
@@ -86,8 +87,8 @@ if ($latestNews) $tickerLines[] = ['h' => $latestNews['headline'], 'q' => $lates
 <head>
     <meta charset="UTF-8">
     <title>Auto-Rotator - <?= htmlspecialchars($leagueName) ?></title>
-    <link rel="stylesheet" href="/assets/css/global.css">
-    <link rel="stylesheet" href="/assets/css/screen-v.css">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/global.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/screen-v.css') ?>">
 </head>
 <body class="ghost-body">
     <div class="v-container">

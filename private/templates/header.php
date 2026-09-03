@@ -8,6 +8,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once __DIR__ . '/../includes/gp_logic.php';
 require_once __DIR__ . '/../includes/settings.php';
+require_once __DIR__ . '/../includes/assets.php';
 
 // Get settings
 global $pdo;
@@ -44,16 +45,16 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap">
-    <link rel="stylesheet" href="/assets/css/global.css">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/global.css') ?>">
     <?php
     // Load admin CSS files if we're on an admin page
     $isAdminPage = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false;
     if ($isAdminPage):
     ?>
-    <link rel="stylesheet" href="/assets/css/forms.css">
-    <link rel="stylesheet" href="/assets/css/admin.css">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/forms.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/admin.css') ?>">
     <?php endif; ?>
-    <?php if (!empty($extraCss)) echo $extraCss; ?>
+    <?php if (!empty($extraCss)) echo versionAssetTags($extraCss); ?>
     <style>
         /* Dynamic primary colour (set by admin settings) */
         :root {

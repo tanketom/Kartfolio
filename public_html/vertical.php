@@ -8,6 +8,7 @@ require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
 require_once __DIR__ . '/../private/includes/settings.php';
+require_once __DIR__ . '/../private/includes/assets.php';
 
 $seasonId = getCurrentSeasonNumber();
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
@@ -58,8 +59,8 @@ while($row = $newsStmt->fetch()) {
 <head>
     <meta charset="UTF-8">
     <title>Vertical Signage - <?= htmlspecialchars($leagueName) ?></title>
-    <link rel="stylesheet" href="/assets/css/global.css">
-    <link rel="stylesheet" href="/assets/css/screen-v.css">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/global.css') ?>">
+    <link rel="stylesheet" href="<?= assetUrl('/assets/css/screen-v.css') ?>">
 </head>
 <body>
 
@@ -77,8 +78,8 @@ while($row = $newsStmt->fetch()) {
             <div class="tt-overlay" id="tt-overlay"></div>
         </div>
         <script id="tt-data" type="application/json"><?= json_encode($ttMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
-        <script src="/assets/js/overworld.js"></script>
-        <script src="/assets/js/territory_map.js"></script>
+        <script src="<?= assetUrl('/assets/js/overworld.js') ?>"></script>
+        <script src="<?= assetUrl('/assets/js/territory_map.js') ?>"></script>
         <?php endif; ?>
 
         <main class="signage-main">

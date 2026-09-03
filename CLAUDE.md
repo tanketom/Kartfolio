@@ -399,6 +399,16 @@ One word, one casing. It's the casual sub-league. Members are
 - Admin pages live under `/admin/`.
 - Physical signage lives under `/display/`.
 
+### Asset URLs go through `assetUrl()`
+
+.htaccess caches CSS and JS for a month. Every `/assets` link or script tag
+must be emitted with `assetUrl('/assets/…')` (`private/includes/assets.php`),
+which appends the file's mtime, so a deploy invalidates exactly the files it
+changed. `$extraCss` strings are stamped by header.php automatically; the
+standalone pages (signs, overlay, login, underground) call it directly. A raw
+`href="/assets/…css"` is a bug: the Lounge sign reloads every minute and would
+keep last month's stylesheet.
+
 ### GPID format
 
 `s{NN}gp{NN}` (e.g. `s03gp14`). The first three characters are the
@@ -435,6 +445,15 @@ deliberate and load-bearing.
 
 We have no test suite. The closest things we have are:
 
+0. **`bin/check.sh`** — the checklist below, executable. Lints every PHP and
+   JS file, builds a synthetic league through the fresh-install path
+   (`bin/make_fixture.php`), renders every public page against it with
+   warnings and deprecations as failures, and checks the invariants in
+   `bin/check.php` (badge icons unique, registry shape, replay helpers equal
+   the live calculators, map stops == cups, db.php steady-state cost).
+   Runs in GitHub Actions on every push (`.github/workflows/check.yml`).
+   Its first run found that a fresh install had no `results.is_monster`
+   column until someone opened add_result.php.
 1. **`php -l` syntax check** on any file you edit. Always.
 2. **Inline smoke tests** via `php -r '...'` — pull a real racer from the
    DB, run your new helper, eyeball the output. This caught the Mikkoliiga

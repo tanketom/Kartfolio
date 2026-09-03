@@ -85,7 +85,7 @@ $tournaments = $tournamentsStmt->fetchAll(PDO::FETCH_ASSOC);
                     </p>
                     <?php endif; ?>
                     <p class="archive-closed-date">
-                        Archived <?= date('M Y', strtotime($s['closed_at'])) ?>
+                        Archived <?= !empty($s['closed_at']) ? date('M Y', strtotime($s['closed_at'])) : '—' ?>
                     </p>
 
                     <a href="/view-season-report?season=<?= $s['season_id'] ?>" class="btn btn-primary archive-report-btn">

@@ -73,6 +73,11 @@ try {
     }
 
     // Inline migrations (idempotent — fail silently if the column exists).
+    // MONSTER HUNT admin override on a result row. Used to be created lazily by
+    // add_result.php, so a fresh install fataled on any Monster query until
+    // someone opened that page — the fixture in bin/check.sh caught it.
+    try { $pdo->exec("ALTER TABLE results ADD COLUMN is_monster BOOLEAN DEFAULT 0"); }
+    catch (PDOException $e) {}
     // Mikkoliiga: per-racer opt-in flag for the casual sub-league.
     try { $pdo->exec("ALTER TABLE racers ADD COLUMN in_mikkoliiga BOOLEAN DEFAULT 0"); }
     catch (PDOException $e) {}
