@@ -66,7 +66,7 @@ All AI features use the shared Gemini client (`private/includes/gemini_client.ph
 
 ```bash
 # 1. Clone the repo
-git clone https://codeberg.org/tanketom/Kartfolio.git
+git clone https://github.com/tanketom/Kartfolio.git
 cd kartfolio
 
 # 2. Create the database

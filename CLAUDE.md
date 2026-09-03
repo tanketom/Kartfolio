@@ -313,16 +313,18 @@ Other things learned the hard way:
   code, packs, quests, fantasy). A committed `league.db` would overwrite that
   on every push. Data comes *back* to a laptop via Admin → Export Database
   only.
-- **There is one codebase.** Codeberg is not a "public empty version" distinct
+- **There is one codebase.** The GitHub repo (github.com/tanketom/Kartfolio;
+  the Codeberg mirror is kept as the `codeberg` remote) is not a "public
+  empty version" distinct
   from the live site — the live site *is* that code. What makes it Tom's
   league is `league.db` + `config.php`, both ignored. League identity lives in
   the `settings` table (§ "Project at a glance"), never in source. Do not
   create a "live" fork.
 - **Don't download the live site into the repo folder.** It flips file modes
   (`755` → `640`, showing as spurious diffs), resurrects deleted files, and
-  invites committing dead code. Flow is one-way: laptop → Codeberg → server.
-- `deploy.sh` **refuses an unpushed commit** — the server pulls from the
-  forge, so deploying first would silently ship the *previous* commit, which
+  invites committing dead code. Flow is one-way: laptop → GitHub → server.
+- `deploy.sh` **refuses an unpushed commit** — the server pulls from
+  GitHub, so deploying first would silently ship the *previous* commit, which
   looks exactly like "it uploaded an old file".
 - The host's git is old: no `git init -b`; use `git init` then
   `git branch -M main` after the first reset.
