@@ -110,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // don't shift retroactively if a member toggles their flag later.
         snapshotMikkoliigaMembership($pdo, $seasonId);
         snapshotSeasonPlacements($pdo, $seasonId);
+        snapshotSeasonMap($pdo, $seasonId);   // Territory seasons: freeze the final map
 
         // Report generation is a POST+CSRF endpoint — a plain redirect can't
         // reach it, so hand off through the auto-submitting token bridge.

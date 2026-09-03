@@ -253,6 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Freeze Mikkoliiga roster and final placements at archive time.
         snapshotMikkoliigaMembership($pdo, $sid);
         snapshotSeasonPlacements($pdo, $sid);
+        snapshotSeasonMap($pdo, $sid);   // Territory seasons: freeze the final map
         // Report generation is a POST+CSRF endpoint — a plain redirect can't
         // reach it, so hand off through the auto-submitting token bridge.
         csrf_bridge_post('/api/season-report', ['season' => $sid], 'Generate season report');

@@ -648,6 +648,14 @@ Cross-reference if you find half-implemented work:
   order == `getMKAllCups()` order. Holder colours: `territoryRacerColors()`
   (palette by racer id, stable per season). The renderer was iterated by
   rendering to PNG with node + PHP GD, not by eye in a browser
+- **Badge sightings + frozen maps** — `badge_log` records the first GP night
+  each racer was seen with each badge (`recordBadgeSightings()`, called from
+  add_result after a GP is saved; the first call per season backfills with
+  NULL so nothing old is announced). The homepage dots badges whose
+  `first_date` is the season's latest race night (`badgeNewThisNight()`).
+  `season_maps` freezes a Territory season's map payload at archive time
+  (`snapshotSeasonMap()`, next to the other two snapshots); the season report
+  draws it with the same renderer and offers a PNG download
 - **Crystal Ball cached** — `sim_cache` table + `private/includes/sim_cache.php`:
   predictions.php's 5000-run Monte Carlo runs once per (season, results
   signature, day, GPs remaining) instead of per view (423 → 10 ms; odds no

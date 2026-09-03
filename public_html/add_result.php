@@ -115,6 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/../private/includes/stickers.php';
         grantGpPacks($pdo, $_POST['gpid'], $packRacers);
         $pdo->commit();
+        // Badge sightings for "new this week" on the homepage — never lets a
+        // badge hiccup break result entry.
+        try {
+            require_once __DIR__ . '/../private/includes/badges.php';
+            recordBadgeSightings($pdo, preg_replace('/gp\d+$/', '', (string)$_POST['gpid']), (string)$_POST['gpid'], substr((string)$_POST['race_date'], 0, 10));
+        } catch (Throwable $e) { error_log('badge sightings: ' . $e->getMessage()); }
         header("Location: index.php?success=1");
         exit;
     } catch (Exception $e) {

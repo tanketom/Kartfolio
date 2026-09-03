@@ -2604,6 +2604,28 @@ function territorySeason(PDO $pdo, string $season_id, ?array $rules = null): arr
     return $cache[$key] = ['hold' => $hold, 'by_racer' => $byRacer, 'events' => $events, 'challengers' => $challengers, 'changed' => $changed, 'decay_gps' => $decayN];
 }
 
+/**
+ * Freeze a Territory season's final map (the payload the renderer draws) at
+ * archive time. Immutable history (§8): re-running replaces the row, so an
+ * admin re-archive corrects it. No-op for other scoring systems.
+ */
+function snapshotSeasonMap(PDO $pdo, string $season_id): bool {
+    if ((getSeasonRules($pdo, $season_id)['scoring_system'] ?? '') !== 'territory') return false;
+    $pdo->prepare("INSERT OR REPLACE INTO season_maps (season_id, payload, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)")
+        ->execute([$season_id, json_encode(territoryMapPayload($pdo, $season_id), JSON_UNESCAPED_UNICODE)]);
+    return true;
+}
+
+/** The map to show for a season: the frozen one for an archived season, live for a running one, null if not Territory. */
+function seasonMapPayload(PDO $pdo, string $season_id): ?array {
+    $rules = getSeasonRules($pdo, $season_id);
+    if (($rules['scoring_system'] ?? '') !== 'territory') return null;
+    if (($rules['status'] ?? '') === 'archived') {
+        try { $st = $pdo->prepare("SELECT payload FROM season_maps WHERE season_id = ?"); $st->execute([$season_id]); $raw = $st->fetchColumn(); if ($raw) { $p = json_decode((string)$raw, true); if (is_array($p)) return $p + ['frozen' => true]; } } catch (PDOException $e) {}
+    }
+    return territoryMapPayload($pdo, $season_id) + ['frozen' => false];
+}
+
 /** Stable colour per racer for a season's map and chips: palette by racer id order. */
 function territoryRacerColors(array $racerIds): array {
     $palette = ['#E60012', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B', '#6366F1', '#84CC16', '#F97316', '#A855F7', '#06B6D4', '#D946EF', '#10B981', '#3B82F6', '#EF4444', '#FB923C'];

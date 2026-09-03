@@ -336,8 +336,8 @@ $liveFormatLabels = [
                 <?php if (!empty($row['badges'])): ?>
                 <div class="badge-container">
                     <?php foreach ($row['badges'] as $badge): ?>
-                        <?php $held = badgeHolderCounts($pdo, $seasonId)[$badge['title']] ?? 1; ?>
-                        <div class="badge-item" data-tooltip="<?= htmlspecialchars($badge['title']) ?>: <?= htmlspecialchars($badge['desc']) ?> · <?= $held === 1 ? 'only you' : "held by $held" ?>"><?= $badge['icon'] ?></div>
+                        <?php $held = badgeHolderCounts($pdo, $seasonId)[$badge['title']] ?? 1; $isNew = isset(badgeNewThisNight($pdo, $seasonId)[$row['id'] . '|' . $badge['title']]); ?>
+                        <div class="badge-item<?= $isNew ? ' badge-item--new' : '' ?>" data-tooltip="<?= htmlspecialchars($badge['title']) ?>: <?= htmlspecialchars($badge['desc']) ?> · <?= $held === 1 ? 'only you' : "held by $held" ?><?= $isNew ? ' · new this week' : '' ?>"><?= $badge['icon'] ?></div>
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>

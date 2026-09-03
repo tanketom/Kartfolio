@@ -73,6 +73,9 @@ $tournaments = $tournamentsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <?php
                     $scoringInfo = getScoringSystemInfo($pdo, $s['season_id']);
                     ?>
+                    <?php if ($scoringInfo['system'] === 'territory'): ?>
+                        <a class="archive-map-link" href="/view-season-report?season=<?= htmlspecialchars($s['season_id']) ?>#final-map">🗺️ Final map</a>
+                    <?php endif; ?>
                     <div class="archive-scoring-badge">
                         <span class="archive-scoring-icon"><?= $scoringInfo['icon'] ?></span>
                         <span class="archive-scoring-name">

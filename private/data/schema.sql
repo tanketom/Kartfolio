@@ -23,6 +23,23 @@ CREATE TABLE IF NOT EXISTS season_placements (
     PRIMARY KEY (season_id, racer_id)
 );
 
+-- Badge sightings: first GP night each racer was seen holding each badge
+CREATE TABLE IF NOT EXISTS badge_log (
+    season_id   TEXT NOT NULL,
+    racer_id    INTEGER NOT NULL,
+    badge_title TEXT NOT NULL,
+    first_gpid  TEXT,
+    first_date  TEXT,
+    PRIMARY KEY (season_id, racer_id, badge_title)
+);
+
+-- Final Territory map per archived season (payload frozen at archive time)
+CREATE TABLE IF NOT EXISTS season_maps (
+    season_id  TEXT PRIMARY KEY,
+    payload    TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Simulation cache (predictions Monte Carlo) — see private/includes/sim_cache.php
 CREATE TABLE IF NOT EXISTS sim_cache (
     cache_key  TEXT PRIMARY KEY,

@@ -324,6 +324,26 @@ try {
     try { $pdo->exec("ALTER TABLE fantasy_bets ADD COLUMN confidence INTEGER NOT NULL DEFAULT 1"); }
     catch (PDOException $e) {}
 
+    // Badge sightings: when each racer was first seen holding each badge, so
+    // the homepage can mark badges earned on the latest race night. Rows
+    // with a NULL first_gpid were backfilled (earned before the log existed).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS badge_log (
+        season_id   TEXT NOT NULL,
+        racer_id    INTEGER NOT NULL,
+        badge_title TEXT NOT NULL,
+        first_gpid  TEXT,
+        first_date  TEXT,
+        PRIMARY KEY (season_id, racer_id, badge_title)
+    )");
+
+    // Final Territory map per archived season (the map payload frozen at
+    // archive time, drawn by the same renderer — immutable, §8).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS season_maps (
+        season_id  TEXT PRIMARY KEY,
+        payload    TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Simulation cache — see private/includes/sim_cache.php. One row per
     // (page, inputs signature); a new GP or a new day makes a new key.
     $pdo->exec("CREATE TABLE IF NOT EXISTS sim_cache (

@@ -740,6 +740,21 @@ a:not(.btn):not(.racer-card):hover {
     margin-right: 8px;
 }
 
+/* Earned on the latest race night: a small red dot, top-right of the chip */
+.badge-item--new::after {
+    content: '';
+    position: absolute;
+    top: -2px; right: -3px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--nintendo-red);
+    border: 2px solid var(--white, #fff);
+    box-shadow: 0 0 0 0 rgba(230, 0, 18, .45);
+    animation: badge-new-pulse 2.2s ease-out infinite;
+}
+@keyframes badge-new-pulse { 0% { box-shadow: 0 0 0 0 rgba(230, 0, 18, .45); } 70% { box-shadow: 0 0 0 7px rgba(230, 0, 18, 0); } 100% { box-shadow: 0 0 0 0 rgba(230, 0, 18, 0); } }
+@media (prefers-reduced-motion: reduce) { .badge-item--new::after { animation: none; } }
+
 /* All [data-tooltip] elements are handled by the universal JS tooltip system
    in footer.php (#ui-tooltip). This covers badges, scores, rank indicators,
    and any other element — and works on both mouse and touch. */

@@ -1120,3 +1120,46 @@ function sortBadgesByRarity(array $badges, array $counts): array {
     usort($badges, fn($a, $b) => (($counts[$a['title']] ?? PHP_INT_MAX) <=> ($counts[$b['title']] ?? PHP_INT_MAX)) ?: (($order[$a['title']] ?? PHP_INT_MAX) <=> ($order[$b['title']] ?? PHP_INT_MAX)));
     return $badges;
 }
+
+// ============================================================================
+// BADGE SIGHTINGS — "new this week". Whenever a GP is logged, every badge a
+// racer holds that the log hasn't seen before is recorded with that GP night.
+// The first time this runs for a season it backfills everything already held
+// with a NULL night, so nothing pre-existing is announced as new.
+// ============================================================================
+
+/** Record unseen badges for every racer in the season. Returns how many were new. */
+function recordBadgeSightings($pdo, string $season_id, ?string $gpid = null, ?string $date = null): int {
+    $seen = [];
+    foreach ($pdo->query("SELECT racer_id, badge_title FROM badge_log WHERE season_id = " . $pdo->quote($season_id))->fetchAll(PDO::FETCH_ASSOC) as $r) $seen[$r['racer_id'] . '|' . $r['badge_title']] = true;
+    $backfill = empty($seen);
+    if ($gpid === null || $date === null) {
+        $st = $pdo->prepare("SELECT gpid, race_date FROM results WHERE gpid LIKE ? ORDER BY race_date DESC, id DESC LIMIT 1");
+        $st->execute([$season_id . '%']);
+        if ($row = $st->fetch(PDO::FETCH_ASSOC)) { $gpid = $gpid ?? $row['gpid']; $date = $date ?? substr((string)$row['race_date'], 0, 10); }
+    }
+    $ins = $pdo->prepare("INSERT OR IGNORE INTO badge_log (season_id, racer_id, badge_title, first_gpid, first_date) VALUES (?, ?, ?, ?, ?)");
+    $new = 0;
+    foreach (array_keys(getSeasonResultsByRacer($pdo, $season_id)) as $rid) {
+        foreach (getRacerBadges($pdo, (int)$rid, $season_id) as $b) {
+            if (isset($seen[$rid . '|' . $b['title']])) continue;
+            $ins->execute([$season_id, (int)$rid, $b['title'], $backfill ? null : $gpid, $backfill ? null : $date]);
+            if (!$backfill) $new++;
+        }
+    }
+    return $new;
+}
+
+/** "racer_id|title" => true for badges first seen on the season's latest race night. */
+function badgeNewThisNight($pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+    $latest = getLatestRaceDate($pdo, $season_id);
+    $out = [];
+    if ($latest) {
+        $st = $pdo->prepare("SELECT racer_id, badge_title FROM badge_log WHERE season_id = ? AND first_date = ?");
+        $st->execute([$season_id, substr((string)$latest, 0, 10)]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out[$r['racer_id'] . '|' . $r['badge_title']] = true;
+    }
+    return $cache[$season_id] = $out;
+}

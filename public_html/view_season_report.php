@@ -191,6 +191,32 @@ include __DIR__ . '/../private/templates/header.php';
                     <div id="standingsSnapshot" class="timeline-snapshot"></div>
                 </div>
 
+                <?php $finalMap = seasonMapPayload($pdo, $sid); if ($finalMap): ?>
+                <!-- Final Territory map: frozen at archive time, drawn by the same renderer as the homepage -->
+                <div class="timeline-container" id="final-map">
+                    <h2 class="timeline-heading">🗺️ Final Map</h2>
+                    <p class="timeline-desc"><?= (int)$finalMap['held'] ?> of <?= count($finalMap['cups']) ?> cups held at the close<?= !empty($finalMap['frozen']) ? ' · frozen when the season was archived' : ' · live' ?>.</p>
+                    <div class="tt-map-card" id="tt-map-card">
+                        <canvas id="tt-map" data-layout="landscape" aria-label="Final Territory map"></canvas>
+                        <div class="tt-overlay" id="tt-overlay"></div>
+                        <div class="tt-tip" id="tt-tip"></div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="tt-download">📸 Download map as PNG</button>
+                    <script id="tt-data" type="application/json"><?= json_encode($finalMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
+                    <script src="<?= assetUrl('/assets/js/overworld.js') ?>"></script>
+                    <script src="<?= assetUrl('/assets/js/territory_map.js') ?>"></script>
+                    <script>
+                    // The canvas is the image: upscale it 3× with no smoothing and save.
+                    document.getElementById('tt-download').addEventListener('click', function () {
+                        var src = document.getElementById('tt-map'), out = document.createElement('canvas');
+                        out.width = src.width * 3; out.height = src.height * 3;
+                        var ctx = out.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(src, 0, 0, out.width, out.height);
+                        var a = document.createElement('a'); a.download = <?= json_encode('kartfolio-' . $sid . '-territory-map.png') ?>; a.href = out.toDataURL('image/png'); a.click();
+                    });
+                    </script>
+                </div>
+                <?php endif; ?>
+
                 <div class="report-body">
                     <?php
                         $cleanText = preg_replace('/^1\.?\s*HEADLINE:/i', '', (string)($seasonMeta['ecology_report'] ?? ''));

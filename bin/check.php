@@ -74,7 +74,7 @@ echo "pages\n";
 $pages = [];
 foreach (glob("$root/public_html/*.php") as $f) $pages[basename($f, '.php')] = [];
 unset($pages['login'], $pages['logout']);
-$variants = ['index' => ['', 'season=s01', 'season=s02'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02'], 'stats' => ['', 'season=s01'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'cup_mastery' => ['season=s02'], 'predictions' => [''], 'season' => null];
+$variants = ['index' => ['', 'season=s01', 'season=s02'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02'], 'stats' => ['', 'season=s01'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'cup_mastery' => ['season=s02'], 'predictions' => [''], 'season' => null];
 $racerIds = $pdo->query("SELECT id FROM racers ORDER BY id LIMIT 2")->fetchAll(PDO::FETCH_COLUMN);
 $renderer = tempnam(sys_get_temp_dir(), 'render'); file_put_contents($renderer, '<?php
 // Renders one page from the CLI. A page may exit() (a redirect, a "not found"),
