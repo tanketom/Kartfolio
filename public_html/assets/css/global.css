@@ -2051,3 +2051,26 @@ select, textarea {
     vertical-align: middle;
     cursor: help;
 }
+
+/* ── Territory overworld map (index.php, Territory seasons only) ── */
+.tt-switch { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
+.tt-seg { border: 1px solid var(--gray-200, #e2e6ee); background: var(--gray-100, #f3f6fb); color: var(--gray-600, #5b6478); font: inherit; font-weight: 700; font-size: .86rem; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+.tt-seg[aria-pressed="true"] { background: #1a2238; color: #fff; border-color: #1a2238; }
+.tt-seg:focus-visible { outline: 2px solid var(--nintendo-red); outline-offset: 2px; }
+.tt-held { color: var(--gray-500, #6b7280); font-size: .85rem; }
+.tt-map-card { position: relative; background: #1a2238; border: 5px solid #1a2238; border-radius: 12px; overflow: hidden; margin-bottom: 22px; box-shadow: 0 12px 34px rgba(0,0,0,.28); }
+.tt-map-card canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+.tt-overlay { position: absolute; inset: 0; pointer-events: none; }
+.tt-stop { position: absolute; width: var(--tt-hit, 5%); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: auto; cursor: pointer; border-radius: 50%; background: transparent; border: 0; padding: 0; }
+.tt-stop:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
+.tt-lbl { position: absolute; transform: translate(-50%, 0); font-family: 'Fredoka', 'Inter', sans-serif; font-weight: 700; font-size: var(--tt-lbl, 12px); color: #fff; white-space: nowrap; text-shadow: 0 0 2px #1a2238, 0 0 2px #1a2238, 1px 1px 0 #1a2238, -1px -1px 0 #1a2238, 1px -1px 0 #1a2238, -1px 1px 0 #1a2238; }
+.tt-lbl small { display: block; font-weight: 600; font-size: .8em; opacity: .9; }
+.tt-wnum { position: absolute; transform: translate(-50%, -50%); font-family: 'DM Mono', monospace; font-weight: 700; font-size: var(--tt-wn, 9px); color: #1a2238; background: #fff; border: 2px solid #1a2238; padding: 2px 5px; border-radius: 3px; }
+.tt-flip { position: absolute; transform: translate(-50%, -100%); font-size: var(--tt-lbl, 12px); filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); animation: ttbob 1.4s ease-in-out infinite; }
+@keyframes ttbob { 0%,100% { transform: translate(-50%, -100%); } 50% { transform: translate(-50%, -120%); } }
+@media (prefers-reduced-motion: reduce) { .tt-flip { animation: none; } }
+.tt-tip { position: absolute; pointer-events: none; background: #1a2238; color: #fff; border: 2px solid #fff; border-radius: 8px; padding: 9px 12px; font-size: .82rem; line-height: 1.35; max-width: 250px; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; z-index: 5; }
+.tt-tip.on { opacity: 1; transform: none; }
+.tt-tip b { display: block; font-family: 'Fredoka', 'Inter', sans-serif; font-size: .95rem; }
+.tt-tip .m { color: #b9c3d8; }
+.leaderboard-grid[hidden] { display: none; }

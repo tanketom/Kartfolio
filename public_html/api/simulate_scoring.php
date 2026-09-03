@@ -103,6 +103,7 @@ if ($system === 'blue_shell') {
     if (isset($_GET['bs_cap']))  $rules['bs_cap']  = max(1.0, min(5.0, (float)$_GET['bs_cap']));
 }
 if ($system === 'hard_mode' && isset($_GET['hm_cap'])) $rules['hm_cap'] = max(1.0, min(5.0, (float)$_GET['hm_cap']));
+if ($system === 'territory' && isset($_GET['tt_decay_gps'])) $rules['tt_decay_gps'] = max(0, min(20, (int)$_GET['tt_decay_gps']));
 if ($system === 'form' && isset($_GET['form_window'])) $rules['form_window'] = max(1, min(50, (int)$_GET['form_window']));
 
 // MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's

@@ -349,3 +349,13 @@ body {
     background-size: 30px 30px;
     background-position: 0 0, 15px 15px;
 }
+
+/* Territory overworld on the vertical sign: full width above the top five */
+.signage-container .tt-map-card { position: relative; margin: 0 0 24px; border: 6px solid #1a2238; border-radius: 16px; overflow: hidden; background: #1a2238; }
+.signage-container .tt-map-card canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+.signage-container .tt-overlay { position: absolute; inset: 0; pointer-events: none; }
+.signage-container .tt-lbl { position: absolute; transform: translate(-50%, 0); font-weight: 800; font-size: var(--tt-lbl, 22px); color: #fff; white-space: nowrap; text-shadow: 0 0 3px #1a2238, 2px 2px 0 #1a2238, -2px -2px 0 #1a2238, 2px -2px 0 #1a2238, -2px 2px 0 #1a2238; }
+.signage-container .tt-lbl small { display: block; font-weight: 700; font-size: .8em; }
+.signage-container .tt-wnum { position: absolute; transform: translate(-50%, -50%); font-weight: 800; font-size: var(--tt-wn, 16px); color: #1a2238; background: #fff; border: 3px solid #1a2238; padding: 3px 8px; border-radius: 4px; }
+.signage-container .tt-flip { position: absolute; transform: translate(-50%, -100%); font-size: var(--tt-lbl, 22px); }
+.signage-container .tt-stop { display: none; }

@@ -248,6 +248,26 @@ $liveFormatLabels = [
         </div>
     </header>
 
+    <?php if ($scoringInfo['system'] === 'territory' && !empty($standings)):
+        // Territory seasons get the overworld map above the fold, with a
+        // Map / Rankings switch (remembered per browser). Data + renderer:
+        // territoryMapPayload() and /assets/js/overworld.js.
+        $ttMap = territoryMapPayload($pdo, $seasonId); ?>
+    <div class="tt-switch" role="group" aria-label="Standings view">
+        <button type="button" class="tt-seg" data-view="map" aria-pressed="true">🗺️ Map</button>
+        <button type="button" class="tt-seg" data-view="table" aria-pressed="false">📊 Rankings</button>
+        <span class="tt-held"><?= (int)$ttMap['held'] ?> of <?= count($ttMap['cups']) ?> cups held<?= $ttMap['decay'] ? ' · a cup raced ' . (int)$ttMap['decay'] . '× without its holder changes hands' : '' ?></span>
+    </div>
+    <div class="tt-map-card" id="tt-map-card">
+        <canvas id="tt-map" data-layout="landscape" aria-label="Territory map: who holds each cup"></canvas>
+        <div class="tt-overlay" id="tt-overlay"></div>
+        <div class="tt-tip" id="tt-tip"></div>
+    </div>
+    <script id="tt-data" type="application/json"><?= json_encode($ttMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
+    <script src="/assets/js/overworld.js"></script>
+    <script src="/assets/js/territory_map.js"></script>
+    <?php endif; ?>
+
     <?php if (empty($standings)): ?>
         <div class="empty-state">
             <div class="empty-state-icon">🏁</div>
@@ -256,7 +276,7 @@ $liveFormatLabels = [
             <a href="/add-result" class="btn btn-primary">Log First Grand Prix</a>
         </div>
     <?php else: ?>
-    <div class="leaderboard-grid">
+    <div class="leaderboard-grid" id="leaderboard-grid">
         <?php foreach ($standings as $index => $row):
             $rank = $index + 1;
             $isQualifying = racerQualifies($row['raceCount'], $rules);

@@ -423,7 +423,8 @@ deliberate and load-bearing.
 | `public_html/admin/tournament_setup.php` | Tournament bracket generation (5 formats). |
 | `public_html/admin/tournament_bracket.php` | Tournament viewer + match recording. |
 | `public_html/racer.php` | Per-racer profile. |
-| `public_html/index.php` | Homepage standings + Mikkoliiga top-3 panel. |
+| `public_html/index.php` | Homepage standings + Mikkoliiga top-3 panel; on Territory seasons the overworld map with a Map / Rankings switch. |
+| `public_html/assets/js/overworld.js` | The Territory map renderer: six islands defined once in island-local tiles, two layouts (landscape = site, portrait = Lounge sign), autotiled. Check it headlessly with node → PPM before touching it (see the done-list). |
 | `public_html/archive.php` | News feed + Generate Broadcast + OMK Press Office forms. |
 | `public_html/overlay.php` | OBS overlay (7 view modes, hotkeys, URL params, auto-rotate). |
 | `public_html/fantasy.php` | Fantasy predictions with confidence picker. |
@@ -603,6 +604,18 @@ Cross-reference if you find half-implemented work:
   dynamic desc); `/badges` renders `badgeCatalogByCategory()`. A new badge =
   one catalogue entry + its rule in `badges.php` + (optionally) a progress
   entry in `badges_overview.php::calculateBadgeProgress()`
+- **Territory rule 2 + overworld map** — `territorySeason()` now: equal score
+  takes the cup (later post wins the tie, so a 60 answers a 60) and a cup raced
+  `tt_decay_gps` times (knob, default 4, 0 = off) without its holder goes to the
+  best challenger over those nights ("undefended decay"). It returns an event
+  log (`claim|beat|tie|decay`) that the badges read — Landlord / Usurper /
+  Fortress no longer keep their own pass, and 🏕️ Squatter's Rights is a decay
+  takeover. Cache key is season + knob so the simulator can vary it.
+  `territoryMapPayload()` feeds `assets/js/overworld.js` + `territory_map.js`
+  (index.php landscape, vertical.php portrait, Territory seasons only). Stop
+  order == `getMKAllCups()` order. Holder colours: `territoryRacerColors()`
+  (palette by racer id, stable per season). The renderer was iterated by
+  rendering to PNG with node + PHP GD, not by eye in a browser
 - **Crystal Ball cached** — `sim_cache` table + `private/includes/sim_cache.php`:
   predictions.php's 5000-run Monte Carlo runs once per (season, results
   signature, day, GPs remaining) instead of per view (423 → 10 ms; odds no

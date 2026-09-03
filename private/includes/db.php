@@ -206,6 +206,7 @@ try {
     foreach ([
         "bs_rate FLOAT DEFAULT 0.10", "bs_cap FLOAT DEFAULT 2.0",
         "hm_cap FLOAT DEFAULT 2.0", "form_window INTEGER DEFAULT 8",
+        "tt_decay_gps INTEGER DEFAULT 4",   // Territory: undefended GPs before a cup changes hands (0 = never)
     ] as $col) {
         try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col"); } catch (PDOException $e) {}
     }

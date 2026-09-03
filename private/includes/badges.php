@@ -301,31 +301,20 @@ function badgeSeasonContext($pdo, $season_id) {
     $territoryHeld = [];
     foreach (territorySeason($pdo, $season_id)['by_racer'] as $rid => $cups) $territoryHeld[(int)$rid] = count($cups);
 
-    $cupRows = [];
-    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
-        foreach ($rows as $r) {
-            if (($r['cup_name'] ?? '') === '') continue;
-            $cupRows[] = [(string)$r['race_date'], (int)$r['id'], (int)$rid, $r['cup_name'], (int)$r['gp_points']];
-        }
-    }
-    usort($cupRows, fn($x, $y) => strcmp($x[0], $y[0]) ?: ($x[1] <=> $y[1]));
-    $holder = []; $changed = []; $challengers = []; $territoryTakeovers = [];
-    foreach ($cupRows as [$d, $id, $rid, $cup, $pts]) {
-        if (!isset($holder[$cup])) { $holder[$cup] = [$rid, $pts]; $changed[$cup] = false; $challengers[$cup] = 0; continue; }
-        [$h, $hp] = $holder[$cup];
-        if ($rid !== $h) {
-            $challengers[$cup]++;
-            if ($pts > $hp) {   // strictly better takes it; a tie leaves it with the earlier post
-                $holder[$cup] = [$rid, $pts]; $changed[$cup] = true;
-                $territoryTakeovers[$rid] = ($territoryTakeovers[$rid] ?? 0) + 1;
-            }
-        } elseif ($pts > $hp) {
-            $holder[$cup] = [$rid, $pts];   // holder improving on themselves is not a change of hands
-        }
+    //   takeovers : racer => times they took a cup off a DIFFERENT holder
+    //               (beaten, tied, or decayed) — from the engine's event log
+    //   squats    : racer => takeovers by decay (the holder left it undefended)
+    //   fortress  : racer => cups held unchanged all season through 3+ challengers
+    $tSeason = territorySeason($pdo, $season_id);
+    $territoryTakeovers = []; $territorySquats = [];
+    foreach ($tSeason['events'] as $ev) {
+        if ($ev['from'] === null || $ev['from'] === $ev['to']) continue;
+        $territoryTakeovers[$ev['to']] = ($territoryTakeovers[$ev['to']] ?? 0) + 1;
+        if ($ev['type'] === 'decay') $territorySquats[$ev['to']] = ($territorySquats[$ev['to']] ?? 0) + 1;
     }
     $territoryFortress = [];
-    foreach ($holder as $cup => [$h, $hp]) {
-        if (!$changed[$cup] && $challengers[$cup] >= 3) $territoryFortress[$h] = ($territoryFortress[$h] ?? 0) + 1;
+    foreach ($tSeason['hold'] as $cup => $h) {
+        if (empty($tSeason['changed'][$cup]) && ($tSeason['challengers'][$cup] ?? 0) >= 3) $territoryFortress[$h['racer_id']] = ($territoryFortress[$h['racer_id']] ?? 0) + 1;
     }
 
     // ── Dead Heat: level on score with another qualifying racer this season ──
@@ -365,7 +354,7 @@ function badgeSeasonContext($pdo, $season_id) {
     } catch (PDOException $e) { /* quests table absent */ }
 
     return $cache[$season_id] = $career + compact(
-        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'deadHeat', 'seasonGpTotal', 'questmaster'
+        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'deadHeat', 'seasonGpTotal', 'questmaster'
     );
 }
 
@@ -458,6 +447,9 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
     // 🏯 Fortress — a cup defended all season against 3+ challengers.
     if (($ctx['territoryFortress'][$racer_id] ?? 0) >= 1)
         $badges[] = badgeDef('fortress');
+    // 🏕️ Squatter's Rights — took a cup whose holder left it undefended.
+    if (($ctx['territorySquats'][$racer_id] ?? 0) >= 1)
+        $badges[] = badgeDef('squatter');
     // 🪙 Dead Heat — level on points with someone; the tie-break decided it.
     if (!empty($ctx['deadHeat'][$racer_id]))
         $badges[] = badgeDef('dead_heat');

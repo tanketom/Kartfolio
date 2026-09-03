@@ -121,6 +121,8 @@ CREATE TABLE IF NOT EXISTS season_meta (
     bs_cap FLOAT DEFAULT 2.0,
     -- Hard Mode (max cup-difficulty multiplier)
     hm_cap FLOAT DEFAULT 2.0,
+    -- Territory (GPs a cup can be raced without its holder before it changes hands; 0 = never)
+    tt_decay_gps INTEGER DEFAULT 4,
     -- Form (rolling window size)
     form_window INTEGER DEFAULT 8
 );

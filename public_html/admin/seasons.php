@@ -215,6 +215,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['bs_thresh'] ?? 3));
                 $updateFields['bs_rate'] = max(0.0, min(1.0, (float)($_POST['bs_rate'] ?? 0.10)));
                 $updateFields['bs_cap']  = max(1.0, min(5.0, (float)($_POST['bs_cap']  ?? 2.0)));
+            } elseif ($scoringSystem === 'territory') {
+                $updateFields['tt_decay_gps'] = max(0, min(20, (int)($_POST['tt_decay_gps'] ?? 4)));
             } elseif ($scoringSystem === 'median') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['md_thresh'] ?? 3));
             } elseif ($scoringSystem === 'hard_mode') {
@@ -522,6 +524,10 @@ include __DIR__ . '/../../private/templates/header.php';
                         <div class="form-field" id="sim-param-bs-cap" style="display:none;">
                             <label>Multiplier Cap</label>
                             <input type="number" id="sim-bs-cap" value="2.0" min="1" max="5" step="0.1" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-tt-decay" style="display:none;">
+                            <label>Undefended GPs before decay</label>
+                            <input type="number" id="sim-tt-decay" value="4" min="0" max="20" onchange="updateSimulator()">
                         </div>
                         <div class="form-field" id="sim-param-hm-cap" style="display:none;">
                             <label>Difficulty Cap</label>
@@ -914,7 +920,11 @@ include __DIR__ . '/../../private/templates/header.php';
                         <h4 class="subsection-title">🏰 Territory Settings</h4>
                         <p class="info-text"><?= htmlspecialchars($scoringSystems['territory']['long_description']) ?></p>
                         <div class="form-grid grid-4">
-                            <div class="form-field"><label>No knobs</label><small>Hold the most cups. Ties break on points across held cups.</small></div>
+                            <div class="form-field">
+                                <label>Undefended GPs before a cup changes hands</label>
+                                <input type="number" name="tt_decay_gps" value="<?= htmlspecialchars((string)($meta['tt_decay_gps'] ?? 4)) ?>" min="0" max="20">
+                                <small>Race the cup yourself to reset the count. 0 = a holding never decays. Equal scores always go to the challenger.</small>
+                            </div>
                         </div>
                     </div>
                     <div id="fields-<?= $sid ?>-median" class="scoring-fields" style="<?= $meta['scoring_system'] === 'median' ? '' : 'display:none;' ?>">
@@ -1295,6 +1305,7 @@ const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
     'bs_rate'           => (float)($m['bs_rate'] ?? 0.10),
     'bs_cap'            => (float)($m['bs_cap'] ?? 2.0),
     'hm_cap'            => (float)($m['hm_cap'] ?? 2.0),
+    'tt_decay_gps'      => (int)($m['tt_decay_gps'] ?? 4),
     'form_window'       => (int)($m['form_window'] ?? 8),
 ], $metaData), JSON_UNESCAPED_SLASHES) ?>;
 
@@ -1319,6 +1330,7 @@ function onSimSelectionChange() {
         set('sim-bs-rate', r.bs_rate);
         set('sim-bs-cap', r.bs_cap);
         set('sim-hm-cap', r.hm_cap);
+        set('sim-tt-decay', r.tt_decay_gps);
         set('sim-form-window', r.form_window);
     }
     loadSimData();
@@ -1347,6 +1359,7 @@ function updateSimulator() {
         'sim-param-bh-mult':  system === 'bounty_hunter',
         'sim-param-bh-cost':  system === 'bounty_hunter',
         'sim-param-pm-ante':  system === 'pari_mutuel',
+        'sim-param-tt-decay': system === 'territory',
         'sim-param-pm-preset': system === 'pari_mutuel',
         'sim-param-h2h-w':    system === 'head_to_head',
         'sim-param-bs-rate':  system === 'blue_shell',
@@ -1375,6 +1388,7 @@ function updateSimulator() {
     if (system === 'head_to_head')      url += `&h2h_npc_weight=${val('sim-h2h-npc-weight')}`;
     if (system === 'blue_shell')        url += `&bs_rate=${val('sim-bs-rate')}&bs_cap=${val('sim-bs-cap')}`;
     if (system === 'hard_mode')         url += `&hm_cap=${val('sim-hm-cap')}`;
+    if (system === 'territory')         url += `&tt_decay_gps=${val('sim-tt-decay')}`;
     if (system === 'form')              url += `&form_window=${val('sim-form-window')}`;
 
     document.getElementById('sim-standings-table').innerHTML = '<p class="sim-status">Computing...</p>';

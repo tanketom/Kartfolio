@@ -42,7 +42,9 @@ foreach ($standings as $index => &$racer) {
     $racer['rank_change'] = ($previousRank !== null) ? ($previousRank - ($index + 1)) : null;
 }
 unset($racer);
-$leaderboard = array_slice($standings, 0, 10);
+$isTerritory = (($rules['scoring_system'] ?? '') === 'territory');
+$leaderboard = array_slice($standings, 0, $isTerritory ? 5 : 10);   // the map takes the top of the screen on Territory seasons
+$ttMap = $isTerritory ? territoryMapPayload($pdo, $seasonId) : null;
 
 // News Ticker Logic
 $tickerLines = [];
@@ -68,6 +70,16 @@ while($row = $newsStmt->fetch()) {
         </header>
 
         
+
+        <?php if ($ttMap): ?>
+        <div class="tt-map-card tt-map-card--signage">
+            <canvas id="tt-map" data-layout="portrait" aria-label="Territory map: who holds each cup"></canvas>
+            <div class="tt-overlay" id="tt-overlay"></div>
+        </div>
+        <script id="tt-data" type="application/json"><?= json_encode($ttMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
+        <script src="/assets/js/overworld.js"></script>
+        <script src="/assets/js/territory_map.js"></script>
+        <?php endif; ?>
 
         <main class="signage-main">
             <?php foreach ($leaderboard as $idx => $row): 

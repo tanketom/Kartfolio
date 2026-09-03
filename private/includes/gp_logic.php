@@ -238,14 +238,14 @@ function getScoringSystemRegistry(): array {
             'name'                   => 'Territory',
             'icon'                   => '🏰',
             'description'            => 'Hold the cups — score is how many you own',
-            'long_description'       => "Each of the 24 cups is held by whoever has posted the best result on it this season. Your score is the number of cups you hold. Winner-take-all per cup: a 57 on Star Cup holds it until someone posts a 58, and on an equal score the earlier post keeps it. Different from Top 12 Unique, which sums your own bests — here only the league-best on each cup counts. Makes cup choice tactical and turns every night into attacking someone's territory or defending your own.",
+            'long_description'       => "Each of the 24 cups is held by whoever has posted the best result on it this season, and your score is the number of cups you hold. A 57 on Star Cup holds it until someone posts a 57 or better — an equal score takes it, so even a perfect 60 can be answered by a 60. Holdings must be defended: if a cup is raced the configured number of times without its holder racing it, the best challenger across those nights takes it. Different from Top 12 Unique, which sums your own bests — here only the league-best on each cup counts, and showing up matters.",
             'calculate'              => 'calculateTerritoryScore',
             'breakdown'              => 'breakdownTerritory',
             'tooltip'                => 'tooltipTerritory',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
             'tiebreak'               => [
-                'metric'  => fn($pdo, $rid, $season_id, $rules) => array_sum(territorySeason($pdo, $season_id)['by_racer'][(int)$rid] ?? []),
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => array_sum(territorySeason($pdo, $season_id, (array)$rules)['by_racer'][(int)$rid] ?? []),
                 'level'   => 'Same number of cups held',
                 'ahead'   => 'points across them',
                 'both'    => 'Same cups held and points',
@@ -2529,33 +2529,119 @@ function tooltipBlueShell(array $c, $score): string {
 // TERRITORY — hold the cups
 // ============================================================================
 
-function territorySeason(PDO $pdo, string $season_id): array {
+/**
+ * Territory rules ("highest score holds, but you have to show up"):
+ *   - A cup is held by the best score posted on it this season.
+ *   - An EQUAL score takes it — the later post wins the tie, so a perfect 60
+ *     can be answered by another 60.
+ *   - Undefended decay: if the cup is raced tt_decay_gps times (default 4,
+ *     0 = off) without the holder racing it, the best challenger across those
+ *     nights takes it. Racing the cup yourself resets the count.
+ * Returns ['hold' => cup => [racer_id, points, date, id, gpid, undefended],
+ *          'by_racer' => racer_id => (cup => points),
+ *          'events' => [[gpid, cup, from, to, type(claim|beat|tie|decay), points], …] chronological,
+ *          'challengers' => cup => rows posted by non-holders while unchanged,
+ *          'changed' => cup => ever changed hands, 'decay_gps' => N].
+ * Cached per (season, decay knob) so the simulator can vary the knob.
+ */
+function territorySeason(PDO $pdo, string $season_id, ?array $rules = null): array {
     static $cache = [];
-    if (isset($cache[$season_id])) return $cache[$season_id];
-    $hold = [];
+    $rules  = $rules ?? getSeasonRules($pdo, $season_id);
+    $decayN = max(0, (int)($rules['tt_decay_gps'] ?? 4));
+    $key = $season_id . ':' . $decayN;
+    if (isset($cache[$key])) return $cache[$key];
+
+    $all = [];
     foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
         foreach ($rows as $r) {
-            $cup = $r['cup_name'] ?? '';
-            if ($cup === '') continue;
-            $p   = (int)$r['gp_points'];
-            $cur = $hold[$cup] ?? null;
-            $takes = $cur === null || $p > $cur['points']
-                  || ($p === $cur['points'] && (strcmp((string)$r['race_date'], (string)$cur['date']) < 0
-                      || ((string)$r['race_date'] === (string)$cur['date'] && (int)$r['id'] < $cur['id'])));
-            if ($takes) $hold[$cup] = ['racer_id' => (int)$rid, 'points' => $p, 'date' => $r['race_date'], 'id' => (int)$r['id'], 'gpid' => $r['gpid']];
+            if (($r['cup_name'] ?? '') === '') continue;
+            $all[] = ['rid' => (int)$rid, 'cup' => $r['cup_name'], 'pts' => (int)$r['gp_points'], 'date' => (string)$r['race_date'], 'id' => (int)$r['id'], 'gpid' => (string)$r['gpid']];
+        }
+    }
+    usort($all, fn($a, $b) => strcmp($a['date'], $b['date']) ?: strcmp($a['gpid'], $b['gpid']) ?: ($a['id'] <=> $b['id']));
+    // one group per (GP night, cup), in order — everyone who raced that cup that night
+    $groups = []; $order = [];
+    foreach ($all as $e) { $k = $e['gpid'] . '|' . $e['cup']; if (!isset($groups[$k])) { $groups[$k] = []; $order[] = $k; } $groups[$k][] = $e; }
+
+    $mk = fn(array $e) => ['racer_id' => $e['rid'], 'points' => $e['pts'], 'date' => $e['date'], 'id' => $e['id'], 'gpid' => $e['gpid'], 'undefended' => 0];
+    $hold = []; $events = []; $challengers = []; $changed = []; $undef = []; $bestSince = [];
+    foreach ($order as $k) {
+        $g = $groups[$k]; $cup = $g[0]['cup']; $gpid = $g[0]['gpid'];
+        usort($g, fn($a, $b) => ($b['pts'] <=> $a['pts']) ?: ($a['id'] <=> $b['id']));   // best first
+        $top = $g[0];
+        if (!isset($hold[$cup])) {
+            $hold[$cup] = $mk($top); $challengers[$cup] = 0; $changed[$cup] = false; $undef[$cup] = 0; $bestSince[$cup] = null;
+            $events[] = ['gpid' => $gpid, 'cup' => $cup, 'from' => null, 'to' => $top['rid'], 'type' => 'claim', 'points' => $top['pts']];
+            continue;
+        }
+        $h = $hold[$cup];
+        $present = null; foreach ($g as $e) if ($e['rid'] === $h['racer_id']) { $present = $e; break; }
+        foreach ($g as $e) if ($e['rid'] !== $h['racer_id']) $challengers[$cup]++;
+
+        if ($top['rid'] !== $h['racer_id'] && $top['pts'] >= $h['points']) {          // beaten, or tied by a challenger
+            $events[] = ['gpid' => $gpid, 'cup' => $cup, 'from' => $h['racer_id'], 'to' => $top['rid'], 'type' => $top['pts'] === $h['points'] ? 'tie' : 'beat', 'points' => $top['pts']];
+            $hold[$cup] = $mk($top); $changed[$cup] = true; $undef[$cup] = 0; $bestSince[$cup] = null;
+            continue;
+        }
+        if ($present !== null) {                                                       // holder defended (and maybe improved)
+            if ($present['pts'] > $h['points']) { $h['points'] = $present['pts']; $h['date'] = $present['date']; $h['id'] = $present['id']; $h['gpid'] = $present['gpid']; }
+            $h['undefended'] = 0; $undef[$cup] = 0; $bestSince[$cup] = null; $hold[$cup] = $h;
+            continue;
+        }
+        // holder absent: the cup was raced without them
+        $undef[$cup]++; $h['undefended'] = $undef[$cup];
+        $best = null; foreach ($g as $e) if ($e['rid'] !== $h['racer_id']) { $best = $e; break; }
+        if ($best !== null && ($bestSince[$cup] === null || $best['pts'] > $bestSince[$cup]['pts'])) $bestSince[$cup] = $best;
+        if ($decayN > 0 && $undef[$cup] >= $decayN && $bestSince[$cup] !== null) {
+            $events[] = ['gpid' => $gpid, 'cup' => $cup, 'from' => $h['racer_id'], 'to' => $bestSince[$cup]['rid'], 'type' => 'decay', 'points' => $bestSince[$cup]['pts']];
+            $hold[$cup] = $mk($bestSince[$cup]); $changed[$cup] = true; $undef[$cup] = 0; $bestSince[$cup] = null;
+        } else {
+            $hold[$cup] = $h;
         }
     }
     $byRacer = [];
     foreach ($hold as $cup => $h) $byRacer[$h['racer_id']][$cup] = $h['points'];
-    return $cache[$season_id] = ['hold' => $hold, 'by_racer' => $byRacer];
+    return $cache[$key] = ['hold' => $hold, 'by_racer' => $byRacer, 'events' => $events, 'challengers' => $challengers, 'changed' => $changed, 'decay_gps' => $decayN];
+}
+
+/** Stable colour per racer for a season's map and chips: palette by racer id order. */
+function territoryRacerColors(array $racerIds): array {
+    $palette = ['#E60012', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B', '#6366F1', '#84CC16', '#F97316', '#A855F7', '#06B6D4', '#D946EF', '#10B981', '#3B82F6', '#EF4444', '#FB923C'];
+    $ids = array_values(array_unique(array_map('intval', $racerIds))); sort($ids);
+    $out = []; foreach ($ids as $i => $rid) $out[$rid] = $palette[$i % count($palette)];
+    return $out;
+}
+
+/**
+ * Everything the overworld map needs, in cup order (getMKAllCups == stop order):
+ * per cup the holder, score to beat, undefended count and whether it changed
+ * hands on the latest race night; a colour per racer; names.
+ */
+function territoryMapPayload(PDO $pdo, string $season_id): array {
+    $t = territorySeason($pdo, $season_id);
+    $names = racerNamesMap($pdo);
+    $byRacer = getSeasonResultsByRacer($pdo, $season_id);
+    $lastGp = null; $lastDate = '';
+    foreach ($byRacer as $rows) foreach ($rows as $r) if (strcmp((string)$r['race_date'], $lastDate) >= 0) { if ((string)$r['race_date'] !== $lastDate || strcmp((string)$r['gpid'], (string)$lastGp) > 0) { $lastDate = (string)$r['race_date']; $lastGp = (string)$r['gpid']; } }
+    $flipped = [];
+    foreach ($t['events'] as $ev) if ($ev['gpid'] === $lastGp && $ev['from'] !== null && $ev['from'] !== $ev['to']) $flipped[$ev['cup']] = $ev['type'];
+    $cups = [];
+    foreach (getMKAllCups() as $c) {
+        $h = $t['hold'][$c] ?? null;
+        $cups[] = ['cup' => $c, 'holder' => $h ? $h['racer_id'] : null, 'name' => $h ? ($names[$h['racer_id']] ?? '') : null,
+                   'pts' => $h ? $h['points'] : 0, 'undefended' => $h ? $h['undefended'] : 0, 'flip' => $flipped[$c] ?? null];
+    }
+    $colors = territoryRacerColors(array_keys($byRacer));
+    $chars = []; foreach (array_keys($byRacer) as $rid) $chars[$rid] = getMostUsedCharacter($pdo, (int)$rid, $season_id) ?: 'Mii';
+    return ['cups' => $cups, 'colors' => $colors, 'names' => array_intersect_key($names, $byRacer), 'chars' => $chars, 'decay' => $t['decay_gps'], 'held' => count($t['hold']), 'last_gp' => $lastGp];
 }
 
 function calculateTerritoryScore($pdo, $racer_id, $season_id, $rules) {
-    return count(territorySeason($pdo, $season_id)['by_racer'][(int)$racer_id] ?? []);
+    return count(territorySeason($pdo, $season_id, (array)$rules)['by_racer'][(int)$racer_id] ?? []);
 }
 
 function breakdownTerritory($pdo, $racer_id, $season_id, $rules) {
-    $t = territorySeason($pdo, $season_id);
+    $t = territorySeason($pdo, $season_id, (array)$rules);
     $held = $t['by_racer'][(int)$racer_id] ?? [];
     arsort($held);
     return [
