@@ -351,8 +351,12 @@ body {
 }
 
 /* Territory overworld on the vertical sign: full width above the top five */
-.signage-container .tt-map-card { position: relative; margin: 0 0 24px; border: 6px solid #1a2238; border-radius: 16px; overflow: hidden; background: #1a2238; }
-.signage-container .tt-map-card canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+/* The sign is a 2048×2560 flex column: give the map a fixed height it can
+   own (the top five cards take the rest) and let the width follow the
+   portrait canvas' aspect, centred — not full width, which the column
+   would clip. */
+.signage-container .tt-map-card { position: relative; flex: 0 0 auto; height: 1380px; width: fit-content; margin: 0 auto 24px; border: 6px solid #1a2238; border-radius: 16px; overflow: hidden; background: #1a2238; }
+.signage-container .tt-map-card canvas { display: block; height: 100%; width: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
 .signage-container .tt-overlay { position: absolute; inset: 0; pointer-events: none; }
 .signage-container .tt-lbl { position: absolute; transform: translate(-50%, 0); font-weight: 800; font-size: var(--tt-lbl, 22px); color: #fff; white-space: nowrap; text-shadow: 0 0 3px #1a2238, 2px 2px 0 #1a2238, -2px -2px 0 #1a2238, 2px -2px 0 #1a2238, -2px 2px 0 #1a2238; }
 .signage-container .tt-lbl small { display: block; font-weight: 700; font-size: .8em; }

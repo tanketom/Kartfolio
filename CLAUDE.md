@@ -440,7 +440,18 @@ We have no test suite. The closest things we have are:
 3. **Render every URL state for changed pages.** For multi-view things
    (overlay views, scoring systems, tournament formats), loop through
    each variant.
-4. **Prove perf refactors with an equivalence harness.** When you swap a
+4. **Look at it on a dev server.** `.claude/launch.json` has two configs:
+   `cdnmk` (the real `league.db`, port 8080) and `cdnmk-territory-demo`
+   (port 8081), which serves a gitignored copy `private/data/demo_territory.db`
+   with s04 switched to Territory and made current — the only way to see a
+   Territory season until one is played. Both go through
+   `bin/dev_router.php`, which emulates the .htaccess clean URLs for PHP's
+   built-in server; the demo config prepends `bin/dev_demo_db.php`, which
+   sets `KARTFOLIO_DB` (honoured by `db.php`, unset in production). Recreate
+   the demo copy with `cp private/data/league.db private/data/demo_territory.db`
+   plus the two `UPDATE season_meta` lines in the git log for d6739bd's
+   follow-up.
+5. **Prove perf refactors with an equivalence harness.** When you swap a
    query path for a cached/batched one, run the old and new code against
    real DB data and diff the output (byte-identical, or field-by-field
    across every racer/season/cup). To prove the query-count win, wrap

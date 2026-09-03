@@ -6,7 +6,10 @@
 
 // Define the path to the SQLite database file
 // Since this file is in /private/includes/, we go up two levels to reach /private/data/
-$dbPath = __DIR__ . '/../data/league.db';
+// KARTFOLIO_DB lets a dev server point at another SQLite file (see
+// bin/dev_router.php + .claude/launch.json: a demo copy with a Territory
+// season, never the live league). Unset in production.
+$dbPath = getenv('KARTFOLIO_DB') ?: __DIR__ . '/../data/league.db';
 
 try {
     // Create (or open) the SQLite database

@@ -57,12 +57,15 @@
   draw();
   let raf = null; window.addEventListener('resize', () => { if (raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); });
 
-  // Map / Rankings switch (homepage only)
-  const segs = Array.from(document.querySelectorAll('.tt-seg')), grid = document.getElementById('leaderboard-grid');
-  if (segs.length && grid) {
+  // Map / Rankings switch (homepage only). The script tag sits above the
+  // standings grid in the HTML, so wait for the document before looking it up.
+  const wireSwitch = () => {
+    const segs = Array.from(document.querySelectorAll('.tt-seg')), grid = document.getElementById('leaderboard-grid');
+    if (!segs.length || !grid) return;
     const setView = (v) => { const map = v === 'map'; card.hidden = !map; grid.hidden = map; segs.forEach(s => s.setAttribute('aria-pressed', String(s.dataset.view === v))); try { localStorage.setItem('tt-view', v); } catch (e) {} if (map) draw(); };
     segs.forEach(s => s.addEventListener('click', () => setView(s.dataset.view)));
     let saved = 'map'; try { saved = localStorage.getItem('tt-view') || 'map'; } catch (e) {}
     setView(saved);
-  }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireSwitch); else wireSwitch();
 })();
