@@ -332,6 +332,37 @@ Other things learned the hard way:
   what is actually on disk. Then `git clean -nd` (preview) before `-fd`;
   gitignored files such as `admin_season.php` need an explicit `rm`.
 
+**Setting up a new machine to deploy from.** A laptop only needs to be a git
+checkout of this repo plus its own `bin/deploy.conf` — `deploy.sh` ships
+`origin/main` to the server, never your local files, so local drift is
+irrelevant. Steps, in order (each cost a round-trip the first time):
+
+1. **Make the folder a checkout.** In place: `git init`, `git remote add origin
+   <forge-url>`, `git fetch origin`, `git reset --hard origin/main`. This
+   overwrites tracked code but leaves untracked/gitignored files alone, so an
+   existing folder keeps its `league.db`, `config.php`, and images. Verify with
+   an `md5`/checksum before and after that those two files are byte-identical.
+   Back the folder up first regardless.
+2. **Write `bin/deploy.conf`** from `deploy.conf.example` (it's gitignored).
+   Gotcha: `DEPLOY_PATH` must not be a bare `~` in quotes — `deploy.sh` runs
+   `cd "$DEPLOY_PATH"` on the server and a tilde inside quotes does not expand.
+   Use an absolute path, or single-quote `'$HOME/www/cdnmk'` so `$HOME` expands
+   server-side, not on the laptop.
+3. **Trust the host key** (first connection only). A non-interactive `ssh` just
+   fails with "Host key verification failed" instead of prompting. Fix from a
+   real terminal: `ssh <user>@<host>` once, verify the fingerprint, accept.
+4. **Authorise the laptop's key.** `deploy.sh` pipes a script over `ssh`
+   non-interactively, so password auth can't be used — the machine's public key
+   must be on the server: `ssh-copy-id -i ~/.ssh/id_ed25519.pub <user>@<host>`
+   (prompts for the account password once). "works from my other machine but
+   not this one" is almost always this: only that machine's key is installed.
+5. **Verify** with `bin/deploy.sh --dry-run` — it SSHes in and previews without
+   changing anything; "server is already on <sha>" means the whole chain works.
+
+(A newer OpenSSH client may warn that the connection isn't using a
+post-quantum key exchange when the server's SSH is older. Advisory only — the
+session is still encrypted and deploy works; it's the host's to upgrade.)
+
 ## Naming / style rules
 
 ### MONSTER HUNT is always all-caps
