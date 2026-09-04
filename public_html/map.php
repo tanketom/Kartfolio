@@ -49,6 +49,7 @@ $sections = [
         ['/predictions',       '🔮', 'Crystal Ball',            'Monte Carlo simulations of the current season — championship probabilities.'],
         ['/scoring-systems',   '🧮', 'Scoring systems catalog', 'Descriptive reference for every scoring system the platform ships with — what each one rewards and how it tunes.'],
         ['/scoring',           '🔢', 'Current-season scoring',  'Live breakdown of how the active season\'s standings are computed under its scoring system.'],
+        ['/multiverse',        '🌌', 'Multiverse Champions',    'Every archived season re-scored under every scoring system — which titles hold up in every universe, and which only exist under the rulebook the league picked that year.'],
     ],
 
     'Per-racer profiles' => [

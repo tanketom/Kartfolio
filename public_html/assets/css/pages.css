@@ -6159,3 +6159,32 @@ th.rotate > div {
 .scr-bingo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-width: 520px; margin-top: 10px; }
 .scr-bingo-sq { padding: 10px 8px; border-radius: 8px; background: var(--gray-100, #f3f6fb); border: 1px solid var(--gray-200, #e2e6ee); font-size: .78rem; font-weight: 600; text-align: center; min-height: 54px; display: grid; place-items: center; color: var(--gray-600, #4b5563); }
 .scr-bingo-sq.done { background: #e8f7ec; border-color: #2EBD59; color: #14602c; }
+
+/* ── Multiverse Champions (/multiverse) ─────────────────────────────────── */
+.mv-intro { max-width: 760px; line-height: 1.6; }
+.mv-section { margin: 28px 0; }
+.mv-bars { display: grid; gap: 6px; max-width: 900px; }
+.mv-bar-row { display: grid; grid-template-columns: 110px 1fr 36px auto; gap: 10px; align-items: center; font-size: .9rem; }
+.mv-bar-name { font-weight: 700; }
+.mv-bar-track { height: 14px; background: var(--gray-100, #f0f2f6); border-radius: 7px; overflow: hidden; }
+.mv-bar-fill { display: block; height: 100%; border-radius: 7px; }
+.mv-bar-num { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+.mv-bar-seasons { display: flex; gap: 4px; flex-wrap: wrap; }
+.mv-chip { font-size: .7rem; padding: 2px 7px; border-radius: 999px; background: var(--gray-100, #f0f2f6); border: 1px solid var(--gray-200, #e2e6ee); white-space: nowrap; }
+.mv-chip--none { opacity: .4; }
+.mv-chip--big { font-size: .85rem; padding: 4px 10px; background: #fff; border-width: 2px; display: inline-flex; align-items: center; gap: 6px; }
+.mv-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.mv-facts { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; font-size: .9rem; }
+.mv-fact { padding: 8px 12px; background: var(--gray-100, #f0f2f6); border-radius: 8px; }
+.mv-summary { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 14px; }
+.mv-upset { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #e63946; color: #fff; font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.mv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px; }
+.mv-cell { display: grid; gap: 3px; padding: 9px 11px; border-radius: 10px; background: #fff; border: 1px solid var(--gray-200, #e2e6ee); font-size: .82rem; }
+.mv-cell--real { border-color: var(--primary, #e63946); box-shadow: 0 0 0 2px rgba(230, 57, 70, .15); }
+.mv-cell-sys { color: var(--gray-500, #6b7280); font-size: .74rem; font-weight: 700; letter-spacing: .02em; }
+.mv-cell-sys em { font-style: normal; color: var(--primary, #e63946); }
+.mv-cell-win { font-weight: 800; font-size: .95rem; }
+.mv-cell-win small { font-weight: 500; color: var(--gray-500, #6b7280); }
+.mv-cell-win--none { color: var(--gray-400, #9ca3af); font-weight: 500; }
+.mv-cell-podium { display: flex; gap: 10px; color: var(--gray-500, #6b7280); font-size: .74rem; }
+@media (max-width: 640px) { .mv-bar-row { grid-template-columns: 90px 1fr 32px; } .mv-bar-seasons { grid-column: 1 / -1; } }

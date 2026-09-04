@@ -116,6 +116,7 @@ include __DIR__ . '/../private/templates/header.php';
     <header class="page-header about-page-header">
         <h1 class="page-title about-page-title">Scoring Systems</h1>
         <p class="page-subtitle">EVERY WAY THE LEAGUE KEEPS SCORE</p>
+        <p class="page-subtitle"><a href="/multiverse">🌌 Who would have won each season under each of them? →</a></p>
     </header>
 
     <div class="about-content">
