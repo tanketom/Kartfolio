@@ -23,7 +23,7 @@ verify_csrf();
 @set_time_limit(300);
 ignore_user_abort(true);
 
-$config = require __DIR__ . '/../../private/config/config.php';
+$config = kartfolioConfig();
 $apiKey = $config['gemini_api_key'] ?? '';
 // gemini-1.5-flash has been retired from v1beta; default to the current
 // flash so a missing config key doesn't always 404 on the first attempt.

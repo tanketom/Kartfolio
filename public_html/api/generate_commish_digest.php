@@ -35,7 +35,7 @@ try {
     exit;
 }
 
-$config = require __DIR__ . '/../../private/config/config.php';
+$config = kartfolioConfig();
 $apiKey = $config['gemini_api_key'] ?? '';
 if ($apiKey === '') {
     echo json_encode(['success' => false, 'error' => 'gemini_api_key missing from config.php']);

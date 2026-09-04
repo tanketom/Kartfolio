@@ -13,6 +13,8 @@ require_once __DIR__ . '/../private/includes/assets.php';
         <h1>Admin Access</h1>
         <?php if (isset($login_error)): ?>
             <p class="login-error"><?= $login_error ?></p>
+        <?php elseif (!empty(kartfolioConfig()['_missing'])): ?>
+            <p class="login-error">No config.php yet — copy private/config/config.example.php to config.php and set an admin password.</p>
         <?php endif; ?>
         
         <form method="POST">

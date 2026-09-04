@@ -5,6 +5,9 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 FIX="${1:-$(mktemp -d)/fixture.db}"
+# Never read the developer's real config (Gemini key, admin hash): point the loader
+# at nothing so every check runs the way a fresh clone / the CI runner does.
+export KARTFOLIO_CONFIG="$(dirname "$FIX")/no-config.php"
 fail=0
 
 echo "▸ php -l"

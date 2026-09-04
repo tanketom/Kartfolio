@@ -24,7 +24,7 @@ ignore_user_abort(true);
 // ============================================================
 // 1. Configuration
 // ============================================================
-$config = require __DIR__ . '/../../private/config/config.php';
+$config = kartfolioConfig();
 $apiKey = $config['gemini_api_key'] ?? '';
 $model  = $config['model_name'] ?? 'gemini-2.5-flash';
 

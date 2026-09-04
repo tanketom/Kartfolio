@@ -301,7 +301,9 @@ needs a human is the worst thing to hit mid-deploy. The reset is safe only
 because everything that must survive is gitignored and therefore untouched:
 
 - `private/data/league.db` — the league itself
-- `private/config/config.php` — Gemini key, admin password hash
+- `private/config/config.php` — Gemini key, admin password hash. Read only
+  through `kartfolioConfig()` (db.php); a clone without it falls back to
+  `config.example.php` with admin login disabled, so public pages still render
 - `assets/img/*.png`, `assets/img/tracks/` — character and track art
 
 **So: any new file holding per-install state must be gitignored**, or the next

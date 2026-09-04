@@ -24,7 +24,7 @@ verify_csrf();
 ignore_user_abort(true);
 
 $seasonId = $_POST['season'] ?? $_GET['season'] ?? getCurrentSeasonNumber();
-$config   = require __DIR__ . '/../../private/config/config.php';
+$config = kartfolioConfig();
 
 try {
     $result = generateAndSaveSeasonAwards($pdo, $config, $seasonId);

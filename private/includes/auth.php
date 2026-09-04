@@ -10,8 +10,8 @@ require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/db.php'; // $pdo — needed for the login throttle
 
 // Load the admin password from your config
-$config = require __DIR__ . '/../config/config.php';
-$admin_password = $config['admin_password'];
+$config = kartfolioConfig();
+$admin_password = (string)($config['admin_password'] ?? '');
 
 /**
  * Call this function at the top of any page 
@@ -68,7 +68,9 @@ if (isset($_POST['login_password'])) {
     ");
     $cntStmt->execute([$loginIp]);
 
-    if ((int)$cntStmt->fetchColumn() >= 8) {
+    if ($admin_password === '') {
+        $login_error = "Admin login is disabled: copy private/config/config.example.php to config.php and set a password.";
+    } elseif ((int)$cntStmt->fetchColumn() >= 8) {
         $login_error = "Too many failed attempts. Try again in 15 minutes.";
     } else {
         $inputPassword = $_POST['login_password'];

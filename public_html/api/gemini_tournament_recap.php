@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../private/includes/ecology_text.php';
 require_once __DIR__ . '/../../private/includes/gemini_client.php';
 
 // 1. CONFIGURATION
-$config = require __DIR__ . '/../../private/config/config.php';
+$config = kartfolioConfig();
 if (!isset($config['gemini_api_key']) || empty($config['gemini_api_key'])) {
     die("Error: 'gemini_api_key' missing in config.php");
 }
