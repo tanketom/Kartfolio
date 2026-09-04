@@ -141,6 +141,14 @@ CREATE TABLE IF NOT EXISTS season_meta (
     hm_cap FLOAT DEFAULT 2.0,
     -- Territory (GPs a cup can be raced without its holder before it changes hands; 0 = never)
     tt_decay_gps INTEGER DEFAULT 4,
+    -- Kart Bingo / The Price Is Right / The Great Equaliser / The Cursed Crown
+    bg_line_pts INTEGER DEFAULT 100,
+    bg_card_pts INTEGER DEFAULT 500,
+    pir_target TEXT DEFAULT 'median',
+    pir_best_n INTEGER DEFAULT 15,
+    eq_mode TEXT DEFAULT 'season',
+    cc_gp_cost INTEGER DEFAULT 5,
+    cc_final_cost INTEGER DEFAULT 50,
     -- Form (rolling window size)
     form_window INTEGER DEFAULT 8
 );

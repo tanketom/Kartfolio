@@ -222,6 +222,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($scoringSystem === 'hard_mode') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['hm_thresh'] ?? 3));
                 $updateFields['hm_cap'] = max(1.0, min(5.0, (float)($_POST['hm_cap'] ?? 2.0)));
+            } elseif ($scoringSystem === 'kart_bingo') {
+                $updateFields['bg_line_pts'] = max(1, min(1000, (int)($_POST['bg_line_pts'] ?? 100)));
+                $updateFields['bg_card_pts'] = max(0, min(5000, (int)($_POST['bg_card_pts'] ?? 500)));
+            } elseif ($scoringSystem === 'price_is_right') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['pir_thresh'] ?? 3));
+                $updateFields['pir_target'] = in_array($_POST['pir_target'] ?? 'median', ['median', 'mean'], true) ? $_POST['pir_target'] : 'median';
+                $updateFields['pir_best_n'] = max(1, min(60, (int)($_POST['pir_best_n'] ?? 15)));
+            } elseif ($scoringSystem === 'equaliser') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['eq_thresh'] ?? 3));
+                $updateFields['eq_mode'] = in_array($_POST['eq_mode'] ?? 'season', ['season', 'per_gp'], true) ? $_POST['eq_mode'] : 'season';
+            } elseif ($scoringSystem === 'cursed_crown') {
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['cc_thresh'] ?? 3));
+                $updateFields['cc_gp_cost'] = max(0, min(60, (int)($_POST['cc_gp_cost'] ?? 5)));
+                $updateFields['cc_final_cost'] = max(0, min(500, (int)($_POST['cc_final_cost'] ?? 50)));
             } elseif ($scoringSystem === 'form') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['form_thresh'] ?? 3));
                 $updateFields['form_window'] = max(1, min(50, (int)($_POST['form_window'] ?? 8)));
@@ -530,6 +544,13 @@ include __DIR__ . '/../../private/templates/header.php';
                             <label>Undefended GPs before decay</label>
                             <input type="number" id="sim-tt-decay" value="4" min="0" max="20" onchange="updateSimulator()">
                         </div>
+                        <div class="form-field" id="sim-param-bg-line" style="display:none;"><label>Points per line</label><input type="number" id="sim-bg-line" value="100" min="1" max="1000" onchange="updateSimulator()"></div>
+                        <div class="form-field" id="sim-param-bg-card" style="display:none;"><label>Full-card bonus</label><input type="number" id="sim-bg-card" value="500" min="0" max="5000" onchange="updateSimulator()"></div>
+                        <div class="form-field" id="sim-param-pir-target" style="display:none;"><label>Target</label><select id="sim-pir-target" onchange="updateSimulator()"><option value="median">Median</option><option value="mean">Mean</option></select></div>
+                        <div class="form-field" id="sim-param-pir-n" style="display:none;"><label>Best N GPs</label><input type="number" id="sim-pir-n" value="15" min="1" max="60" onchange="updateSimulator()"></div>
+                        <div class="form-field" id="sim-param-eq-mode" style="display:none;"><label>Judged</label><select id="sim-eq-mode" onchange="updateSimulator()"><option value="season">Season average</option><option value="per_gp">Every GP</option></select></div>
+                        <div class="form-field" id="sim-param-cc-gp" style="display:none;"><label>Cost per GP worn</label><input type="number" id="sim-cc-gp" value="5" min="0" max="60" onchange="updateSimulator()"></div>
+                        <div class="form-field" id="sim-param-cc-final" style="display:none;"><label>Final-night cost</label><input type="number" id="sim-cc-final" value="50" min="0" max="500" onchange="updateSimulator()"></div>
                         <div class="form-field" id="sim-param-hm-cap" style="display:none;">
                             <label>Difficulty Cap</label>
                             <input type="number" id="sim-hm-cap" value="2.0" min="1" max="5" step="0.1" onchange="updateSimulator()">
@@ -955,6 +976,80 @@ include __DIR__ . '/../../private/templates/header.php';
                             </div>
                         </div>
                     </div>
+                    <div id="fields-<?= $sid ?>-kart_bingo" class="scoring-fields" style="<?= $meta['scoring_system'] === 'kart_bingo' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🎱 Kart Bingo Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['kart_bingo']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Points per line</label>
+                                <input type="number" name="bg_line_pts" value="<?= htmlspecialchars((string)($meta['bg_line_pts'] ?? 100)) ?>" min="1" max="1000">
+                                <small>Rows, columns and diagonals each</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Full-card bonus</label>
+                                <input type="number" name="bg_card_pts" value="<?= htmlspecialchars((string)($meta['bg_card_pts'] ?? 500)) ?>" min="0" max="5000">
+                                <small>On top of the eight lines</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="fields-<?= $sid ?>-price_is_right" class="scoring-fields" style="<?= $meta['scoring_system'] === 'price_is_right' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🏷️ The Price Is Right Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['price_is_right']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="pir_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>Keeps one-night wonders off the board</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Target</label>
+                                <select name="pir_target"><option value="median" <?= ($meta['pir_target'] ?? 'median') === 'median' ? 'selected' : '' ?>>Median of the GP</option><option value="mean" <?= ($meta['pir_target'] ?? 'median') === 'mean' ? 'selected' : '' ?>>Mean of the GP</option></select>
+                                <small>The hidden number to get under</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Best N GPs count</label>
+                                <input type="number" name="pir_best_n" value="<?= htmlspecialchars((string)($meta['pir_best_n'] ?? 15)) ?>" min="1" max="60">
+                                <small>Season = sum of your best N ladder scores</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="fields-<?= $sid ?>-equaliser" class="scoring-fields" style="<?= $meta['scoring_system'] === 'equaliser' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">⚖️ The Great Equaliser Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['equaliser']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="eq_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>Keeps one-night wonders off the board</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Judged</label>
+                                <select name="eq_mode"><option value="season" <?= ($meta['eq_mode'] ?? 'season') === 'season' ? 'selected' : '' ?>>Season average vs league average</option><option value="per_gp" <?= ($meta['eq_mode'] ?? 'season') === 'per_gp' ? 'selected' : '' ?>>Every GP vs that night\'s average</option></select>
+                                <small>Per-GP punishes wild nights; season mode forgives them</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="fields-<?= $sid ?>-cursed_crown" class="scoring-fields" style="<?= $meta['scoring_system'] === 'cursed_crown' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">🥀 The Cursed Crown Settings</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['cursed_crown']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to qualify</label>
+                                <input type="number" name="cc_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>Keeps one-night wonders off the board</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Cost per GP worn</label>
+                                <input type="number" name="cc_gp_cost" value="<?= htmlspecialchars((string)($meta['cc_gp_cost'] ?? 5)) ?>" min="0" max="60">
+                                <small>Charged whether the wearer raced that GP or not</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Cost on the final night</label>
+                                <input type="number" name="cc_final_cost" value="<?= htmlspecialchars((string)($meta['cc_final_cost'] ?? 50)) ?>" min="0" max="500">
+                                <small>Paid by whoever wears it when the season closes</small>
+                            </div>
+                        </div>
+                    </div>
                     <div id="fields-<?= $sid ?>-form" class="scoring-fields" style="<?= $meta['scoring_system'] === 'form' ? '' : 'display:none;' ?>">
                         <h4 class="subsection-title">📈 Form Settings</h4>
                         <p class="info-text"><?= htmlspecialchars($scoringSystems['form']['long_description']) ?></p>
@@ -1307,6 +1402,13 @@ const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
     'bs_cap'            => (float)($m['bs_cap'] ?? 2.0),
     'hm_cap'            => (float)($m['hm_cap'] ?? 2.0),
     'tt_decay_gps'      => (int)($m['tt_decay_gps'] ?? 4),
+    'bg_line_pts'       => (int)($m['bg_line_pts'] ?? 100),
+    'bg_card_pts'       => (int)($m['bg_card_pts'] ?? 500),
+    'pir_target'        => $m['pir_target'] ?? 'median',
+    'pir_best_n'        => (int)($m['pir_best_n'] ?? 15),
+    'eq_mode'           => $m['eq_mode'] ?? 'season',
+    'cc_gp_cost'        => (int)($m['cc_gp_cost'] ?? 5),
+    'cc_final_cost'     => (int)($m['cc_final_cost'] ?? 50),
     'form_window'       => (int)($m['form_window'] ?? 8),
 ], $metaData), JSON_UNESCAPED_SLASHES) ?>;
 
@@ -1332,6 +1434,10 @@ function onSimSelectionChange() {
         set('sim-bs-cap', r.bs_cap);
         set('sim-hm-cap', r.hm_cap);
         set('sim-tt-decay', r.tt_decay_gps);
+        set('sim-bg-line', r.bg_line_pts); set('sim-bg-card', r.bg_card_pts);
+        set('sim-pir-target', r.pir_target); set('sim-pir-n', r.pir_best_n);
+        set('sim-eq-mode', r.eq_mode);
+        set('sim-cc-gp', r.cc_gp_cost); set('sim-cc-final', r.cc_final_cost);
         set('sim-form-window', r.form_window);
     }
     loadSimData();
@@ -1361,6 +1467,13 @@ function updateSimulator() {
         'sim-param-bh-cost':  system === 'bounty_hunter',
         'sim-param-pm-ante':  system === 'pari_mutuel',
         'sim-param-tt-decay': system === 'territory',
+        'sim-param-bg-line':  system === 'kart_bingo',
+        'sim-param-bg-card':  system === 'kart_bingo',
+        'sim-param-pir-target': system === 'price_is_right',
+        'sim-param-pir-n':    system === 'price_is_right',
+        'sim-param-eq-mode':  system === 'equaliser',
+        'sim-param-cc-gp':    system === 'cursed_crown',
+        'sim-param-cc-final': system === 'cursed_crown',
         'sim-param-pm-preset': system === 'pari_mutuel',
         'sim-param-h2h-w':    system === 'head_to_head',
         'sim-param-bs-rate':  system === 'blue_shell',
@@ -1390,6 +1503,10 @@ function updateSimulator() {
     if (system === 'blue_shell')        url += `&bs_rate=${val('sim-bs-rate')}&bs_cap=${val('sim-bs-cap')}`;
     if (system === 'hard_mode')         url += `&hm_cap=${val('sim-hm-cap')}`;
     if (system === 'territory')         url += `&tt_decay_gps=${val('sim-tt-decay')}`;
+    if (system === 'kart_bingo')        url += `&bg_line_pts=${val('sim-bg-line')}&bg_card_pts=${val('sim-bg-card')}`;
+    if (system === 'price_is_right')    url += `&pir_target=${val('sim-pir-target')}&pir_best_n=${val('sim-pir-n')}`;
+    if (system === 'equaliser')         url += `&eq_mode=${val('sim-eq-mode')}`;
+    if (system === 'cursed_crown')      url += `&cc_gp_cost=${val('sim-cc-gp')}&cc_final_cost=${val('sim-cc-final')}`;
     if (system === 'form')              url += `&form_window=${val('sim-form-window')}`;
 
     document.getElementById('sim-standings-table').innerHTML = '<p class="sim-status">Computing...</p>';

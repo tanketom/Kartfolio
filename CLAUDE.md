@@ -648,6 +648,15 @@ Cross-reference if you find half-implemented work:
   order == `getMKAllCups()` order. Holder colours: `territoryRacerColors()`
   (palette by racer id, stable per season). The renderer was iterated by
   rendering to PNG with node + PHP GD, not by eye in a browser
+- **Four weird scoring systems** — Kart Bingo (seeded 3×3 card per racer,
+  `bingoCard()` / `bingoProgress()`; knobs `bg_line_pts`, `bg_card_pts`), The
+  Price Is Right (per-GP hidden median/mean, closest-under wins, ladder
+  points, best-N; `priceIsRightSeason()`; knobs `pir_target`, `pir_best_n`),
+  The Great Equaliser (league avg − distance; `equaliserSeason()`; knob
+  `eq_mode`), The Cursed Crown (chronological wearer pass; `cursedCrownSeason()`;
+  knobs `cc_gp_cost`, `cc_final_cost`). `seasonGpGroups()` is the shared
+  gpid → humans grouping. Badges 🅱️ Bingo! and 🪦 Cursed. /scoring renders the
+  card, the per-GP bids and the crown line
 - **Badge sightings + frozen maps** — `badge_log` records the first GP night
   each racer was seen with each badge (`recordBadgeSightings()`, called from
   add_result after a GP is saved; the first call per season backfills with

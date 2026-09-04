@@ -304,6 +304,77 @@ function getScoringSystemRegistry(): array {
                 'both'    => 'Level on form and latest GP',
             ],
         ],
+
+        // ── The weird ones ──
+        'kart_bingo' => [
+            'name'                   => 'Kart Bingo',
+            'icon'                   => '🎱',
+            'description'            => fn($rules) => 'A seeded 3×3 card of targets — ' . (int)($rules['bg_line_pts'] ?? 100) . ' per line, ' . (int)($rules['bg_card_pts'] ?? 500) . ' for the card',
+            'long_description'       => "Every racer gets a 3×3 bingo card for the season, dealt from a seed so it is fixed from day one: score exactly 45, finish 4th, post a 60, finish directly behind a named rival, race Leaf Cup, three GPs in one night… Squares tick off automatically from results. Each completed line (rows, columns, diagonals) is worth the line value, a full card adds the card bonus, and your plain average is the tiebreak underneath. Every quiet Tuesday becomes a card-chase; the standings reward the racer who plays to their card, not the one with the highest average.",
+            'calculate'              => 'calculateBingoScore',
+            'breakdown'              => 'breakdownBingo',
+            'tooltip'                => 'tooltipBingo',
+            'qualifies_by_threshold' => false,
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => bingoProgress($pdo, (int)$rid, $season_id, (array)$rules)['done'],
+                'level'   => 'Level on bingo points',
+                'ahead'   => 'squares ticked',
+                'both'    => 'Level on bingo points and squares',
+            ],
+        ],
+        'price_is_right' => [
+            'name'                   => 'The Price Is Right',
+            'icon'                   => '🏷️',
+            'description'            => fn($rules) => 'Closest to the GP\'s ' . (($rules['pir_target'] ?? 'median') === 'mean' ? 'mean' : 'median') . ' without going over wins it',
+            'long_description'       => "Every GP has a hidden target: the median (or mean) score of the humans in it. Closest to the target without going over wins the GP; anyone who went over ranks behind everyone who didn't, by how far they overshot. GP finishes are paid on the Mario Kart ladder (15, 12, 10, 9…) and your season is the sum of your best N. A 57 on a night where the target is 44 finishes behind a 43. It rewards reading the room, not the racing line — and makes the last race of every GP a game of chicken.",
+            'calculate'              => 'calculatePriceScore',
+            'breakdown'              => 'breakdownPrice',
+            'tooltip'                => 'tooltipPrice',
+            'qualifies_by_threshold' => true,
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => priceIsRightSeason($pdo, $season_id, (array)$rules)['racers'][(int)$rid]['hits'] ?? 0,
+                'level'   => 'Level on ladder points',
+                'ahead'   => 'GPs won on the nose',
+                'both'    => 'Level on ladder points and wins',
+            ],
+        ],
+        'equaliser' => [
+            'name'                   => 'The Great Equaliser',
+            'icon'                   => '⚖️',
+            'description'            => fn($rules) => 'League average minus your distance from it — being average wins' . (($rules['eq_mode'] ?? 'season') === 'per_gp' ? ' (judged every GP)' : ''),
+            'long_description'       => "Your score is the league average minus how far your own average sits from it, above or below. The most average racer in the league wins the season; the best and the worst tie for last. In per-GP mode each night is judged against that night's average and the results are averaged, so a wild 60 and a dismal 20 hurt exactly as much. Consistency and mediocrity are rewarded in equal measure, and the standings chart becomes a single spike in the middle.",
+            'calculate'              => 'calculateEqualiserScore',
+            'breakdown'              => 'breakdownEqualiser',
+            'tooltip'                => 'tooltipEqualiser',
+            'qualifies_by_threshold' => true,
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => count(getRacerSeasonRows($pdo, (int)$rid, $season_id)),
+                'level'   => 'Equally average',
+                'ahead'   => 'GPs raced',
+                'both'    => 'Equally average over the same number of GPs',
+            ],
+        ],
+        'cursed_crown' => [
+            'name'                   => 'The Cursed Crown',
+            'icon'                   => '🥀',
+            'description'            => fn($rules) => 'Beat the wearer and the crown is yours — costs ' . (int)($rules['cc_gp_cost'] ?? 5) . '/GP worn, ' . (int)($rules['cc_final_cost'] ?? 50) . ' on the final night',
+            'long_description'       => "Last season's champion starts the season wearing the crown (or the winner of GP 1 if they aren't racing). Whoever finishes ahead of the wearer in a GP takes it. Every GP you wear it costs points, whether you raced that night or not, and wearing it when the season closes costs a lot more. Your score is your plain average minus crown costs. It is MONSTER HUNT inverted: nobody wants to be the target, and beating the leader is a trap.",
+            'calculate'              => 'calculateCrownScore',
+            'breakdown'              => 'breakdownCrown',
+            'tooltip'                => 'tooltipCrown',
+            'qualifies_by_threshold' => true,
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric'  => fn($pdo, $rid, $season_id, $rules) => ($p = array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id))) ? array_sum($p) / count($p) : 0,
+                'level'   => 'Level after crown costs',
+                'ahead'   => 'raw average',
+                'both'    => 'Level after costs and on raw average',
+                'fmt'     => fn($v) => scoreNum(round($v, 1)),
+            ],
+        ],
     ];
     return $registry;
 }
@@ -3013,4 +3084,196 @@ function progressiveReplayableSystems(): array {
     return ['average_attendance', 'preseason', 'best_n_gps', 'cup_based', 'drop_worst', 'perfect_hunt',
             'top_12_unique', 'black_box', 'random_cup_draw', 'monster_hunt',
             'positional_points', 'median', 'form'];
+}
+
+// ============================================================================
+// THE WEIRD ONES — Kart Bingo, The Price Is Right, The Great Equaliser,
+// The Cursed Crown. All read the season cache; per-GP systems group it by
+// gpid once per season.
+// ============================================================================
+
+/** gpid => [racer_id => row], every human in each GP, chronological. Cached per request. */
+function seasonGpGroups(PDO $pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+    $g = []; $when = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) foreach ($rows as $r) { $g[$r['gpid']][(int)$rid] = $r; $when[$r['gpid']] = [(string)$r['race_date'], (int)$r['id']]; }
+    uksort($g, fn($a, $b) => strcmp($when[$a][0], $when[$b][0]) ?: strcmp($a, $b));
+    return $cache[$season_id] = $g;
+}
+
+// ── Kart Bingo ──────────────────────────────────────────────────────────────
+
+/** The pool of possible squares for a racer: [key, label, check(rows, groups, rid) => bool]. */
+function bingoTargetPool(PDO $pdo, int $racer_id, string $season_id): array {
+    $names = racerNamesMap($pdo);
+    $others = array_values(array_filter(array_keys($names), fn($id) => (int)$id !== $racer_id));
+    $cups = getMKAllCups();
+    $anyRow = fn(callable $f) => fn($rows) => (bool)array_filter($rows, $f);
+    $pool = [];
+    foreach ([42, 45, 48, 51, 54, 57] as $n) $pool["exact:$n"] = ["Score exactly $n", $anyRow(fn($r) => (int)$r['gp_points'] === $n)];
+    $pool['perfect']  = ['Post a perfect 60',      $anyRow(fn($r) => (int)$r['gp_points'] === MK_MAX_GP_POINTS)];
+    $pool['under:30'] = ['Score under 30',          $anyRow(fn($r) => (int)$r['gp_points'] < 30)];
+    $pool['range:50'] = ['Score between 50 and 55', $anyRow(fn($r) => (int)$r['gp_points'] >= 50 && (int)$r['gp_points'] <= 55)];
+    foreach ([1, 2, 3, 4] as $p) $pool["place:$p"] = ['Finish ' . ordinal($p), $anyRow(fn($r) => (int)$r['rank'] === $p)];
+    $pool['last_human'] = ['Finish last of the humans (2+ racing)', function ($rows, $groups, $rid) { foreach ($rows as $r) { $g = $groups[$r['gpid']] ?? []; if (count($g) >= 2 && (int)$r['gp_points'] <= min(array_map(fn($x) => (int)$x['gp_points'], $g))) return true; } return false; }];
+    foreach ($cups as $c) $pool["cup:$c"] = ["Race $c Cup", $anyRow(fn($r) => $r['cup_name'] === $c)];
+    $pool['triple'] = ['Three GPs in one night', function ($rows) { $n = []; foreach ($rows as $r) $n[$r['race_date']] = ($n[$r['race_date']] ?? 0) + 1; return $n && max($n) >= 3; }];
+    $pool['podium2'] = ['Two podiums in a row', function ($rows) { usort($rows, fn($a, $b) => strcmp((string)$a['race_date'], (string)$b['race_date']) ?: ((int)$a['id'] <=> (int)$b['id'])); $run = 0; foreach ($rows as $r) { $run = (int)$r['rank'] <= 3 ? $run + 1 : 0; if ($run >= 2) return true; } return false; }];
+    foreach ($others as $o) {
+        $pool["beat:$o"]   = ['Finish ahead of ' . $names[$o],  function ($rows, $groups, $rid) use ($o) { foreach ($rows as $r) { $g = $groups[$r['gpid']] ?? []; if (isset($g[$o]) && (int)$r['gp_points'] > (int)$g[$o]['gp_points']) return true; } return false; }];
+        $pool["behind:$o"] = ['Finish directly behind ' . $names[$o], function ($rows, $groups, $rid) use ($o) { foreach ($rows as $r) { $g = $groups[$r['gpid']] ?? []; if (!isset($g[$o])) continue; $pts = array_map(fn($x) => (int)$x['gp_points'], $g); arsort($pts); $order = array_keys($pts); $i = array_search($rid, $order, true); if ($i !== false && $i > 0 && $order[$i - 1] === $o) return true; } return false; }];
+    }
+    return $pool;
+}
+
+/** The racer's 9 squares for the season: seeded, so the card never changes. Weighted so a card is 3–4 "easy", 3 "cup", 2–3 "people" squares. */
+function bingoCard(PDO $pdo, int $racer_id, string $season_id): array {
+    static $cache = [];
+    $k = "$season_id:$racer_id";
+    if (isset($cache[$k])) return $cache[$k];
+    $pool = bingoTargetPool($pdo, $racer_id, $season_id);
+    $keys = array_keys($pool);
+    $easy = array_values(array_filter($keys, fn($x) => !str_starts_with($x, 'cup:') && !str_starts_with($x, 'beat:') && !str_starts_with($x, 'behind:')));
+    $cups = array_values(array_filter($keys, fn($x) => str_starts_with($x, 'cup:')));
+    $people = array_values(array_filter($keys, fn($x) => str_starts_with($x, 'beat:') || str_starts_with($x, 'behind:')));
+    mt_srand(crc32("bingo:$season_id:$racer_id"));
+    $pick = function (array $from, int $n) { shuffle($from); return array_slice($from, 0, $n); };
+    $chosen = array_merge($pick($easy, 4), $pick($cups, 3), $pick($people, min(2, count($people))));
+    while (count($chosen) < 9) { $extra = $pick(array_diff($easy, $chosen), 1); if (!$extra) break; $chosen = array_merge($chosen, $extra); }
+    shuffle($chosen);
+    mt_srand();   // don't leave the global RNG seeded for the rest of the request
+    $card = [];
+    foreach (array_slice($chosen, 0, 9) as $key) $card[] = ['key' => $key, 'label' => $pool[$key][0]];
+    return $cache[$k] = $card;
+}
+
+/** Card with done flags, lines completed, full-card flag, plain average and the score. */
+function bingoProgress(PDO $pdo, int $racer_id, string $season_id, array $rules): array {
+    static $cache = [];
+    $k = "$season_id:$racer_id:" . (int)($rules['bg_line_pts'] ?? 100) . ':' . (int)($rules['bg_card_pts'] ?? 500);
+    if (isset($cache[$k])) return $cache[$k];
+    $rows = getRacerSeasonRows($pdo, $racer_id, $season_id);
+    $groups = seasonGpGroups($pdo, $season_id);
+    $pool = bingoTargetPool($pdo, $racer_id, $season_id);
+    $card = bingoCard($pdo, $racer_id, $season_id);
+    $done = [];
+    foreach ($card as $i => $sq) { $card[$i]['done'] = $rows ? (bool)($pool[$sq['key']][1])($rows, $groups, $racer_id) : false; $done[$i] = $card[$i]['done']; }
+    $lines = 0; $lineSets = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    foreach ($lineSets as $L) if (count($card) === 9 && $done[$L[0]] && $done[$L[1]] && $done[$L[2]]) $lines++;
+    $full = count($card) === 9 && count(array_filter($done)) === 9;
+    $pts = array_map(fn($r) => (int)$r['gp_points'], $rows);
+    $avg = $pts ? array_sum($pts) / count($pts) : 0;
+    $score = $lines * (int)($rules['bg_line_pts'] ?? 100) + ($full ? (int)($rules['bg_card_pts'] ?? 500) : 0) + round($avg, 2);
+    return $cache[$k] = ['card' => $card, 'done' => count(array_filter($done)), 'lines' => $lines, 'full' => $full, 'avg' => round($avg, 2), 'score' => round($score, 2), 'gps' => count($rows)];
+}
+function calculateBingoScore($pdo, $racer_id, $season_id, $rules) { return bingoProgress($pdo, (int)$racer_id, $season_id, (array)$rules)['score']; }
+function breakdownBingo($pdo, $racer_id, $season_id, $rules) { return bingoProgress($pdo, (int)$racer_id, $season_id, (array)$rules) + ['line_pts' => (int)($rules['bg_line_pts'] ?? 100), 'card_pts' => (int)($rules['bg_card_pts'] ?? 500)]; }
+function tooltipBingo(array $c, $score): string {
+    return sprintf('🎱 %s · %d/9 squares · %d line%s × %d%s · avg %s as tiebreak', scoreNum($score), (int)($c['done'] ?? 0), (int)($c['lines'] ?? 0), ($c['lines'] ?? 0) === 1 ? '' : 's', (int)($c['line_pts'] ?? 100), !empty($c['full']) ? ' · FULL CARD +' . (int)($c['card_pts'] ?? 500) : '', scoreNum($c['avg'] ?? 0));
+}
+
+// ── The Price Is Right ──────────────────────────────────────────────────────
+
+/** Per GP: target and every human's bid ranked; per racer: ladder per GP, best-N sum, hits, busts. */
+function priceIsRightSeason(PDO $pdo, string $season_id, array $rules): array {
+    static $cache = [];
+    $mode = ($rules['pir_target'] ?? 'median') === 'mean' ? 'mean' : 'median';
+    $bestN = max(1, (int)($rules['pir_best_n'] ?? 15));
+    $k = "$season_id:$mode:$bestN";
+    if (isset($cache[$k])) return $cache[$k];
+    $gps = []; $racers = [];
+    foreach (seasonGpGroups($pdo, $season_id) as $gpid => $g) {
+        $pts = array_map(fn($r) => (int)$r['gp_points'], $g);
+        $target = $mode === 'mean' ? array_sum($pts) / count($pts) : medianOf(array_values($pts));
+        $bids = [];
+        foreach ($g as $rid => $r) { $p = (int)$r['gp_points']; $bids[] = ['rid' => (int)$rid, 'pts' => $p, 'over' => $p > $target, 'gap' => abs($target - $p)]; }
+        usort($bids, fn($a, $b) => ((int)$a['over'] <=> (int)$b['over']) ?: ($a['gap'] <=> $b['gap']) ?: ($a['rid'] <=> $b['rid']));
+        $rank = 0; $prev = null;
+        foreach ($bids as $i => &$b) { $sig = [(int)$b['over'], $b['gap']]; if ($sig !== $prev) { $rank = $i + 1; $prev = $sig; } $b['rank'] = $rank; $b['ladder'] = mkPointsForRank($rank); }
+        unset($b);
+        $gps[$gpid] = ['target' => round($target, 1), 'bids' => $bids];
+        foreach ($bids as $b) { $racers[$b['rid']]['gps'][$gpid] = $b; }
+    }
+    foreach ($racers as $rid => &$x) {
+        $lad = array_map(fn($b) => $b['ladder'], $x['gps']); rsort($lad);
+        $x['score'] = array_sum(array_slice($lad, 0, $bestN)); $x['counted'] = min($bestN, count($lad));
+        $x['hits'] = count(array_filter($x['gps'], fn($b) => $b['rank'] === 1 && !$b['over']));
+        $x['busts'] = count(array_filter($x['gps'], fn($b) => $b['over']));
+        $x['played'] = count($x['gps']);
+    }
+    unset($x);
+    return $cache[$k] = ['gps' => $gps, 'racers' => $racers, 'mode' => $mode, 'best_n' => $bestN];
+}
+function calculatePriceScore($pdo, $racer_id, $season_id, $rules) { return priceIsRightSeason($pdo, $season_id, (array)$rules)['racers'][(int)$racer_id]['score'] ?? 0; }
+function breakdownPrice($pdo, $racer_id, $season_id, $rules) { $s = priceIsRightSeason($pdo, $season_id, (array)$rules); $r = $s['racers'][(int)$racer_id] ?? ['score' => 0, 'counted' => 0, 'hits' => 0, 'busts' => 0, 'played' => 0, 'gps' => []]; return $r + ['mode' => $s['mode'], 'best_n' => $s['best_n'], 'targets' => array_map(fn($g) => $g['target'], $s['gps'])]; }
+function tooltipPrice(array $c, $score): string {
+    return sprintf('🏷️ %s ladder pts from best %d of %d GP%s · %d on the nose · %d over the %s', scoreNum($score), (int)($c['counted'] ?? 0), (int)($c['played'] ?? 0), ($c['played'] ?? 0) === 1 ? '' : 's', (int)($c['hits'] ?? 0), (int)($c['busts'] ?? 0), $c['mode'] ?? 'median');
+}
+
+// ── The Great Equaliser ─────────────────────────────────────────────────────
+
+function equaliserSeason(PDO $pdo, string $season_id, array $rules): array {
+    static $cache = [];
+    $mode = ($rules['eq_mode'] ?? 'season') === 'per_gp' ? 'per_gp' : 'season';
+    $k = "$season_id:$mode";
+    if (isset($cache[$k])) return $cache[$k];
+    $out = ['mode' => $mode, 'league_avg' => 0, 'racers' => []];
+    $all = []; foreach (getSeasonResultsByRacer($pdo, $season_id) as $rows) foreach ($rows as $r) $all[] = (int)$r['gp_points'];
+    $out['league_avg'] = $all ? round(array_sum($all) / count($all), 2) : 0;
+    if ($mode === 'season') {
+        foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) { $p = array_map(fn($r) => (int)$r['gp_points'], $rows); $avg = $p ? array_sum($p) / count($p) : 0; $dist = abs($avg - $out['league_avg']); $out['racers'][(int)$rid] = ['avg' => round($avg, 2), 'dist' => round($dist, 2), 'score' => round($out['league_avg'] - $dist, 2), 'gps' => count($p)]; }
+    } else {
+        $night = []; foreach (seasonGpGroups($pdo, $season_id) as $gpid => $g) { $p = array_map(fn($r) => (int)$r['gp_points'], $g); $night[$gpid] = array_sum($p) / count($p); }
+        foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) { $vals = []; $dists = []; foreach ($rows as $r) { $n = $night[$r['gpid']] ?? 0; $vals[] = $n - abs((int)$r['gp_points'] - $n); $dists[] = abs((int)$r['gp_points'] - $n); } $p = array_map(fn($r) => (int)$r['gp_points'], $rows); $out['racers'][(int)$rid] = ['avg' => $p ? round(array_sum($p) / count($p), 2) : 0, 'dist' => $dists ? round(array_sum($dists) / count($dists), 2) : 0, 'score' => $vals ? round(array_sum($vals) / count($vals), 2) : 0, 'gps' => count($p)]; }
+    }
+    return $cache[$k] = $out;
+}
+function calculateEqualiserScore($pdo, $racer_id, $season_id, $rules) { return equaliserSeason($pdo, $season_id, (array)$rules)['racers'][(int)$racer_id]['score'] ?? 0; }
+function breakdownEqualiser($pdo, $racer_id, $season_id, $rules) { $s = equaliserSeason($pdo, $season_id, (array)$rules); return ($s['racers'][(int)$racer_id] ?? ['avg' => 0, 'dist' => 0, 'score' => 0, 'gps' => 0]) + ['league_avg' => $s['league_avg'], 'mode' => $s['mode']]; }
+function tooltipEqualiser(array $c, $score): string {
+    return sprintf('⚖️ %s = league avg %s − your distance %s (you average %s%s)', scoreNum($score), scoreNum($c['league_avg'] ?? 0), scoreNum($c['dist'] ?? 0), scoreNum($c['avg'] ?? 0), ($c['mode'] ?? 'season') === 'per_gp' ? ', judged per GP' : '');
+}
+
+// ── The Cursed Crown ────────────────────────────────────────────────────────
+
+/** Chronological pass: who wears the crown after each GP, and what it cost everyone. */
+function cursedCrownSeason(PDO $pdo, string $season_id, array $rules): array {
+    static $cache = [];
+    $gpCost = (int)($rules['cc_gp_cost'] ?? 5); $finalCost = (int)($rules['cc_final_cost'] ?? 50);
+    $k = "$season_id:$gpCost:$finalCost";
+    if (isset($cache[$k])) return $cache[$k];
+    $names = racerNamesMap($pdo); $byName = array_flip(array_map('strval', $names));
+    $groups = seasonGpGroups($pdo, $season_id);
+    $roster = array_keys(getSeasonResultsByRacer($pdo, $season_id));
+    // last season's champion, if they race this season
+    $wearer = null; $origin = 'first GP winner';
+    $st = $pdo->prepare("SELECT champion_name FROM season_meta WHERE status = 'archived' AND season_id < ? AND champion_name IS NOT NULL AND champion_name != '' ORDER BY season_id DESC LIMIT 1");
+    $st->execute([$season_id]);
+    if (($champ = $st->fetchColumn()) && isset($byName[trim((string)$champ)]) && in_array((int)$byName[trim((string)$champ)], $roster, true)) { $wearer = (int)$byName[trim((string)$champ)]; $origin = 'last season\'s champion'; }
+    $worn = []; $taken = []; $lost = []; $log = [];
+    foreach ($groups as $gpid => $g) {
+        $top = null; foreach ($g as $rid => $r) if ($top === null || (int)$r['gp_points'] > (int)$g[$top]['gp_points'] || ((int)$r['gp_points'] === (int)$g[$top]['gp_points'] && $rid < $top)) $top = (int)$rid;
+        if ($wearer === null) { $wearer = $top; $taken[$top] = ($taken[$top] ?? 0) + 1; $log[] = ['gpid' => $gpid, 'from' => null, 'to' => $top, 'type' => 'claim']; continue; }
+        $worn[$wearer] = ($worn[$wearer] ?? 0) + 1;                     // costs whether they raced or not
+        if (isset($g[$wearer]) && $top !== $wearer && (int)$g[$top]['gp_points'] > (int)$g[$wearer]['gp_points']) {
+            $log[] = ['gpid' => $gpid, 'from' => $wearer, 'to' => $top, 'type' => 'beaten'];
+            $lost[$wearer] = ($lost[$wearer] ?? 0) + 1; $taken[$top] = ($taken[$top] ?? 0) + 1; $wearer = $top;
+        } else {
+            $log[] = ['gpid' => $gpid, 'from' => $wearer, 'to' => $wearer, 'type' => isset($g[$wearer]) ? 'defended' : 'absent'];
+        }
+    }
+    $racers = [];
+    foreach ($roster as $rid) {
+        $p = array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id));
+        $avg = $p ? array_sum($p) / count($p) : 0;
+        $cost = ($worn[$rid] ?? 0) * $gpCost + ($wearer === (int)$rid ? $finalCost : 0);
+        $racers[(int)$rid] = ['avg' => round($avg, 2), 'worn' => $worn[$rid] ?? 0, 'gp_cost' => ($worn[$rid] ?? 0) * $gpCost, 'final' => $wearer === (int)$rid, 'final_cost' => $wearer === (int)$rid ? $finalCost : 0, 'taken' => $taken[$rid] ?? 0, 'lost' => $lost[$rid] ?? 0, 'score' => round($avg - $cost, 2), 'gps' => count($p)];
+    }
+    return $cache[$k] = ['wearer' => $wearer, 'origin' => $origin, 'racers' => $racers, 'log' => $log, 'gp_cost' => $gpCost, 'final_cost' => $finalCost];
+}
+function calculateCrownScore($pdo, $racer_id, $season_id, $rules) { return cursedCrownSeason($pdo, $season_id, (array)$rules)['racers'][(int)$racer_id]['score'] ?? 0; }
+function breakdownCrown($pdo, $racer_id, $season_id, $rules) { $s = cursedCrownSeason($pdo, $season_id, (array)$rules); return ($s['racers'][(int)$racer_id] ?? ['avg' => 0, 'worn' => 0, 'gp_cost' => 0, 'final' => false, 'final_cost' => 0, 'taken' => 0, 'lost' => 0, 'score' => 0, 'gps' => 0]) + ['wearer' => $s['wearer'], 'origin' => $s['origin'], 'per_gp' => $s['gp_cost'], 'end_cost' => $s['final_cost']]; }
+function tooltipCrown(array $c, $score): string {
+    return sprintf('🥀 %s = avg %s − %d (worn %d GP%s)%s · took it %d×, lost it %d×', scoreNum($score), scoreNum($c['avg'] ?? 0), (int)($c['gp_cost'] ?? 0), (int)($c['worn'] ?? 0), ($c['worn'] ?? 0) === 1 ? '' : 's', !empty($c['final']) ? ' − ' . (int)($c['final_cost'] ?? 0) . ' for wearing it now' : '', (int)($c['taken'] ?? 0), (int)($c['lost'] ?? 0));
 }

@@ -215,6 +215,10 @@ try {
         "bs_rate FLOAT DEFAULT 0.10", "bs_cap FLOAT DEFAULT 2.0",
         "hm_cap FLOAT DEFAULT 2.0", "form_window INTEGER DEFAULT 8",
         "tt_decay_gps INTEGER DEFAULT 4",   // Territory: undefended GPs before a cup changes hands (0 = never)
+        "bg_line_pts INTEGER DEFAULT 100", "bg_card_pts INTEGER DEFAULT 500",           // Kart Bingo
+        "pir_target TEXT DEFAULT 'median'", "pir_best_n INTEGER DEFAULT 15",           // The Price Is Right
+        "eq_mode TEXT DEFAULT 'season'",                                             // The Great Equaliser
+        "cc_gp_cost INTEGER DEFAULT 5", "cc_final_cost INTEGER DEFAULT 50",            // The Cursed Crown
     ] as $col) {
         try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col"); } catch (PDOException $e) {}
     }

@@ -6154,3 +6154,8 @@ th.rotate > div {
     font-style: normal;
     letter-spacing: -0.01em;
 }
+
+/* Kart Bingo card on /scoring */
+.scr-bingo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-width: 520px; margin-top: 10px; }
+.scr-bingo-sq { padding: 10px 8px; border-radius: 8px; background: var(--gray-100, #f3f6fb); border: 1px solid var(--gray-200, #e2e6ee); font-size: .78rem; font-weight: 600; text-align: center; min-height: 54px; display: grid; place-items: center; color: var(--gray-600, #4b5563); }
+.scr-bingo-sq.done { background: #e8f7ec; border-color: #2EBD59; color: #14602c; }

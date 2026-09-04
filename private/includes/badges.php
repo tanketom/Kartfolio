@@ -317,6 +317,11 @@ function badgeSeasonContext($pdo, $season_id) {
         if (empty($tSeason['changed'][$cup]) && ($tSeason['challengers'][$cup] ?? 0) >= 3) $territoryFortress[$h['racer_id']] = ($territoryFortress[$h['racer_id']] ?? 0) + 1;
     }
 
+    // ── The weird systems: full bingo card; crown wearer at close (archived only) ──
+    $bingoFull = []; $crownFinal = [];
+    if ($scoringSystem === 'kart_bingo') { $rulesW = getSeasonRules($pdo, $season_id); foreach (array_keys(getSeasonResultsByRacer($pdo, $season_id)) as $rid) if (bingoProgress($pdo, (int)$rid, $season_id, (array)$rulesW)['full']) $bingoFull[(int)$rid] = true; }
+    if ($scoringSystem === 'cursed_crown') { $rulesW = getSeasonRules($pdo, $season_id); if (($rulesW['status'] ?? '') === 'archived') { $w = cursedCrownSeason($pdo, $season_id, (array)$rulesW)['wearer']; if ($w) $crownFinal[(int)$w] = true; } }
+
     // ── Dead Heat: level on score with another qualifying racer this season ──
     $seasonRulesForTies = getSeasonRules($pdo, $season_id);
     $scoreGroups = [];
@@ -354,7 +359,7 @@ function badgeSeasonContext($pdo, $season_id) {
     } catch (PDOException $e) { /* quests table absent */ }
 
     return $cache[$season_id] = $career + compact(
-        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'deadHeat', 'seasonGpTotal', 'questmaster'
+        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'bingoFull', 'crownFinal', 'deadHeat', 'seasonGpTotal', 'questmaster'
     );
 }
 
@@ -450,6 +455,9 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
     // 🏕️ Squatter's Rights — took a cup whose holder left it undefended.
     if (($ctx['territorySquats'][$racer_id] ?? 0) >= 1)
         $badges[] = badgeDef('squatter');
+    // 🅱️ Bingo! / 🪦 Cursed — the weird systems' own honours.
+    if (!empty($ctx['bingoFull'][$racer_id]))  $badges[] = badgeDef('bingo');
+    if (!empty($ctx['crownFinal'][$racer_id])) $badges[] = badgeDef('cursed');
     // 🪙 Dead Heat — level on points with someone; the tie-break decided it.
     if (!empty($ctx['deadHeat'][$racer_id]))
         $badges[] = badgeDef('dead_heat');

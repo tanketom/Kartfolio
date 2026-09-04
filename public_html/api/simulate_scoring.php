@@ -104,6 +104,19 @@ if ($system === 'blue_shell') {
 }
 if ($system === 'hard_mode' && isset($_GET['hm_cap'])) $rules['hm_cap'] = max(1.0, min(5.0, (float)$_GET['hm_cap']));
 if ($system === 'territory' && isset($_GET['tt_decay_gps'])) $rules['tt_decay_gps'] = max(0, min(20, (int)$_GET['tt_decay_gps']));
+if ($system === 'kart_bingo') {
+    if (isset($_GET['bg_line_pts'])) $rules['bg_line_pts'] = max(1, min(1000, (int)$_GET['bg_line_pts']));
+    if (isset($_GET['bg_card_pts'])) $rules['bg_card_pts'] = max(0, min(5000, (int)$_GET['bg_card_pts']));
+}
+if ($system === 'price_is_right') {
+    if (isset($_GET['pir_target'])) $rules['pir_target'] = in_array($_GET['pir_target'], ['median', 'mean'], true) ? $_GET['pir_target'] : 'median';
+    if (isset($_GET['pir_best_n'])) $rules['pir_best_n'] = max(1, min(60, (int)$_GET['pir_best_n']));
+}
+if ($system === 'equaliser' && isset($_GET['eq_mode'])) $rules['eq_mode'] = in_array($_GET['eq_mode'], ['season', 'per_gp'], true) ? $_GET['eq_mode'] : 'season';
+if ($system === 'cursed_crown') {
+    if (isset($_GET['cc_gp_cost']))    $rules['cc_gp_cost']    = max(0, min(60, (int)$_GET['cc_gp_cost']));
+    if (isset($_GET['cc_final_cost'])) $rules['cc_final_cost'] = max(0, min(500, (int)$_GET['cc_final_cost']));
+}
 if ($system === 'form' && isset($_GET['form_window'])) $rules['form_window'] = max(1, min(50, (int)$_GET['form_window']));
 
 // MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's

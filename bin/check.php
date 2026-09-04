@@ -52,6 +52,10 @@ foreach (['s01', 's02'] as $s) { $rules = getSeasonRules($pdo, $s); foreach (arr
         if (abs((float)$rep - (float)$live) > 1e-9) $bad[] = "$s/$rid/$sys $rep≠$live";
     } } }
 $ok('progressiveScoreFromRows == live calculators (AA, preseason, positional, median, form)', !$bad, implode(' ', array_slice($bad, 0, 5)));
+// every system's calculator returns a number for every racer (the weird ones included)
+$bad = [];
+foreach (getScoringSystemRegistry() as $key => $def) foreach (array_keys(getSeasonResultsByRacer($pdo, 's02')) as $rid) { $v = ($def['calculate'])($pdo, (int)$rid, 's02', getSeasonRules($pdo, 's02')); if (!is_numeric($v)) $bad[] = "$key/$rid"; }
+$ok('every registry calculate() returns a number on s02 (' . count(getScoringSystemRegistry()) . ' systems)', !$bad, implode(' ', array_slice($bad, 0, 5)));
 foreach (['s01', 's02'] as $s) { $sp = seasonPlacements($pdo, $s); $ok("seasonPlacements($s) ranks the qualifiers 1..n", array_values($sp['place']) === range(1, $sp['field'])); }
 $t = territorySeason($pdo, 's02');
 $ok('territorySeason: every held cup has a holder who is a racer', !array_diff(array_column($t['hold'], 'racer_id'), array_map('intval', $pdo->query("SELECT id FROM racers")->fetchAll(PDO::FETCH_COLUMN))));
@@ -74,7 +78,7 @@ echo "pages\n";
 $pages = [];
 foreach (glob("$root/public_html/*.php") as $f) $pages[basename($f, '.php')] = [];
 unset($pages['login'], $pages['logout']);
-$variants = ['index' => ['', 'season=s01', 'season=s02'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02'], 'stats' => ['', 'season=s01'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'cup_mastery' => ['season=s02'], 'predictions' => [''], 'season' => null];
+$variants = ['index' => ['', 'season=s01', 'season=s02', 'season=s03'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02', 'season=s03'], 'stats' => ['', 'season=s01'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'cup_mastery' => ['season=s02'], 'predictions' => [''], 'season' => null];
 $racerIds = $pdo->query("SELECT id FROM racers ORDER BY id LIMIT 2")->fetchAll(PDO::FETCH_COLUMN);
 $renderer = tempnam(sys_get_temp_dir(), 'render'); file_put_contents($renderer, '<?php
 // Renders one page from the CLI. A page may exit() (a redirect, a "not found"),

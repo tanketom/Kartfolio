@@ -90,6 +90,14 @@ foreach ($racers as $racer) {
         $entry['pos_counted']  = array_sum(array_column(
             array_filter($detail['rows'], fn($r) => $r['counted']), 'pts'));
         $entry['pos_wins']     = $detail['pos_counts'][1] ?? 0;
+    } elseif ($scoringSystem === 'kart_bingo') {
+        $entry['bingo'] = bingoProgress($pdo, (int)$rid, $seasonId, $rules);
+    } elseif ($scoringSystem === 'price_is_right') {
+        $pir = priceIsRightSeason($pdo, $seasonId, $rules);
+        $entry['pir'] = $pir['racers'][(int)$rid] ?? null; $entry['pir_targets'] = array_map(fn($g) => $g['target'], $pir['gps']); $entry['pir_best_n'] = $pir['best_n'];
+    } elseif ($scoringSystem === 'cursed_crown') {
+        $cc = cursedCrownSeason($pdo, $seasonId, $rules);
+        $entry['crown'] = $cc['racers'][(int)$rid] ?? null; $entry['crown_log'] = $cc['log']; $entry['crown_wearer'] = $cc['wearer']; $entry['crown_origin'] = $cc['origin'];
     } elseif ($scoringSystem === 'monster_hunt') {
         // Per-GP role + CR + outcome + XP, straight from the MONSTER HUNT
         // engine (mhSeasonHunts) — the same hunts the official score sums.
@@ -330,6 +338,41 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     💡 Standings rank by the <strong>best-<?= (int)($rules['mh_best_x'] ?? 20) ?> XP sum</strong>, so turning up gives you more chances to bank a big haul — bad nights simply drop out. Your <strong>title</strong> is the separate skill track: average XP across every GP you played, where consistency is what counts.
                 </p>
 
+            <?php elseif ($scoringSystem === 'kart_bingo'): ?>
+                <h2>🎱 How Kart Bingo works</h2>
+                <div class="scr-formula-box"><code>Score = lines × <?= (int)($rules['bg_line_pts'] ?? 100) ?> + full card × <?= (int)($rules['bg_card_pts'] ?? 500) ?> + your average (tiebreak)</code></div>
+                <div class="scr-rules">
+                    <div class="scr-rule">Your 3×3 card was dealt from a seed on day one — it never changes, and everyone's is different.</div>
+                    <div class="scr-rule">Squares tick off from results automatically: exact scores, places, cups, "finish directly behind X", three GPs in a night…</div>
+                    <div class="scr-rule">Rows, columns and both diagonals are lines. All nine squares is a full card.</div>
+                    <div class="scr-rule"><strong>Ties break on:</strong> squares ticked → name A→Z</div>
+                </div>
+            <?php elseif ($scoringSystem === 'price_is_right'): ?>
+                <h2>🏷️ How The Price Is Right works</h2>
+                <div class="scr-formula-box"><code>Per GP: closest to the <?= ($rules['pir_target'] ?? 'median') === 'mean' ? 'mean' : 'median' ?> without going over wins · Season = best <?= (int)($rules['pir_best_n'] ?? 15) ?> ladder scores</code></div>
+                <div class="scr-rules">
+                    <div class="scr-rule">The target is the <?= ($rules['pir_target'] ?? 'median') === 'mean' ? 'mean' : 'median' ?> score of the humans in that GP — you only learn it once everyone has finished.</div>
+                    <div class="scr-rule">Under-or-equal bids rank by how close they got; anyone over ranks behind all of them, by how far they overshot.</div>
+                    <div class="scr-rule">GP places pay the Mario Kart ladder: <?= implode(', ', MK_POINTS_SCALE) ?>.</div>
+                    <div class="scr-rule"><strong>Ties break on:</strong> GPs won on the nose → name A→Z</div>
+                </div>
+            <?php elseif ($scoringSystem === 'equaliser'): ?>
+                <h2>⚖️ How The Great Equaliser works</h2>
+                <div class="scr-formula-box"><code>Score = league average − |your average − league average|<?= ($rules['eq_mode'] ?? 'season') === 'per_gp' ? ', judged every GP and averaged' : '' ?></code></div>
+                <div class="scr-rules">
+                    <div class="scr-rule">The most average racer in the league wins. The best and the worst tie for last.</div>
+                    <div class="scr-rule"><?= ($rules['eq_mode'] ?? 'season') === 'per_gp' ? 'Every GP is judged against that night\'s average, so a wild 60 and a dismal 20 hurt exactly as much.' : 'Judged on season averages, so one wild night can be averaged away.' ?></div>
+                    <div class="scr-rule"><strong>Ties break on:</strong> GPs raced → name A→Z</div>
+                </div>
+            <?php elseif ($scoringSystem === 'cursed_crown'): ?>
+                <h2>🥀 How The Cursed Crown works</h2>
+                <div class="scr-formula-box"><code>Score = your average − <?= (int)($rules['cc_gp_cost'] ?? 5) ?> × GPs worn − <?= (int)($rules['cc_final_cost'] ?? 50) ?> if you wear it when the season closes</code></div>
+                <div class="scr-rules">
+                    <div class="scr-rule">Last season's champion starts with the crown (or GP 1's winner if they aren't racing).</div>
+                    <div class="scr-rule">Finish ahead of the wearer in a GP and it's yours. Ties leave it where it is.</div>
+                    <div class="scr-rule">Every GP you wear it costs <?= (int)($rules['cc_gp_cost'] ?? 5) ?> points — raced or not. Skipping doesn't help.</div>
+                    <div class="scr-rule"><strong>Ties break on:</strong> raw average → name A→Z</div>
+                </div>
             <?php else: ?>
                 <h2><?= $scoringInfo['icon'] ?> <?= htmlspecialchars($scoringInfo['name']) ?></h2>
                 <p><?= htmlspecialchars(!empty($scoringInfo['long_description']) ? $scoringInfo['long_description'] : $scoringInfo['description']) ?></p>
@@ -473,6 +516,27 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                 <?php endforeach; ?>
             </div>
 
+        <?php elseif ($scoringSystem === 'kart_bingo' && !empty($rb['bingo'])): $bg = $rb['bingo']; ?>
+            <div class="scr-summary"><?= $bg['done'] ?>/9 squares &middot; <?= $bg['lines'] ?> line<?= $bg['lines'] === 1 ? '' : 's' ?><?= $bg['full'] ? ' &middot; FULL CARD' : '' ?> &middot; avg <?= $bg['avg'] ?> &middot; <?= $bg['gps'] ?> GPs</div>
+            <div class="scr-bingo">
+                <?php foreach ($bg['card'] as $sq): ?>
+                    <div class="scr-bingo-sq<?= $sq['done'] ? ' done' : '' ?>"><?= $sq['done'] ? '✅ ' : '' ?><?= htmlspecialchars($sq['label']) ?></div>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif ($scoringSystem === 'price_is_right' && !empty($rb['pir'])): $pr = $rb['pir']; ?>
+            <div class="scr-summary"><?= $pr['played'] ?> GPs &middot; best <?= $rb['pir_best_n'] ?> counted &middot; <?= $pr['hits'] ?> on the nose &middot; <?= $pr['busts'] ?> over</div>
+            <div class="scr-gp-grid">
+                <?php $lad = array_map(fn($b) => $b['ladder'], $pr['gps']); arsort($lad); $counted = array_slice(array_keys($lad), 0, $rb['pir_best_n']);
+                foreach ($pr['gps'] as $gpid => $b): ?>
+                    <div class="scr-gp-chip <?= in_array($gpid, $counted, true) ? 'scr-counted' : 'scr-dropped' ?>" title="<?= htmlspecialchars($gpid) ?> — target <?= $rb['pir_targets'][$gpid] ?? '?' ?>, you bid <?= $b['pts'] ?>">
+                        <span class="scr-gp-cup"><?= htmlspecialchars($gpid) ?></span>
+                        <span class="scr-gp-pts"><?= $b['ladder'] ?></span>
+                        <span class="scr-gp-label"><?= $b['over'] ? 'over by ' . scoreNum($b['gap']) : ($b['rank'] === 1 ? 'on the nose' : ordinal($b['rank']) . ' · ' . scoreNum($b['gap']) . ' under') ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif ($scoringSystem === 'cursed_crown' && !empty($rb['crown'])): $cr = $rb['crown']; ?>
+            <div class="scr-summary">avg <?= $cr['avg'] ?> &middot; worn <?= $cr['worn'] ?> GP<?= $cr['worn'] === 1 ? '' : 's' ?> (−<?= $cr['gp_cost'] ?>)<?= $cr['final'] ? ' &middot; wearing it now (−' . $cr['final_cost'] . ')' : '' ?> &middot; took it <?= $cr['taken'] ?>×, lost it <?= $cr['lost'] ?>×</div>
         <?php elseif ($scoringSystem !== 'black_box'): ?>
             <!-- Average/drop view -->
             <div class="scr-summary">
