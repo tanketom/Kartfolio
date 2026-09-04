@@ -3104,10 +3104,29 @@ function seasonGpGroups(PDO $pdo, string $season_id): array {
 
 // ── Kart Bingo ──────────────────────────────────────────────────────────────
 
+/** Racer ids a card may name in "finish ahead of / behind" squares — see bingoTargetPool(). */
+function bingoPeoplePool(PDO $pdo, string $season_id, int $racer_id): array {
+    static $cache = [];
+    if (!isset($cache[$season_id])) {
+        $st = $pdo->prepare("SELECT season_id FROM season_meta WHERE status = 'archived' AND season_id < ? ORDER BY season_id DESC LIMIT 1");
+        $st->execute([$season_id]);
+        $prev = $st->fetchColumn();
+        $ids = $prev ? array_map('intval', array_keys(getSeasonResultsByRacer($pdo, (string)$prev))) : [];
+        if (!$ids) $ids = array_map('intval', $pdo->query("SELECT id FROM racers WHERE COALESCE(is_retired, 0) = 0")->fetchAll(PDO::FETCH_COLUMN));
+        sort($ids);
+        $cache[$season_id] = $ids;
+    }
+    return array_values(array_filter($cache[$season_id], fn($id) => $id !== $racer_id));
+}
+
 /** The pool of possible squares for a racer: [key, label, check(rows, groups, rid) => bool]. */
 function bingoTargetPool(PDO $pdo, int $racer_id, string $season_id): array {
     $names = racerNamesMap($pdo);
-    $others = array_values(array_filter(array_keys($names), fn($id) => (int)$id !== $racer_id));
+    // "Beat X" squares are only fair against people who actually turn up. The
+    // pool must also be STABLE for the whole season (the card is seeded from it),
+    // so it is the previous archived season's roster — fixed once that season
+    // closed — and only for the first season ever the non-retired racers.
+    $others = bingoPeoplePool($pdo, $season_id, $racer_id);
     $cups = getMKAllCups();
     $anyRow = fn(callable $f) => fn($rows) => (bool)array_filter($rows, $f);
     $pool = [];
