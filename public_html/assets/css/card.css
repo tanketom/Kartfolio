@@ -85,8 +85,8 @@
 
 /* Portrait */
 .tc-portrait {
-  position: relative; height: calc(var(--p) * 200);
-  padding: calc(var(--p) * 44) 0 calc(var(--p) * 8);
+  position: relative; height: calc(var(--p) * 188);
+  padding: calc(var(--p) * 40) 0 calc(var(--p) * 6);
   box-sizing: border-box;
   display: flex; align-items: center; justify-content: center;
   background-size: 160% 160%, 100% 100%;   /* sunburst, then the cup gradient */
@@ -94,13 +94,13 @@
   background-repeat: no-repeat;
   overflow: hidden;
 }
-.tc-portrait--nick { padding-top: calc(var(--p) * 60); }
+.tc-portrait--nick { padding-top: calc(var(--p) * 56); }
 .tc-floor {
   position: absolute; left: 50%; bottom: calc(var(--p) * 10); width: calc(var(--p) * 130); height: calc(var(--p) * 22);
   transform: translateX(-50%); border-radius: 50%;
   background: radial-gradient(ellipse at center, rgba(0, 0, 0, .28) 0%, rgba(0, 0, 0, 0) 70%);
 }
-.tc-art { position: relative; max-width: calc(var(--p) * 180); max-height: calc(var(--p) * 150); object-fit: contain; filter: drop-shadow(0 calc(var(--p) * 5) calc(var(--p) * 12) rgba(0, 0, 0, .35)); }
+.tc-art { position: relative; max-width: calc(var(--p) * 180); max-height: calc(var(--p) * 138); object-fit: contain; filter: drop-shadow(0 calc(var(--p) * 5) calc(var(--p) * 12) rgba(0, 0, 0, .35)); }
 
 /* Season stamps in the portrait corners */
 .tc-stamp {
@@ -120,7 +120,7 @@
 .tc-stats-top { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--p) * 6); margin-bottom: calc(var(--p) * 5); padding-bottom: calc(var(--p) * 5); border-bottom: var(--p) solid rgba(0, 0, 0, .12); }
 .tc-stats-top .tc-stat + .tc-stat { border-left: var(--p) solid rgba(0, 0, 0, .12); }
 .tc-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--p) * 4); margin-bottom: calc(var(--p) * 2); }
-.tc-stats-row .tc-stat { background: #fff; border: var(--p) solid rgba(0, 0, 0, .1); border-radius: calc(var(--p) * 4); padding: calc(var(--p) * 3) 0 calc(var(--p) * 2); }
+.tc-stats-row .tc-stat { background: #fff; border: var(--p) solid rgba(0, 0, 0, .1); border-radius: calc(var(--p) * 4); padding: calc(var(--p) * 2) 0 calc(var(--p) * 1.5); }
 .tc-stat { text-align: center; min-width: 0; }
 .tc-stat-label { font-size: calc(var(--p) * 4.3); color: #777; text-transform: uppercase; font-weight: 700; letter-spacing: calc(var(--p) * .25); margin-bottom: calc(var(--p) * 1.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tc-stats-row .tc-stat-label { font-size: calc(var(--p) * 4.5); color: #666; }
@@ -129,7 +129,8 @@
 .tc-red { color: var(--red) !important; }
 
 /* Catchphrase */
-.tc-quote { background: #fff; padding: calc(var(--p) * 2) calc(var(--p) * 14) calc(var(--p) * 7) calc(var(--p) * 58); font-size: calc(var(--p) * 5); font-style: italic; font-weight: 600; color: #444; text-align: center; line-height: 1.3; position: relative; z-index: 5; }
+/* Two lines of room above the foot banner (which rises to the right), honours tile on the left */
+.tc-quote { background: #fff; padding: calc(var(--p) * 2) calc(var(--p) * 30) 0 calc(var(--p) * 56); font-size: calc(var(--p) * 4.8); font-style: italic; font-weight: 600; color: #444; text-align: center; line-height: 1.25; max-height: calc(var(--p) * 14); overflow: hidden; position: relative; z-index: 5; }
 
 /* Honour tile, set number, tier tag */
 .tc-honour {

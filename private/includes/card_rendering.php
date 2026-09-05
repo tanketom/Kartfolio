@@ -202,7 +202,8 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
         </div>
 
         <?php if (!empty($racer['catchphrase'])): ?>
-        <div class="tc-quote">"<?= htmlspecialchars($racer['catchphrase']) ?>"</div>
+        <?php $quote = trim((string)$racer['catchphrase']); if (mb_strlen($quote) > 84) $quote = rtrim(mb_substr($quote, 0, 82)) . '…'; ?>
+        <div class="tc-quote">"<?= htmlspecialchars($quote) ?>"</div>
         <?php endif; ?>
 
         <div class="tc-banner tc-banner--foot"><div class="tc-checker"></div><div class="tc-banner-text"><?= htmlspecialchars($leagueName) ?></div></div>
