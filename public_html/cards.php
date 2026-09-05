@@ -39,7 +39,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$selectedSeason . '%']);
 $racers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';
+$extraCss = '<link rel="stylesheet" href="/assets/css/pages.css"><link rel="stylesheet" href="/assets/css/card.css">';
 include __DIR__ . '/../private/templates/header.php';
 ?>
 
@@ -73,15 +73,16 @@ include __DIR__ . '/../private/templates/header.php';
         </div>
         <?php endforeach; ?>
 
-        <!-- Card Backing (repeated for each card) -->
-        <?php foreach ($racers as $racer): ?>
-        <div class="card-backing">
-            <div class="card-backing-title">OMK</div>
-            <div class="card-backing-divider"></div>
-            <div class="card-backing-season-label">Season <?= $seasonNumber ?></div>
-            <div class="card-backing-season-name"><?= htmlspecialchars($seasonTitle) ?></div>
-            <div class="card-backing-year">'<?= $seasonYear ?></div>
-        </div>
+        <!-- The set's backing: one design, printed on the reverse of every card -->
+        <?php $backing = renderCardBacking($pdo, $currentSeason, 1.5); foreach ($racers as $racer): ?>
+        <div class="card-backing"><?= $backing ?></div>
+        <?php endforeach; ?>
+    </div>
+
+    <div class="cards-tier-legend">
+        <span class="cards-tier-legend-title">Foil tiers</span>
+        <?php foreach (cardTierLadder() as [$key, $label, $how]): ?>
+            <span class="cards-tier-chip cards-tier-chip--<?= $key ?>" title="<?= htmlspecialchars($how) ?>"><?= $label ?> <small><?= htmlspecialchars($how) ?></small></span>
         <?php endforeach; ?>
     </div>
 </div>
@@ -102,7 +103,10 @@ async function downloadPDF() {
     const backingCards = document.querySelectorAll('.card-backing');
 
     // A4 dimensions: 210mm x 297mm
-    // Card actual size: 238px × 332px (base) = 63mm × 88mm at 96 DPI
+    // Card actual size: 238px × 332px (base) = 63mm × 88mm at 96 DPI.
+    // Cards are captured at 3× (≈290 dpi on paper) and stored as JPEG so the
+    // PDF stays a few MB instead of tens.
+    const capture = { scale: 3, backgroundColor: '#ffffff', logging: false, useCORS: true };
     const pdfCardWidth = 63; // mm
     const pdfCardHeight = 88; // mm
     const margin = 7; // mm
@@ -124,13 +128,9 @@ async function downloadPDF() {
         isFirstPage = false;
 
         const card = racerCards[i];
-        const canvas = await html2canvas(card, {
-            scale: 1,
-            backgroundColor: null,
-            logging: false
-        });
+        const canvas = await html2canvas(card, capture);
 
-        const imgData = canvas.toDataURL('image/png');
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
 
         const col = i % cols;
         const row = Math.floor((i % cardsPerPage) / cols);
@@ -138,7 +138,7 @@ async function downloadPDF() {
         const x = margin + (col * (pdfCardWidth + margin));
         const y = margin + (row * (pdfCardHeight + margin));
 
-        pdf.addImage(imgData, 'PNG', x, y, pdfCardWidth, pdfCardHeight);
+        pdf.addImage(imgData, 'JPEG', x, y, pdfCardWidth, pdfCardHeight);
     }
 
     // Render card backing pages (same number of pages as fronts)
@@ -152,13 +152,9 @@ async function downloadPDF() {
 
         for (let i = startIdx; i < endIdx; i++) {
             const backingCard = backingCards[i];
-            const canvas = await html2canvas(backingCard, {
-                scale: 1,
-                backgroundColor: null,
-                logging: false
-            });
+            const canvas = await html2canvas(backingCard, capture);
 
-            const imgData = canvas.toDataURL('image/png');
+            const imgData = canvas.toDataURL('image/jpeg', 0.9);
 
             const localIdx = i - startIdx;
             const col = localIdx % cols;
@@ -167,7 +163,7 @@ async function downloadPDF() {
             const x = margin + (col * (pdfCardWidth + margin));
             const y = margin + (row * (pdfCardHeight + margin));
 
-            pdf.addImage(imgData, 'PNG', x, y, pdfCardWidth, pdfCardHeight);
+            pdf.addImage(imgData, 'JPEG', x, y, pdfCardWidth, pdfCardHeight);
         }
     }
 

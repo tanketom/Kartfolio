@@ -32,7 +32,7 @@ if (!$racer) {
 }
 
 $pageTitle = htmlspecialchars($racer['name']) . " - Racer Profile";
-$extraCss = '<link rel="stylesheet" href="/assets/css/racer.css">';
+$extraCss = '<link rel="stylesheet" href="/assets/css/racer.css"><link rel="stylesheet" href="/assets/css/card.css">';
 include __DIR__ . '/../private/templates/header.php';
 
 // Get current season
@@ -1845,9 +1845,10 @@ function downloadCard() {
     button.disabled = true;
 
     html2canvas(card, {
-        scale: 2,
+        scale: 3,
         backgroundColor: null,
-        logging: false
+        logging: false,
+        useCORS: true
     }).then(canvas => {
         const link = document.createElement('a');
         link.download = '<?= htmlspecialchars($racer['name']) ?>_card.png';

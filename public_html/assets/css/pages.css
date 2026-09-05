@@ -2673,22 +2673,7 @@ th.rotate > div {
 .cards-season-select { padding: 10px 15px; font-size: 1rem; border: 2px solid var(--nintendo-red); border-radius: 5px; background: var(--gray-50); cursor: pointer; }
 .cards-pdf-btn { padding: 10px 20px; background: var(--nintendo-red); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1rem; }
 .cards-grid { display: grid; grid-template-columns: repeat(3, 357px); gap: 40px; justify-content: center; margin-bottom: 60px; }
-.card-backing {
-    width: 357px;
-    height: 498px;
-    background: var(--nintendo-red);
-    border-radius: 9px;
-    overflow: hidden;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.2);
-    border: 6px solid white;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: white;
-    padding: 40px;
-}
+.card-backing { display: flex; justify-content: center; }
 .card-backing-title { font-size: 3rem; font-weight: 900; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 4px; }
 .card-backing-divider { width: 80px; height: 3px; background: var(--gray-50); margin-bottom: 30px; }
 .card-backing-season-label { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; opacity: 0.9; }
@@ -6203,3 +6188,12 @@ th.rotate > div {
 .alltime-chip--pts { background: var(--nintendo-red); }
 .alltime-ms-next { white-space: nowrap; font-weight: 700; } .alltime-ms-next small { display: block; font-weight: 500; color: var(--gray-500); }
 .alltime-active { white-space: nowrap; color: var(--gray-600); font-size: .85rem; }
+
+/* /cards: foil tier legend */
+.cards-tier-legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: -20px 0 50px; justify-content: center; }
+.cards-tier-legend-title { font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--gray-500); margin-right: 6px; }
+.cards-tier-chip { font-size: .78rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; border: 2px solid #ddd; background: #fff; }
+.cards-tier-chip small { font-weight: 500; color: var(--gray-500); margin-left: 4px; }
+.cards-tier-chip--bronze { border-color: #b8763a; } .cards-tier-chip--silver { border-color: #9ea3ab; } .cards-tier-chip--gold { border-color: #d19a12; }
+.cards-tier-chip--platinum { border-color: #7f8fa8; } .cards-tier-chip--diamond { border-color: #3aa0d8; }
+.cards-tier-chip--holo { border-image: linear-gradient(120deg, #ff5f6d, #ffc371, #7dff9a, #4facfe, #b06bff) 1; }

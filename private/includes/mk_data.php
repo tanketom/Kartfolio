@@ -59,6 +59,45 @@ function getMKCupsByGroup(): array {
  * Emoji per cup, used in dropdowns and broadcast headers. Falls back to '🏆'
  * for any cup not explicitly mapped.
  */
+/**
+ * A colour pair per cup — the trading card's portrait background blends a
+ * racer's two best cups. Every cup has one so no card falls back to grey.
+ */
+function getMKCupColors(): array {
+    return [
+        // Base game
+        'Mushroom'    => ['#f36f8f', '#e0203c'],   // red cap, pink spots
+        'Flower'      => ['#ff9a3c', '#ffd23f'],   // fire flower orange → yellow
+        'Star'        => ['#ffe25a', '#f5b400'],   // star gold
+        'Special'     => ['#4facfe', '#00f2fe'],   // crown blue → cyan
+        'Shell'       => ['#2ec27e', '#12a37a'],   // koopa green
+        'Banana'      => ['#fff0a3', '#f9c74f'],   // banana yellow
+        'Leaf'        => ['#a3d977', '#5aa64c'],   // tanooki leaf green
+        'Lightning'   => ['#8f7cff', '#5b3fd6'],   // lightning violet
+        'Egg'         => ['#c9f2a1', '#7fd18a'],   // yoshi egg pastel
+        'Triforce'    => ['#e6d38a', '#b89b2e'],   // hyrule gold
+        'Bell'        => ['#9ad7ff', '#4a9be8'],   // super bell sky
+        'Crossing'    => ['#b8e29a', '#6bb84c'],   // animal crossing leaf
+        // Booster Course Pass
+        'Golden Dash' => ['#ffd36e', '#e08a12'],   // gold → bronze
+        'Lucky Cat'   => ['#ff7a7a', '#d4a017'],   // maneki-neko red → gold
+        'Turnip'      => ['#e6c4f0', '#8fd18f'],   // turnip lilac → leaf
+        'Propeller'   => ['#a8d8ff', '#6d8fb3'],   // sky → steel
+        'Rock'        => ['#d9a066', '#8c5a2b'],   // sandstone → earth
+        'Moon'        => ['#3d3f8f', '#9aa0c8'],   // night indigo → moonlight
+        'Fruit'       => ['#ff8fa3', '#e0324b'],   // berry pink → red
+        'Boomerang'   => ['#5fc9c1', '#e8c98a'],   // teal → sand
+        'Feather'     => ['#c9b8ff', '#f4f0ff'],   // violet → white
+        'Cherry'      => ['#ff6b81', '#b3122e'],   // cherry pink → deep red
+        'Acorn'       => ['#c99a5b', '#7a4a1e'],   // acorn tan → brown
+        'Spiny'       => ['#4a7bd6', '#8a4bd6'],   // spiny blue → purple
+    ];
+}
+
+function getMKCupColor(string $cup): array {
+    return getMKCupColors()[$cup] ?? ['#c0c0c0', '#a0a0a0'];
+}
+
 function getMKCupEmoji(string $cup): string {
     static $map = [
         // Base
