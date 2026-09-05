@@ -133,10 +133,10 @@ function getScoringSystemRegistry(): array {
             'name'                   => 'Random Cup Draw',
             'icon'                   => '🎲',
             'description'            => 'Assigned random cups',
-            'long_description'       => 'Each player will be assigned a random set of cups at season start.',
+            'long_description'       => 'Each racer is dealt a random hand of cups at season start (12 by default) and only those cups count: your best score in each, added up. A saved draw is used when the commissioner has dealt one; otherwise the season deals its own from a fixed seed, so the hand never changes.',
             'calculate'              => 'calculateRandomCupDrawScore',
-            'breakdown'              => null,
-            'tooltip'              => null,
+            'breakdown'              => 'breakdownRandomCupDraw',
+            'tooltip'                => 'tooltipRandomCupDraw',
             'qualifies_by_threshold' => false,
             'sort'                   => null,
         ],
@@ -678,19 +678,47 @@ function calculateBlackBoxScore($pdo, $racer_id, $season_id, $rules) {
  * Scoring based on assigned cups only
  */
 function calculateRandomCupDrawScore($pdo, $racer_id, $season_id, $rules) {
-    // Get assigned cups from JSON
-    $assignedCupsJSON = $rules['random_cups_assigned'] ?? '{}';
-    $assignments = json_decode($assignedCupsJSON, true);
-
-    $racerCups = $assignments[$racer_id] ?? [];
-
-    if (empty($racerCups)) {
-        // No assignment yet, return 0
-        return 0;
-    }
-
+    $racerCups = randomCupDrawAssignments($pdo, $season_id, (array)$rules)[(int)$racer_id] ?? [];
+    if (empty($racerCups)) return 0;
     $bestPerCup = getBestScorePerCup($pdo, $racer_id, $season_id, $racerCups);
     return round(array_sum(array_filter($bestPerCup)), 2);
+}
+
+/**
+ * The season's cup draw: racer_id => [cup names]. A saved draw
+ * (season_meta.random_cups_assigned JSON) wins; otherwise every racer who has
+ * raced the season is dealt `cups_required` (default 12) cups from a seed of
+ * the season id, so the draw is fixed for the life of the season and the
+ * Multiverse, the simulator and a live season all see the same one.
+ */
+function randomCupDrawAssignments(PDO $pdo, string $season_id, array $rules): array {
+    static $cache = [];
+    $saved = (string)($rules['random_cups_assigned'] ?? '');
+    $k = "$season_id:" . crc32($saved) . ':' . (int)($rules['cups_required'] ?? 12);
+    if (isset($cache[$k])) return $cache[$k];
+    $out = [];
+    $decoded = $saved !== '' ? json_decode($saved, true) : null;
+    if (is_array($decoded)) foreach ($decoded as $rid => $cups) if (is_array($cups) && $cups) $out[(int)$rid] = array_values($cups);
+    if (!$out) {
+        $n = max(1, min(24, (int)($rules['cups_required'] ?? 12)));
+        $all = getMKAllCups();
+        foreach (array_keys(getSeasonResultsByRacer($pdo, $season_id)) as $rid) {
+            mt_srand(crc32("cupdraw:$season_id:$rid"));
+            $deck = $all; shuffle($deck);
+            $out[(int)$rid] = array_slice($deck, 0, $n);
+        }
+        mt_srand();
+    }
+    return $cache[$k] = $out;
+}
+function breakdownRandomCupDraw($pdo, $racer_id, $season_id, $rules) {
+    $cups = randomCupDrawAssignments($pdo, $season_id, (array)$rules)[(int)$racer_id] ?? [];
+    $best = $cups ? getBestScorePerCup($pdo, (int)$racer_id, $season_id, $cups) : [];
+    return ['cups' => $cups, 'best' => $best, 'scored' => count(array_filter($best, fn($v) => $v !== null)), 'total' => round(array_sum(array_filter($best)), 2), 'seeded' => trim((string)($rules['random_cups_assigned'] ?? '')) === ''];
+}
+function tooltipRandomCupDraw(array $c, $score): string {
+    $parts = []; foreach ($c['best'] ?? [] as $cup => $v) $parts[] = $cup . ' ' . ($v === null ? '—' : $v);
+    return sprintf('🎲 %s from %d of %d drawn cups · %s', scoreNum($score), (int)($c['scored'] ?? 0), count($c['cups'] ?? []), $parts ? implode(', ', $parts) : 'no draw');
 }
 
 /**

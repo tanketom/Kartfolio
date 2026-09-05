@@ -257,9 +257,7 @@ foreach ($all_racers as $racer) {
 
                 case 'random_cup_draw':
                     // Score from assigned cups only
-                    $assignedCupsJSON = $rules['random_cups_assigned'] ?? '{}';
-                    $assignments = json_decode($assignedCupsJSON, true);
-                    $racerCups = $assignments[$racerId] ?? [];
+                    $racerCups = randomCupDrawAssignments($pdo, $currentSeason, (array)$rules)[(int)$racerId] ?? [];
                     if (empty($racerCups)) {
                         $chart_points[] = 0;
                         break;
