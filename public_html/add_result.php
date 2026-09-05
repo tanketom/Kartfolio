@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // so the 4-digit space can't be brute-forced by a script.
     $expectedCode = getSetting($pdo, 'wall_code', '1234');
     $submittedCode = trim($_POST['wall_code'] ?? '');
-    $submitterIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $submitterIp = clientIp();
 
     $wcCount = $pdo->prepare("
         SELECT COUNT(*) FROM auth_throttle

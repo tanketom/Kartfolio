@@ -59,7 +59,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     } else {
         $name = trim((string)($_POST['predictor_name'] ?? ''));
         $champion = (int)($_POST['champion'] ?? 0);
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $ip = clientIp();
 
         // Throttle: 5 submissions per IP per 10 minutes (same table as login/wall code).
         $thr = $pdo->prepare("SELECT COUNT(*) FROM auth_throttle WHERE ip = ? AND action = 'wc_pickem' AND attempted_at > datetime('now','-10 minutes')");

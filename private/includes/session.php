@@ -34,3 +34,23 @@ function kartfolioSessionStart(): void {
     session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'domain' => '', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
     session_start();
 }
+
+/**
+ * The client's address for throttles and logs. REMOTE_ADDR is the truth
+ * unless it is a loopback or private address — then this hop is a proxy
+ * (nginx in front of PHP on the live host) and the address it forwards is
+ * used instead. A public REMOTE_ADDR never trusts forwarded headers, so a
+ * client cannot spoof its way out of a throttle by sending one.
+ */
+function clientIp(): string {
+    $remote = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    $isProxyHop = $remote === '' || filter_var($remote, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    if ($isProxyHop) {
+        foreach (['HTTP_X_REAL_IP', 'HTTP_X_FORWARDED_FOR'] as $h) {
+            $first = trim(explode(',', (string)($_SERVER[$h] ?? ''))[0]);
+            if ($first !== '' && filter_var($first, FILTER_VALIDATE_IP)) return $first;
+        }
+    }
+    return $remote !== '' ? $remote : 'unknown';
+}
+

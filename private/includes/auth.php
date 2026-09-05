@@ -58,7 +58,7 @@ function require_tournament_host(PDO $pdo) {
 if (isset($_POST['login_password'])) {
     verify_csrf();
 
-    $loginIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $loginIp = clientIp();
 
     // Opportunistic prune so the throttle table never grows unbounded.
     $pdo->prepare("DELETE FROM auth_throttle WHERE attempted_at < datetime('now', '-1 day')")->execute();
