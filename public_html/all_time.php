@@ -20,13 +20,56 @@ $stmt = $pdo->query("
         COUNT(res.id) as total_gps,
         SUM(res.gp_points) as lifetime_points,
         AVG(res.gp_points) as lifetime_ppg,
-        SUM(res.is_lol) as lifetime_lols
+        SUM(res.is_lol) as lifetime_lols,
+        SUM(res.rank = 1) as wins,
+        SUM(res.rank <= 3) as podiums,
+        SUM(res.gp_points = 60) as perfects,
+        MAX(res.gp_points) as best,
+        MIN(res.race_date) as first_date,
+        MAX(res.race_date) as last_date
     FROM racers r
     JOIN results res ON r.id = res.racer_id
+    WHERE res.gpid LIKE 's%'          -- season GPs only; tournament heats (t…) stay out of careers
     GROUP BY r.id
     ORDER BY lifetime_points DESC
 ");
 $careerStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Finishing record: win and podium rates, ten GPs minimum so a good night
+// doesn't top the table.
+$finishing = array_values(array_filter($careerStats, fn($r) => (int)$r['total_gps'] >= 10));
+usort($finishing, fn($a, $b) => ($b['wins'] / $b['total_gps'] <=> $a['wins'] / $a['total_gps']) ?: ($b['podiums'] / $b['total_gps'] <=> $a['podiums'] / $a['total_gps']) ?: strcmp($a['name'], $b['name']));
+
+// Placement ledger: where everyone finished in every archived season, from
+// the frozen snapshot (archivedSeasonPlacements), so it never shifts.
+$placements = archivedSeasonPlacements($pdo);
+$ledgerSeasons = $pdo->query("SELECT season_id, champion_name FROM season_meta WHERE status = 'archived' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_KEY_PAIR);
+$ledgerRows = [];
+foreach ($careerStats as $r) {
+    $cells = []; $sumPlace = 0; $n = 0; $titles = 0;
+    foreach ($placements[(int)$r['id']] ?? [] as [$sid, $place, $field]) { $cells[$sid] = [$place, $field]; $sumPlace += $place; $n++; if ($place === 1) $titles++; }
+    if ($n) $ledgerRows[] = ['id' => $r['id'], 'name' => $r['name'], 'retired' => !empty($r['is_retired']), 'cells' => $cells, 'seasons' => $n, 'avg' => $sumPlace / $n, 'titles' => $titles];
+}
+usort($ledgerRows, fn($a, $b) => ($b['titles'] <=> $a['titles']) ?: ($a['avg'] <=> $b['avg']) ?: ($b['seasons'] <=> $a['seasons']));
+
+// Milestone club: career GPs and points, who has crossed what, who is next.
+$gpMarks  = [25, 50, 100, 150, 200, 300, 400, 500];
+$ptMarks  = [1000, 2500, 5000, 7500, 10000, 15000, 20000, 25000];
+$nextMark = fn(array $marks, int $v) => array_values(array_filter($marks, fn($m) => $m > $v))[0] ?? null;
+$milestones = [];
+foreach ($careerStats as $r) {
+    $g = (int)$r['total_gps']; $p = (int)$r['lifetime_points'];
+    $milestones[] = ['id' => $r['id'], 'name' => $r['name'], 'gps' => $g, 'pts' => $p, 'retired' => !empty($r['is_retired']),
+        'gp_done' => array_values(array_filter($gpMarks, fn($m) => $m <= $g)), 'gp_next' => $nextMark($gpMarks, $g),
+        'pt_done' => array_values(array_filter($ptMarks, fn($m) => $m <= $p)), 'pt_next' => $nextMark($ptMarks, $p),
+        'ppg' => (float)$r['lifetime_ppg']];
+}
+// Nearest to a milestone first: fewest GPs (or nights' worth of points) to go.
+usort($milestones, function ($a, $b) {
+    $ga = $a['gp_next'] ? $a['gp_next'] - $a['gps'] : PHP_INT_MAX; $gb = $b['gp_next'] ? $b['gp_next'] - $b['gps'] : PHP_INT_MAX;
+    $pa = $a['pt_next'] && $a['ppg'] > 0 ? ($a['pt_next'] - $a['pts']) / $a['ppg'] : PHP_INT_MAX; $pb = $b['pt_next'] && $b['ppg'] > 0 ? ($b['pt_next'] - $b['pts']) / $b['ppg'] : PHP_INT_MAX;
+    return min($ga, $pa) <=> min($gb, $pb) ?: ($b['gps'] <=> $a['gps']);
+});
 
 // 2. Fetch "Season Wins" (Count how many times they were Champion)
 $champsStmt = $pdo->query("SELECT champion_name, COUNT(*) as titles FROM season_meta WHERE status = 'archived' GROUP BY champion_name");
@@ -248,6 +291,75 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
     <?php endif; ?>
 
     <div class="racer-card stats-section-card alltime-recent-tournaments">
+        <h2 class="stats-section-heading">🥇 Finishing Record</h2>
+        <p class="alltime-section-sub">Wins and podiums as a share of GPs raced. Ten GPs minimum.</p>
+        <div class="alltime-table-scroll">
+            <table class="clean-table alltime-finishing">
+                <thead><tr><th>Racer</th><th class="txt-right">GPs</th><th class="txt-right">Wins</th><th class="txt-right">Win %</th><th class="txt-right">Podiums</th><th class="txt-right">Podium %</th><th class="txt-right">60s</th><th class="txt-right">Best</th></tr></thead>
+                <tbody>
+                <?php foreach ($finishing as $row): ?>
+                    <tr class="<?= !empty($row['is_retired']) ? 'racer-retired' : '' ?>">
+                        <td><strong><a href="/racer/<?= $row['id'] ?>" class="racer-link"><?= htmlspecialchars($row['name']) ?></a></strong></td>
+                        <td class="txt-right"><?= $row['total_gps'] ?></td>
+                        <td class="txt-right"><?= $row['wins'] ?></td>
+                        <td class="txt-right"><span class="alltime-bar" style="--w:<?= round(100 * $row['wins'] / $row['total_gps']) ?>%"><?= round(100 * $row['wins'] / $row['total_gps']) ?>%</span></td>
+                        <td class="txt-right"><?= $row['podiums'] ?></td>
+                        <td class="txt-right"><span class="alltime-bar alltime-bar--podium" style="--w:<?= round(100 * $row['podiums'] / $row['total_gps']) ?>%"><?= round(100 * $row['podiums'] / $row['total_gps']) ?>%</span></td>
+                        <td class="txt-right"><?= $row['perfects'] ?></td>
+                        <td class="txt-right"><?= $row['best'] ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <?php if ($ledgerRows): ?>
+    <div class="racer-card stats-section-card alltime-recent-tournaments">
+        <h2 class="stats-section-heading">📒 Placement Ledger</h2>
+        <p class="alltime-section-sub">Where everyone finished, season by season. Frozen when each season closed, so it never shifts.</p>
+        <div class="alltime-table-scroll">
+            <table class="clean-table alltime-ledger">
+                <thead><tr><th>Racer</th><?php foreach ($ledgerSeasons as $sid => $champ): ?><th class="txt-center" title="Champion: <?= htmlspecialchars((string)$champ) ?>"><?= strtoupper($sid) ?></th><?php endforeach; ?><th class="txt-right">Seasons</th><th class="txt-right">Avg place</th></tr></thead>
+                <tbody>
+                <?php foreach ($ledgerRows as $row): ?>
+                    <tr class="<?= $row['retired'] ? 'racer-retired' : '' ?>">
+                        <td><strong><a href="/racer/<?= $row['id'] ?>" class="racer-link"><?= htmlspecialchars($row['name']) ?></a></strong></td>
+                        <?php foreach ($ledgerSeasons as $sid => $champ): $c = $row['cells'][$sid] ?? null; ?>
+                            <td class="txt-center"><?php if ($c): ?><span class="alltime-place alltime-place--<?= min(4, $c[0]) ?>" title="<?= $c[0] ?> of <?= $c[1] ?>"><?= $c[0] === 1 ? '🥇' : ($c[0] === 2 ? '🥈' : ($c[0] === 3 ? '🥉' : $c[0])) ?></span><?php else: ?><span class="alltime-place alltime-place--none">·</span><?php endif; ?></td>
+                        <?php endforeach; ?>
+                        <td class="txt-right"><?= $row['seasons'] ?></td>
+                        <td class="txt-right"><?= number_format($row['avg'], 1) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="racer-card stats-section-card alltime-recent-tournaments">
+        <h2 class="stats-section-heading">🎯 Milestone Club</h2>
+        <p class="alltime-section-sub">Career GP and points marks crossed, and who is closest to the next one. Sorted by nearest milestone.</p>
+        <div class="alltime-table-scroll">
+            <table class="clean-table alltime-milestones">
+                <thead><tr><th>Racer</th><th>GPs</th><th>Next GP mark</th><th>Points</th><th>Next points mark</th></tr></thead>
+                <tbody>
+                <?php foreach ($milestones as $m): ?>
+                    <tr class="<?= $m['retired'] ? 'racer-retired' : '' ?>">
+                        <td><strong><a href="/racer/<?= $m['id'] ?>" class="racer-link"><?= htmlspecialchars($m['name']) ?></a></strong></td>
+                        <td><span class="alltime-ms-val"><?= $m['gps'] ?></span> <span class="alltime-ms-chips"><?php foreach ($m['gp_done'] as $d): ?><span class="alltime-chip"><?= $d ?></span><?php endforeach; ?></span></td>
+                        <td class="alltime-ms-next"><?= $m['gp_next'] ? $m['gp_next'] . ' GPs <small>' . ($m['gp_next'] - $m['gps']) . ' to go</small>' : '<small>past every mark</small>' ?></td>
+                        <td><span class="alltime-ms-val"><?= number_format($m['pts']) ?></span> <span class="alltime-ms-chips"><?php foreach ($m['pt_done'] as $d): ?><span class="alltime-chip alltime-chip--pts"><?= $d >= 1000 ? ($d / 1000) . 'k' : $d ?></span><?php endforeach; ?></span></td>
+                        <td class="alltime-ms-next"><?= $m['pt_next'] ? number_format($m['pt_next']) . ' <small>' . number_format($m['pt_next'] - $m['pts']) . ' to go' . ($m['ppg'] > 0 ? ', about ' . max(1, (int)ceil(($m['pt_next'] - $m['pts']) / $m['ppg'])) . ' GPs' : '') . '</small>' : '<small>past every mark</small>' ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="racer-card stats-section-card alltime-recent-tournaments">
         <h2 class="stats-section-heading" style="color: var(--gray-900);">Master Career Ledger</h2>
         <div class="alltime-table-scroll">
             <table class="admin-table">
@@ -256,8 +368,13 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
                         <th>Racer</th>
                         <th>GPs Run</th>
                         <th>Career Points</th>
-                        <th>Career LOLs</th>
                         <th>Points per GP</th>
+                        <th>Wins</th>
+                        <th>Podiums</th>
+                        <th>60s</th>
+                        <th>Best</th>
+                        <th>Career LOLs</th>
+                        <th>Active</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -266,8 +383,13 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
                         <td class="alltime-name-cell"><a href="/racer/<?= $row['id'] ?>" class="racer-link" onmouseover="this.style.color='var(--nintendo-red)'" onmouseout="this.style.color='inherit'"><?= htmlspecialchars($row['name']) ?></a></td>
                         <td><?= $row['total_gps'] ?></td>
                         <td><?= number_format($row['lifetime_points']) ?></td>
-                        <td class="alltime-lols-val"><?= $row['lifetime_lols'] ?></td>
                         <td><?= number_format($row['lifetime_ppg'], 2) ?></td>
+                        <td><?= $row['wins'] ?></td>
+                        <td><?= $row['podiums'] ?></td>
+                        <td><?= $row['perfects'] ?></td>
+                        <td><?= $row['best'] ?></td>
+                        <td class="alltime-lols-val"><?= $row['lifetime_lols'] ?></td>
+                        <td class="alltime-active"><?= date('M Y', strtotime($row['first_date'])) ?> – <?= date('M Y', strtotime($row['last_date'])) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

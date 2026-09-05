@@ -6188,3 +6188,18 @@ th.rotate > div {
 .mv-cell-win--none { color: var(--gray-400, #9ca3af); font-weight: 500; }
 .mv-cell-podium { display: flex; gap: 10px; color: var(--gray-500, #6b7280); font-size: .74rem; }
 @media (max-width: 640px) { .mv-bar-row { grid-template-columns: 90px 1fr 32px; } .mv-bar-seasons { grid-column: 1 / -1; } }
+
+/* All-Time: finishing record, placement ledger, milestone club */
+.alltime-bar { display: inline-block; min-width: 64px; padding: 2px 8px; border-radius: 6px; font-weight: 800; font-variant-numeric: tabular-nums; background: linear-gradient(90deg, #ffe0e3 var(--w, 0%), transparent var(--w, 0%)); }
+.alltime-bar--podium { background: linear-gradient(90deg, #fff1c2 var(--w, 0%), transparent var(--w, 0%)); }
+.alltime-ledger th, .alltime-ledger td { white-space: nowrap; }
+.alltime-place { display: inline-block; min-width: 34px; padding: 3px 6px; border-radius: 8px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.alltime-place--1 { background: #fff3c4; } .alltime-place--2 { background: #eeeeee; } .alltime-place--3 { background: #f6e3d3; }
+.alltime-place--4 { background: var(--gray-100, #f3f4f6); color: var(--gray-700, #374151); }
+.alltime-place--none { color: var(--gray-300, #d1d5db); }
+.alltime-ms-val { font-weight: 800; font-variant-numeric: tabular-nums; }
+.alltime-ms-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; vertical-align: middle; margin-left: 6px; }
+.alltime-chip { font-size: .68rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; background: #111; color: #fff; }
+.alltime-chip--pts { background: var(--nintendo-red); }
+.alltime-ms-next { white-space: nowrap; font-weight: 700; } .alltime-ms-next small { display: block; font-weight: 500; color: var(--gray-500); }
+.alltime-active { white-space: nowrap; color: var(--gray-600); font-size: .85rem; }

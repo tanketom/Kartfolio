@@ -761,7 +761,7 @@ if (!empty($improvements)) {
         'title' => 'Most Improved (ELO)',
         'holder' => $best['name'],
         'value' => $prefix . $best['improvement'] . ' ELO',
-        'context' => '1500 start \u2192 ' . $best['current'] . ' current — ' . $best['gps'] . ' GPs played',
+        'context' => '1500 start → ' . $best['current'] . ' current — ' . $best['gps'] . ' GPs played',
         'runners' => $runners,
     ];
 } else {
@@ -822,6 +822,80 @@ if (!empty($lastPlaceCounts)) {
         'runners' => [],
     ];
 }
+
+// ============================================================================
+// 18–26. CAREER COUNTS, NIGHTS, DEBUTS, RETURNS, SPRINTS, PEAKS
+// ============================================================================
+// One chronological pass per racer; $allResults is already date-ordered.
+$byRacer = [];
+foreach ($allResults as $row) $byRacer[$row['name']][] = $row;
+
+/** Top-3 of a name => value map as a record: holder + two runners. */
+$rankRecord = function (array $map, string $icon, string $title, callable $fmt, ?callable $ctx = null, bool $desc = true) use (&$records) {
+    if (!$map) { $records[] = ['icon' => $icon, 'title' => $title, 'holder' => 'No data', 'value' => '—', 'context' => '', 'runners' => []]; return; }
+    uksort($map, fn($a, $b) => ($desc ? ($map[$b] <=> $map[$a]) : ($map[$a] <=> $map[$b])) ?: strcmp($a, $b));
+    $names = array_keys($map);
+    $runners = [];
+    foreach (array_slice($names, 1, 2) as $n) $runners[] = ['name' => $n, 'value' => $fmt($map[$n], $n)];
+    $records[] = ['icon' => $icon, 'title' => $title, 'holder' => $names[0], 'value' => $fmt($map[$names[0]], $names[0]), 'context' => $ctx ? $ctx($names[0]) : '', 'runners' => $runners];
+};
+
+// 18. Most GP wins  ·  19. Most podiums  ·  20. Iron Man (most appearances)
+$wins = []; $podiums = []; $apps = [];
+foreach ($byRacer as $name => $rows) {
+    $apps[$name] = count($rows);
+    $wins[$name] = count(array_filter($rows, fn($r) => (int)$r['rank'] === 1));
+    $podiums[$name] = count(array_filter($rows, fn($r) => (int)$r['rank'] <= 3));
+}
+$rankRecord(array_filter($wins), "\u{1F947}", 'Most GP Wins', fn($v, $n) => "$v win" . ($v === 1 ? '' : 's'), fn($n) => 'Win rate ' . round(100 * $wins[$n] / max(1, $apps[$n])) . '% over ' . $apps[$n] . ' GPs');
+$rankRecord(array_filter($podiums), "\u{1F3C5}", 'Most Podiums', fn($v, $n) => "$v podium" . ($v === 1 ? '' : 's'), fn($n) => 'On the podium in ' . round(100 * $podiums[$n] / max(1, $apps[$n])) . '% of ' . $apps[$n] . ' GPs');
+$rankRecord($apps, "\u{1F9BE}", 'Iron Man', fn($v) => "$v GPs", fn($n) => 'First GP ' . date('M j, Y', strtotime($byRacer[$n][0]['race_date'])) . ' — still turning up');
+
+// 21. Best debut — highest score in a racer's first ever GP
+$debuts = []; $debutRow = [];
+foreach ($byRacer as $name => $rows) { $debuts[$name] = (int)$rows[0]['gp_points']; $debutRow[$name] = $rows[0]; }
+$rankRecord($debuts, "\u{1F423}", 'Best Debut', fn($v) => "$v pts", fn($n) => htmlspecialchars($debutRow[$n]['cup_name'] ?? '') . ' Cup — ' . date('M j, Y', strtotime($debutRow[$n]['race_date'])) . ' — ' . $debutRow[$n]['gpid']);
+
+// 22. Biggest night — most points by one racer on one race night
+$nights = []; $nightGps = [];
+foreach ($allResults as $row) { $k = $row['name'] . '|' . $row['race_date']; $nights[$k] = ($nights[$k] ?? 0) + (int)$row['gp_points']; $nightGps[$k] = ($nightGps[$k] ?? 0) + 1; }
+$bestNight = []; $bestNightKey = [];
+foreach ($nights as $k => $pts) { [$n, $d] = explode('|', $k); if (!isset($bestNight[$n]) || $pts > $bestNight[$n]) { $bestNight[$n] = $pts; $bestNightKey[$n] = $k; } }
+$rankRecord($bestNight, "\u{1F319}", 'Biggest Night', fn($v, $n) => "$v pts in " . $nightGps[$bestNightKey[$n]] . ' GPs', fn($n) => date('M j, Y', strtotime(explode('|', $bestNightKey[$n])[1])) . ' — ' . round($bestNight[$n] / $nightGps[$bestNightKey[$n]], 1) . ' per GP');
+
+// 23. The Return — longest absence between two GPs, then came back
+$gaps = []; $gapCtx = [];
+foreach ($byRacer as $name => $rows) {
+    $prev = null;
+    foreach ($rows as $r) {
+        if ($prev !== null && $r['race_date'] !== $prev) {
+            $days = (int)round((strtotime($r['race_date']) - strtotime($prev)) / 86400);
+            if ($days > ($gaps[$name] ?? 0)) { $gaps[$name] = $days; $gapCtx[$name] = 'Last seen ' . date('M j, Y', strtotime($prev)) . ', back ' . date('M j, Y', strtotime($r['race_date'])) . ' with a ' . $r['gp_points']; }
+        }
+        $prev = $r['race_date'];
+    }
+}
+$rankRecord($gaps, "\u{1F501}", 'The Return', fn($v) => "$v days away", fn($n) => $gapCtx[$n]);
+
+// 24. Sprint to 1,000 — fewest GPs to reach 1,000 career points
+$sprint = []; $sprintCtx = [];
+foreach ($byRacer as $name => $rows) {
+    $sum = 0;
+    foreach ($rows as $i => $r) { $sum += (int)$r['gp_points']; if ($sum >= 1000) { $sprint[$name] = $i + 1; $sprintCtx[$name] = 'Crossed 1,000 on ' . date('M j, Y', strtotime($r['race_date'])) . ' (' . $r['gpid'] . ')'; break; } }
+}
+$rankRecord($sprint, "\u{1F3C3}", 'Sprint to 1,000', fn($v) => "$v GPs", fn($n) => $sprintCtx[$n], false);
+
+// 25. Most points in a season (raw sum)
+$seasonPts = []; $seasonPtsCtx = [];
+foreach ($allResults as $row) { $k = $row['name'] . '|' . substr($row['gpid'], 0, 3); $seasonPts[$k] = ($seasonPts[$k] ?? 0) + (int)$row['gp_points']; $seasonPtsCtx[$k] = ($seasonPtsCtx[$k] ?? 0) + 1; }
+$bestSeason = []; $bestSeasonKey = [];
+foreach ($seasonPts as $k => $pts) { [$n, $s] = explode('|', $k); if (!isset($bestSeason[$n]) || $pts > $bestSeason[$n]) { $bestSeason[$n] = $pts; $bestSeasonKey[$n] = $k; } }
+$rankRecord($bestSeason, "\u{1F4C8}", 'Most Points in a Season', fn($v, $n) => number_format($v) . ' pts', fn($n) => 'Season ' . strtoupper(explode('|', $bestSeasonKey[$n])[1]) . ' — ' . $seasonPtsCtx[$bestSeasonKey[$n]] . ' GPs, ' . round($bestSeason[$n] / $seasonPtsCtx[$bestSeasonKey[$n]], 1) . ' per GP');
+
+// 26. Highest Elo peak
+$peak = []; $peakDate = [];
+foreach ($eloData['history'] ?? [] as $name => $hist) foreach ($hist as $h) { if (!isset($peak[$name]) || $h['rating'] > $peak[$name]) { $peak[$name] = (float)$h['rating']; $peakDate[$name] = $h['date'] ?? ''; } }
+$rankRecord($peak, "\u{1F3D4}\u{FE0F}", 'Highest Elo Peak', fn($v) => number_format($v, 0), fn($n) => ($peakDate[$n] ? 'Reached ' . date('M j, Y', strtotime($peakDate[$n])) . ' — ' : '') . 'now ' . number_format($eloData['ratings'][$n] ?? 0, 0));
 
 // ============================================================================
 // RENDER

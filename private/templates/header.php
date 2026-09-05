@@ -90,9 +90,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                     <a href="/records">Record Book</a>
                     <a href="/cup-mastery">Cup Mastery Grid</a>
                     <a href="/track-favourites">🏁 Track Favourites</a>
-                    <a href="/mh-dashboard">MONSTER HUNT</a>
                     <a href="/mikkoliiga">🌟 Mikkoliiga</a>
-                    <a href="/teams">🤝 Teams</a>
 
                 </div>
             </div>
