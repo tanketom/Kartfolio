@@ -40,7 +40,23 @@
 .tc--gold     { --foil-a: #fff2b0; --foil-b: #d19a12; --foil-c: #ffe37a; }
 .tc--platinum { --foil-a: #f6f9ff; --foil-b: #7f8fa8; --foil-c: #dfe6f2; }
 .tc--diamond  { --foil-a: #dff6ff; --foil-b: #3aa0d8; --foil-c: #f2fbff; }
-.tc--holo     { background: linear-gradient(120deg, #ff5f6d 0%, #ffc371 20%, #7dff9a 40%, #4facfe 60%, #b06bff 80%, #ff5f6d 100%); }
+.tc--holo     { --foil-a: #ffd6dc; --foil-b: #c9b8ff; --foil-c: #d6fff0; }
+
+/* Foil face: a rainbow wash over the whole card (holo) and the sticker-album
+   sheen sweeping across it (platinum and up). The sweep is frozen at a good
+   spot while html2canvas captures (body.tc-capturing). */
+.tc-holo {
+  position: absolute; inset: 0; z-index: 9; pointer-events: none;
+  background: linear-gradient(115deg, rgba(255, 95, 109, .22) 0%, rgba(255, 195, 113, .22) 20%, rgba(125, 255, 154, .22) 40%, rgba(79, 172, 254, .22) 60%, rgba(176, 107, 255, .22) 80%, rgba(255, 95, 109, .22) 100%);
+}
+.tc-sheen {
+  position: absolute; inset: 0; z-index: 9; pointer-events: none;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, .5) 46%, transparent 58%);
+  animation: tcsheen 2.8s linear infinite;
+}
+@keyframes tcsheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.tc-capturing .tc-sheen { animation: none; transform: translateX(-18%); }
+@media (prefers-reduced-motion: reduce) { .tc-sheen { animation: none; transform: translateX(-18%); } }
 
 /* Diagonal banners (name, nickname, foot) */
 .tc-banner {
@@ -58,12 +74,13 @@
 .tc-banner--nick { top: calc(var(--p) * 36); padding: calc(var(--p) * 4) calc(var(--p) * 32); background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%); box-shadow: 0 calc(var(--p) * 1.5) calc(var(--p) * 5) rgba(0, 0, 0, .3); }
 .tc-banner--nick .tc-banner-text { color: var(--red); font-size: calc(var(--p) * 8); font-weight: 800; }
 .tc-banner--foot {
-  bottom: calc(var(--p) * 16); left: calc(var(--p) * -16); right: calc(var(--p) * -32);
-  padding: calc(var(--p) * 5) calc(var(--p) * 40) calc(var(--p) * 5) calc(var(--p) * 24);
+  bottom: calc(var(--p) * 14); left: calc(var(--p) * -16); right: calc(var(--p) * -32);
+  padding: calc(var(--p) * 8) calc(var(--p) * 40) calc(var(--p) * 6) calc(var(--p) * 24);
   background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
   box-shadow: 0 calc(var(--p) * -2) calc(var(--p) * 6) rgba(0, 0, 0, .4);
 }
-.tc-banner--foot .tc-banner-text { color: #fff; font-size: calc(var(--p) * 7.2); letter-spacing: var(--p); text-align: right; padding-right: calc(var(--p) * 8); }
+.tc-checker { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--p) * 5); background-image: var(--checker); background-size: calc(var(--p) * 10) calc(var(--p) * 5); background-repeat: repeat-x; }
+.tc-banner--foot .tc-banner-text { color: #fff; font-size: calc(var(--p) * 8.2); letter-spacing: calc(var(--p) * 1.2); text-align: right; padding-right: calc(var(--p) * 8); }
 .tc-series { color: #ffd23f; margin-right: calc(var(--p) * 2); }
 
 /* Portrait */
@@ -101,9 +118,12 @@
 .tc-stamp--rookie   { left: calc(var(--p) * 8); bottom: calc(var(--p) * 10); color: var(--red); transform: rotate(6deg); }
 
 /* Stats block */
-.tc-stats { background: #fff; padding: calc(var(--p) * 6) 0 calc(var(--p) * 5); border-top: calc(var(--p) * 1.5) solid var(--red); }
-.tc-stats-top { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--p) * 6); margin-bottom: calc(var(--p) * 5); padding-bottom: calc(var(--p) * 4); border-bottom: var(--p) solid #e0e0e0; }
-.tc-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--p) * 5); margin-bottom: calc(var(--p) * 3); }
+.tc-teambar { height: calc(var(--p) * 4); background: linear-gradient(90deg, var(--cup1, var(--red)) 0%, var(--cup2, var(--red-deep)) 100%); }
+.tc-stats { background: linear-gradient(180deg, var(--cup1-tint, #fff) 0%, #fff 100%); padding: calc(var(--p) * 6) calc(var(--p) * 8) calc(var(--p) * 5); }
+.tc-stats-top { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--p) * 6); margin-bottom: calc(var(--p) * 5); padding-bottom: calc(var(--p) * 5); border-bottom: var(--p) solid rgba(0, 0, 0, .12); }
+.tc-stats-top .tc-stat + .tc-stat { border-left: var(--p) solid rgba(0, 0, 0, .12); }
+.tc-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--p) * 4); margin-bottom: calc(var(--p) * 2); }
+.tc-stats-row .tc-stat { background: #fff; border: var(--p) solid rgba(0, 0, 0, .1); border-radius: calc(var(--p) * 4); padding: calc(var(--p) * 3) 0 calc(var(--p) * 2); }
 .tc-stat { text-align: center; min-width: 0; }
 .tc-stat-label { font-size: calc(var(--p) * 4.3); color: #777; text-transform: uppercase; font-weight: 700; letter-spacing: calc(var(--p) * .25); margin-bottom: calc(var(--p) * 1.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tc-stats-row .tc-stat-label { font-size: calc(var(--p) * 4.5); color: #666; }
@@ -112,17 +132,17 @@
 .tc-red { color: var(--red) !important; }
 
 /* Catchphrase */
-.tc-quote { background: #fff; padding: calc(var(--p) * 3) calc(var(--p) * 10) calc(var(--p) * 7); font-size: calc(var(--p) * 4.8); font-style: italic; color: #666; text-align: center; line-height: 1.3; position: relative; z-index: 5; }
+.tc-quote { background: #fff; padding: calc(var(--p) * 2) calc(var(--p) * 14) calc(var(--p) * 7) calc(var(--p) * 58); font-size: calc(var(--p) * 5); font-style: italic; font-weight: 600; color: #444; text-align: center; line-height: 1.3; position: relative; z-index: 5; }
 
 /* Honour tile, set number, tier tag */
 .tc-honour {
   position: absolute; left: calc(var(--p) * 8); bottom: calc(var(--p) * 6); z-index: 11;
-  min-width: calc(var(--p) * 40); padding: calc(var(--p) * 5); text-align: center;
-  background: #fff; border: var(--p) solid #ffd700; border-radius: calc(var(--p) * 4);
+  min-width: calc(var(--p) * 44); padding: calc(var(--p) * 5) calc(var(--p) * 5) calc(var(--p) * 4); text-align: center;
+  background: linear-gradient(180deg, #fff 0%, #fff6d0 100%); border: calc(var(--p) * 1.5) solid #e6b800; border-radius: calc(var(--p) * 5);
   box-shadow: 0 calc(var(--p) * 2) calc(var(--p) * 6) rgba(0, 0, 0, .3);
 }
 .tc-honour-img { width: calc(var(--p) * 24); height: calc(var(--p) * 24); object-fit: contain; margin-bottom: calc(var(--p) * 2.5); }
-.tc-honour-icon { font-size: calc(var(--p) * 19); line-height: 1; margin-bottom: calc(var(--p) * 2.5); }
+.tc-honour-icon { font-size: calc(var(--p) * 21); line-height: 1; margin-bottom: calc(var(--p) * 2.5); }
 .tc-honour-label { font-size: calc(var(--p) * 4.2); font-weight: 900; text-transform: uppercase; line-height: 1.2; color: #333; }
 .tc-number {
   position: absolute; right: calc(var(--p) * 8); bottom: calc(var(--p) * 6); z-index: 11;

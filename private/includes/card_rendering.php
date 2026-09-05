@@ -66,6 +66,22 @@ function cardSunburst(): string {
     return $uri = 'data:image/svg+xml;charset=utf-8,' . rawurlencode($svg);
 }
 
+/** Mix a hex colour toward white (0 = colour, 1 = white) — light tints for the stats band. */
+function cardTint(string $hex, float $toWhite): string {
+    $hex = ltrim($hex, '#'); if (strlen($hex) !== 6) return '#f4f4f4';
+    $out = '#';
+    foreach ([0, 2, 4] as $i) { $c = hexdec(substr($hex, $i, 2)); $out .= str_pad(dechex((int)round($c + (255 - $c) * $toWhite)), 2, '0', STR_PAD_LEFT); }
+    return $out;
+}
+
+/** Checkered-flag strip as an SVG data URI (two rows of squares). */
+function cardChecker(): string {
+    static $uri = null;
+    if ($uri !== null) return $uri;
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 4" preserveAspectRatio="none" shape-rendering="crispEdges"><rect width="8" height="4" fill="#fff"/><rect x="0" y="0" width="2" height="2" fill="#111"/><rect x="4" y="0" width="2" height="2" fill="#111"/><rect x="2" y="2" width="2" height="2" fill="#111"/><rect x="6" y="2" width="2" height="2" fill="#111"/></svg>';
+    return $uri = 'data:image/svg+xml;charset=utf-8,' . rawurlencode($svg);
+}
+
 /** The OMK crest (the favicon) as inline SVG markup, sized by CSS. */
 function cardCrestSvg(): string {
     static $svg = null;
@@ -138,7 +154,8 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
         $topCups = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
     $cup1 = $topCups[0] ?? 'Mushroom'; $cup2 = $topCups[1] ?? $cup1;
-    $portraitBackground = sprintf('linear-gradient(180deg, %s 0%%, %s 100%%)', getMKCupColor($cup1)[0], getMKCupColor($cup2)[1]);
+    [$c1, $c2] = [getMKCupColor($cup1)[0], getMKCupColor($cup2)[1]];
+    $portraitBackground = sprintf('linear-gradient(180deg, %s 0%%, %s 100%%)', $c1, $c2);
 
     // Season set: number in the set, season stamps, foil tier.
     $set = cardSetOrder($pdo, $currentSeason);
@@ -165,8 +182,10 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
 
     ob_start();
     ?>
-    <div class="tc tc--<?= $tier['key'] ?>" style="--s: <?= $scale ?>;" title="<?= htmlspecialchars($tier['label']) ?> tier — <?= htmlspecialchars($tier['blurb']) ?>">
+    <div class="tc tc--<?= $tier['key'] ?>" style="--s: <?= $scale ?>; --cup1: <?= $c1 ?>; --cup2: <?= $c2 ?>; --cup1-tint: <?= cardTint($c1, .86) ?>; --cup2-tint: <?= cardTint($c2, .8) ?>; --checker: url('<?= cardChecker() ?>');" title="<?= htmlspecialchars($tier['label']) ?> tier — <?= htmlspecialchars($tier['blurb']) ?>">
       <div class="tc-inner">
+        <?php if ($tier['key'] === 'holo'): ?><span class="tc-holo"></span><?php endif; ?>
+        <?php if (in_array($tier['key'], ['platinum', 'diamond', 'holo'], true)): ?><span class="tc-sheen"></span><?php endif; ?>
         <div class="tc-banner tc-banner--name"><div class="tc-banner-text"><?= $racerName ?></div></div>
         <?php if (!empty($racer['nickname'])): ?>
         <div class="tc-banner tc-banner--nick"><div class="tc-banner-text"><?= htmlspecialchars($racer['nickname']) ?></div></div>
@@ -179,6 +198,7 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
           <?php if ($isRookie): ?><div class="tc-stamp tc-stamp--rookie">Rookie</div><?php endif; ?>
         </div>
 
+        <div class="tc-teambar"></div>
         <div class="tc-stats">
           <div class="tc-stats-top">
             <div class="tc-stat"><div class="tc-stat-label">Career Points</div><div class="tc-stat-value tc-red"><?= number_format((int)$career['total_points']) ?></div></div>
@@ -196,7 +216,7 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
         <div class="tc-quote">"<?= htmlspecialchars($racer['catchphrase']) ?>"</div>
         <?php endif; ?>
 
-        <div class="tc-banner tc-banner--foot"><div class="tc-banner-text"><?= htmlspecialchars($leagueName) ?></div></div>
+        <div class="tc-banner tc-banner--foot"><div class="tc-checker"></div><div class="tc-banner-text"><?= htmlspecialchars($leagueName) ?></div></div>
 
         <?php if ($featuredBadge): ?>
         <div class="tc-honour">

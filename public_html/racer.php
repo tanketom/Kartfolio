@@ -1843,6 +1843,7 @@ function downloadCard() {
     const button = event.target;
     button.textContent = 'Generating...';
     button.disabled = true;
+    document.body.classList.add('tc-capturing');
 
     html2canvas(card, {
         scale: 3,
@@ -1857,6 +1858,7 @@ function downloadCard() {
 
         button.textContent = '📸 Download Card';
         button.disabled = false;
+        document.body.classList.remove('tc-capturing');
     });
 }
 </script>

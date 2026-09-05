@@ -95,6 +95,7 @@ async function downloadPDF() {
     const button = document.getElementById('pdfButton');
     button.textContent = '⏳ Generating PDF...';
     button.disabled = true;
+    document.body.classList.add('tc-capturing');   // freeze the foil sheen where it looks best
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('portrait', 'mm', 'a4');
@@ -168,6 +169,7 @@ async function downloadPDF() {
     }
 
     pdf.save('OMK_Trading_Cards_<?= strtoupper($selectedSeason) ?>.pdf');
+    document.body.classList.remove('tc-capturing');
 
     button.textContent = '📄 Download PDF';
     button.disabled = false;
