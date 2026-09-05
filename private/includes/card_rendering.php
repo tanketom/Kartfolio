@@ -82,17 +82,6 @@ function cardChecker(): string {
     return $uri = 'data:image/svg+xml;charset=utf-8,' . rawurlencode($svg);
 }
 
-/** The OMK crest (the favicon) as inline SVG markup, sized by CSS. */
-function cardCrestSvg(): string {
-    static $svg = null;
-    if ($svg !== null) return $svg;
-    $file = __DIR__ . '/../../public_html/assets/img/favicon.svg';
-    $raw = is_file($file) ? (string)file_get_contents($file) : '';
-    $raw = preg_replace('/<\?xml[^>]*\?>/', '', $raw);
-    $raw = preg_replace('/<rect[^>]*rx="6"[^>]*><\/rect>/', '', $raw, 1);   // drop the red tile; the backing is the field
-    return $svg = trim((string)$raw);
-}
-
 /**
  * Render a racer's trading card for a season set.
  *
@@ -170,7 +159,8 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
     }
     $isRookie = ($career['first_season'] ?? null) === $currentSeason;
     $tier = cardTier((int)$career['total_gps'], $titles, $podiums);
-    $stamp = $seasonPlace === 1 ? ['champion', '🥇 Champion'] : ($seasonPlace === 2 ? ['runner', '🥈 Runner-up'] : ($seasonPlace === 3 ? ['third', '🥉 Podium'] : null));
+    // No podium stamps on the front: the foil tier and the honours tile carry the
+    // pedigree. $seasonPlace still feeds the tier counts above.
 
     $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
     $seasonNum  = str_pad(ltrim(substr($currentSeason, 1), '0') ?: '0', 2, '0', STR_PAD_LEFT);
@@ -194,7 +184,6 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
         <div class="tc-portrait<?= !empty($racer['nickname']) ? ' tc-portrait--nick' : '' ?>" style="background-image: url('<?= cardSunburst() ?>'), <?= $portraitBackground ?>;">
           <div class="tc-floor"></div>
           <img src="<?= $imageSrc ?>" onerror="<?= $onError ?>" alt="<?= htmlspecialchars($mainChar) ?>" class="tc-art">
-          <?php if ($stamp): ?><div class="tc-stamp tc-stamp--<?= $stamp[0] ?>"><?= $stamp[1] ?></div><?php endif; ?>
           <?php if ($isRookie): ?><div class="tc-stamp tc-stamp--rookie">Rookie</div><?php endif; ?>
         </div>
 
@@ -258,7 +247,7 @@ function renderCardBacking($pdo, string $season_id, float $scale = 1.0): string 
           <div class="tc-back-corner tc-back-corner--tl"></div><div class="tc-back-corner tc-back-corner--tr"></div>
           <div class="tc-back-corner tc-back-corner--bl"></div><div class="tc-back-corner tc-back-corner--br"></div>
           <div class="tc-back-org">Organisation Mondial du Karting</div>
-          <div class="tc-back-crest"><?= cardCrestSvg() ?></div>
+          <div class="tc-back-crest"><img src="/assets/img/omk-seal-white.png" alt="OMK seal" class="tc-back-seal"></div>
           <div class="tc-back-omk">OMK</div>
           <div class="tc-back-rule"></div>
           <div class="tc-back-league"><?= htmlspecialchars($leagueName) ?></div>
