@@ -949,3 +949,15 @@
 .career-arc-dot--win { fill: var(--nintendo-red, #e60012); }
 .career-arc-place { font-size: 11px; font-weight: 800; fill: var(--ink, #1a1a1a); }
 .career-arc-season { font-size: 10px; font-weight: 700; fill: var(--gray-600, #6b6355); letter-spacing: 0.04em; }
+
+/* Season accolades strip under the career stats grid */
+.career-accolades { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--gray-200, #e5e7eb); }
+.career-accolades-label { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--gray-500, #6b7280); margin-bottom: 8px; }
+.career-accolades-label small { font-weight: 500; letter-spacing: 0; text-transform: none; margin-left: 6px; }
+.career-accolades-medals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.career-medal { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 8px; align-items: baseline; padding: 8px 10px; border-radius: 10px; background: var(--gray-100, #f3f4f6); min-width: 0; }
+.career-medal--1 { background: #fff3c4; } .career-medal--2 { background: #ececec; } .career-medal--3 { background: #f6e3d3; }
+.career-medal--none { opacity: .45; }
+.career-medal-icon { font-size: 1.3rem; grid-row: 1 / span 2; align-self: center; }
+.career-medal-count { font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; line-height: 1; }
+.career-medal-seasons { grid-column: 2; font-size: .7rem; font-weight: 700; color: var(--gray-600, #4b5563); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

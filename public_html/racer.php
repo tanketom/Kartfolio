@@ -149,6 +149,11 @@ $seasonBreakdown = [];
 $archivedPlacementMap = [];   // season_id => [racer_id => place]
 foreach (archivedSeasonPlacements($pdo) as $rid => $arcRows)
     foreach ($arcRows as [$arcSeason, $arcPlace, $arcField]) $archivedPlacementMap[$arcSeason][$rid] = $arcPlace;
+// Season accolades: archived-season podiums, from the same frozen snapshot.
+$accolades = [1 => [], 2 => [], 3 => []];
+foreach (archivedSeasonPlacements($pdo)[$racerId] ?? [] as [$accSeason, $accPlace, $accField])
+    if ($accPlace <= 3) $accolades[$accPlace][] = strtoupper($accSeason);
+$accoladeSeasons = count(archivedSeasonPlacements($pdo)[$racerId] ?? []);
 foreach ($seasons as $season) {
     $score = calculateGPScore($pdo, $racerId, $season);
     $breakdown = getScoringBreakdown($pdo, $racerId, $season);
@@ -735,6 +740,18 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="stat-box">
                     <div class="stat-label">Avg Finish</div>
                     <div class="stat-value stat-value--lg"><?= number_format($careerStats['avg_finish'], 1) ?></div>
+                </div>
+            </div>
+            <div class="career-accolades" title="Final placements in archived seasons">
+                <div class="career-accolades-label">Season accolades<?= $accoladeSeasons ? ' <small>' . $accoladeSeasons . ' season' . ($accoladeSeasons === 1 ? '' : 's') . ' completed</small>' : '' ?></div>
+                <div class="career-accolades-medals">
+                    <?php foreach ([1 => ['🥇', 'Gold', 'Champion'], 2 => ['🥈', 'Silver', 'Runner-up'], 3 => ['🥉', 'Bronze', 'Third']] as $place => [$medal, $name, $meaning]): $list = $accolades[$place]; ?>
+                    <div class="career-medal career-medal--<?= $place ?><?= $list ? '' : ' career-medal--none' ?>" title="<?= $meaning ?><?= $list ? ': ' . implode(', ', $list) : '' ?>">
+                        <span class="career-medal-icon"><?= $medal ?></span>
+                        <span class="career-medal-count"><?= count($list) ?></span>
+                        <span class="career-medal-seasons"><?= $list ? htmlspecialchars(implode(' · ', $list)) : '—' ?></span>
+                    </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div>
