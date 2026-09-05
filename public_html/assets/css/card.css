@@ -30,7 +30,7 @@
   width: 100%; height: 100%;
   overflow: hidden;
   border-radius: calc(var(--p) * 5);
-  background: linear-gradient(180deg, #ececec 0%, #d4d4d4 100%);
+  background: #fff;
   box-shadow: inset 0 0 0 calc(var(--p) * 1) rgba(0, 0, 0, .18);   /* pinstripe */
 }
 
