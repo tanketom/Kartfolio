@@ -57,7 +57,9 @@ if ($isLive) ensureFoundersPack($pdo, $racerId);
 $revealed = null; $openNotice = '';
 if ($isLive && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'open_pack') {
     verify_csrf();
-    $packId = (int)($_POST['pack_id'] ?? 0);
+    require_once __DIR__ . '/../private/includes/throttle.php';
+    $packId = throttleAllow($pdo, 'open_pack', 30, 10) ? (int)($_POST['pack_id'] ?? 0) : 0;
+    if ($packId === 0) $openNotice = 'Too many packs opened from this connection. Wait ten minutes.';
     // Pack must belong to this racer's page.
     $chk = $pdo->prepare("SELECT racer_id FROM racer_packs WHERE id = ?");
     $chk->execute([$packId]);

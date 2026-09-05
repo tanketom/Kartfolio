@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     // Verify wall code — throttled to 10 wrong codes per IP per 10 minutes
     // so the 4-digit space can't be brute-forced by a script.
-    $expectedCode = getSetting($pdo, 'wall_code', '1234');
+    $expectedCode = trim((string)getSetting($pdo, 'wall_code', ''));   // empty = entry locked until an admin sets one
     $submittedCode = trim($_POST['wall_code'] ?? '');
     $submitterIp = clientIp();
 
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ");
     $wcCount->execute([$submitterIp]);
     $wallCodeLocked = (int)$wcCount->fetchColumn() >= 10;
-    $wallCodeOk = !$wallCodeLocked && hash_equals($expectedCode, $submittedCode);
+    $wallCodeOk = $expectedCode !== '' && !$wallCodeLocked && hash_equals($expectedCode, $submittedCode);
 
     // Count how many racer slots are actually filled in. A GP needs at
     // least 3 racers — anything less isn't really a Grand Prix.
@@ -82,7 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($_POST["racer_$i"])) $filledRacers++;
     }
 
-    if ($wallCodeLocked) {
+    if ($expectedCode === '') {
+        $message = "Result entry is locked until an admin sets the wall code (Admin → Settings).";
+    } elseif ($wallCodeLocked) {
         $message = "Too many wrong codes. Wait 10 minutes and try again.";
     } elseif (!$wallCodeOk) {
         $pdo->prepare("INSERT INTO auth_throttle (ip, action) VALUES (?, 'wall_code')")->execute([$submitterIp]);

@@ -438,7 +438,7 @@ INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, catego
     ('enable_broadcasts', '1', 'boolean', 'features', 'Enable AI broadcast generation'),
     ('enable_rivalries', '1', 'boolean', 'features', 'Enable rivalry tracking'),
     ('enable_tournaments', '0', 'boolean', 'features', 'Enable tournament system'),
-    ('wall_code', '0000', 'text', 'features', 'Code required to submit GP results');
+    ('wall_code', '', 'text', 'features', 'Code required to submit GP results — result entry stays locked until it is set');
 
 -- Default Season
 INSERT OR IGNORE INTO season_meta (season_id, status, scoring_system, season_name)

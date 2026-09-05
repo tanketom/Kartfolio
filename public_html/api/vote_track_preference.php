@@ -24,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 verify_csrf();
 
 $voterId = trackPrefVoterId();
+require_once __DIR__ . '/../../private/includes/throttle.php';
+if (!throttleAllow($pdo, 'track_vote', 120, 10)) { http_response_code(429); echo json_encode(['error' => 'Too many votes from this connection. Take a breather.']); exit; }
 $winner  = trim($_POST['winner'] ?? '');
 $loser   = trim($_POST['loser']  ?? '');
 

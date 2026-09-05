@@ -280,7 +280,10 @@ $submitError = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'submit') {
     verify_csrf();
-    if (!$submissionsOpen) {
+    require_once __DIR__ . '/../private/includes/throttle.php';
+    if (!throttleAllow($pdo, 'fantasy_submit', 10, 10)) {
+        $submitError = 'Too many submissions from this connection. Wait ten minutes and try again.';
+    } elseif (!$submissionsOpen) {
         $submitError = 'Submissions are closed! The deadline was ' . $deadlineFormatted . '.';
     } else {
         $racerIdPick = intval($_POST['predictor_racer_id'] ?? 0);

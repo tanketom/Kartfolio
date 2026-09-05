@@ -10,6 +10,8 @@
 // bin/dev_router.php + .claude/launch.json: a demo copy with a Territory
 // season, never the live league). Unset in production.
 require_once __DIR__ . '/config.php';   // kartfolioConfig()
+require_once __DIR__ . '/http_headers.php';
+kartfolioSendSecurityHeaders();
 $dbPath = getenv('KARTFOLIO_DB') ?: __DIR__ . '/../data/league.db';
 
 

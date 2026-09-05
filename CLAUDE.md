@@ -286,6 +286,18 @@ row order flipped the day `(race_date, id)` was indexed because
   no-op on GET, so a `?delete_id=` link is forgeable. JSON in `<script>` blocks
   goes through `jsonForScript()` (HEX-escaped), and model-written text is
   escaped before markdown-to-HTML (`formatTranscript`).
+- **Security headers come from PHP** (`http_headers.php`, called by db.php on
+  every request): a Content-Security-Policy that allows exactly the hosts the
+  pages load (cdnjs, jsdelivr, d3js.org, Google Fonts, the QR service) plus
+  HSTS on HTTPS. Adding a new external script/font/image host means adding it
+  there, or the browser silently blocks it. Inline scripts stay allowed.
+- **Public write endpoints are rate-limited** through `throttleAllow($pdo,
+  action, limit, minutes)` (`throttle.php`, keyed on `clientIp()`), e.g.
+  fantasy submits 10/10 min, pack opens 30/10 min, track votes 120/10 min. A
+  new public POST gets one.
+- **The wall code is empty on a fresh install** and result entry stays locked
+  until a commissioner sets it (setup page or Admin → Settings) — never ship a
+  known default code.
 - Season editing is admin-only via `/admin/seasons.php`. The old
   unauthenticated `admin_season.php` was deleted — do not reintroduce a
   public season editor. Every new state-changing page lives under `/admin/`

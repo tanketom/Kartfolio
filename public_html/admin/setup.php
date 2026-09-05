@@ -66,6 +66,8 @@ if (!$done && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
 
             updateSetting($pdo, 'league_name', mb_substr($leagueName, 0, 80));
+            $wallCode = preg_replace('/\D/', '', (string)($_POST['wall_code'] ?? ''));
+            if ($wallCode !== '') updateSetting($pdo, 'wall_code', mb_substr($wallCode, 0, 8));
             if ($bodyFull !== '')  updateSetting($pdo, 'governing_body_full',  mb_substr($bodyFull, 0, 120));
             if ($bodyShort !== '') updateSetting($pdo, 'governing_body_short', mb_substr($bodyShort, 0, 20));
             if ($tagline !== '')   updateSetting($pdo, 'league_tagline',       mb_substr($tagline, 0, 140));
@@ -196,6 +198,13 @@ include __DIR__ . '/../../private/templates/header.php';
                     <input type="text" name="league_tagline" class="form-input" maxlength="140"
                            value="<?= htmlspecialchars($_POST['league_tagline'] ?? '') ?>"
                            placeholder="Premier Mario Kart Racing League">
+                </div>
+                <div class="form-field">
+                    <label>Wall code</label>
+                    <input type="text" name="wall_code" class="form-input" inputmode="numeric" pattern="\d{4,8}" maxlength="8"
+                           value="<?= htmlspecialchars($_POST['wall_code'] ?? '') ?>"
+                           placeholder="4 digits, e.g. 4821">
+                    <small>Racers type this to submit results. Result entry stays locked until it is set (also in Admin → Settings).</small>
                 </div>
                 <div class="form-field">
                     <label>Governing body</label>

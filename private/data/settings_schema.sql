@@ -23,5 +23,5 @@ INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, catego
     ('enable_tournaments', '1', 'boolean', 'features', 'Enable tournament system'),
     ('enable_broadcasts', '1', 'boolean', 'features', 'Enable AI broadcast generation'),
     ('enable_rivalries', '1', 'boolean', 'features', 'Enable rivalry tracking'),
-    ('wall_code', '1234', 'text', 'features', 'Four-digit code displayed on the Gameslab wall. Required to submit GP results.'),
+    ('wall_code', '', 'text', 'features', 'Four-digit code displayed on the Gameslab wall. Required to submit GP results.'),
     ('stickers_epoch', '2026-06-20', 'text', 'features', 'Sticker packs drop for GPs logged on/after this date (YYYY-MM-DD).');

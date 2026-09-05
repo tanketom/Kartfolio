@@ -24,9 +24,8 @@ function kartfolioSessionStart(): void {
 
     $host    = strtolower(strtok((string)($_SERVER['HTTP_HOST'] ?? ''), ':'));
     $isLocal = PHP_SAPI === 'cli-server' || in_array($host, ['localhost', '127.0.0.1', '::1'], true);
-    $https   = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-            || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
-            || (string)($_SERVER['SERVER_PORT'] ?? '') === '443';
+    require_once __DIR__ . '/http_headers.php';
+    $https   = kartfolioRequestIsHttps();
     $secure  = $override ?? ($https || !$isLocal);
 
     ini_set('session.use_strict_mode', '1');
