@@ -573,7 +573,9 @@ Cross-reference if you find half-implemented work:
   auto-apply)
 - **Coaching reports removed** from `racer.php` (the table + API endpoint
   were left on disk, unused)
-- **Favicon** — OMK crest SVG (white-on-red) wired in `header.php`
+- **Favicon** — the real OMK seal, white on a red rounded square
+  (`assets/img/omk-favicon-{32,64,180,512}.png`, generated with GD from
+  `omk-seal-white.png`), wired in `header.php`; the drawn SVG crest is gone
 - **Mikkoliiga** best-20 → best-10 (`MIKKOLIIGA_BEST_X`)
 - **Registry tooltips** (§2a) — `tooltip` key on all 14 systems +
   `scoringTooltipFromBreakdown()`; removed the hardcoded if/else chains from

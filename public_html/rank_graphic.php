@@ -148,7 +148,7 @@ function renderHangingBadges(array $badges, array $unique, string $sizeClass = '
 
         <!-- Header: single line season + name, then scoring system -->
         <div class="rg-header">
-            <img class="rg-crest" src="/assets/img/favicon.svg" alt="">
+            <img class="rg-crest" src="/assets/img/omk-favicon-180.png" alt="">
             <div class="rg-header-text">
                 <div class="rg-header-league"><?= htmlspecialchars($leagueName) ?></div>
                 <div class="rg-header-season"><?= htmlspecialchars($seasonNumber) ?><?php if (!empty($seasonName)): ?> <span class="rg-header-sep">·</span> <?= htmlspecialchars($seasonName) ?><?php endif; ?></div>

@@ -38,9 +38,10 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($leagueName) ?> League <?= $currentSeasonTag ?></title>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
-    <link rel="alternate icon" type="image/png" href="/assets/img/program_press_office.png">
-    <link rel="apple-touch-icon" href="/assets/img/program_press_office.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/omk-favicon-32.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="/assets/img/omk-favicon-64.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/assets/img/omk-favicon-512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/omk-favicon-180.png">
     <!-- KART POP type system: Fredoka (display) · Inter (body/UI) · DM Mono (numerals) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
