@@ -30,6 +30,14 @@ function multiverseTop(PDO $pdo, string $season_id, string $system): array {
         $rows[] = ['id' => (int)$rid, 'name' => (string)($names[$rid] ?? ''), 'score' => round((float)($def['calculate'])($pdo, (int)$rid, $season_id, $rules), 2)];
     }
     sortStandingsByScoring($rows, $system, $pdo, $season_id);
+    // A universe where nobody can be separated has no verdict: Random Cup Draw
+    // with no draw assigned scores everyone 0, and the alphabetical tie-break
+    // would otherwise crown whoever's name sorts first.
+    $scores = array_unique(array_map(fn($r) => (string)$r['score'], $rows));
+    if (count($rows) > 1 && count($scores) === 1) {
+        $why = $system === 'random_cup_draw' ? 'no cups were drawn' : 'everyone level on ' . scoreNum($rows[0]['score']);
+        return ['top' => [], 'field' => count($rows), 'void' => $why];
+    }
     $top = array_map(fn($r) => ['id' => $r['id'], 'name' => $r['name'], 'score' => $r['score']], array_slice($rows, 0, 3));
     return ['top' => $top, 'field' => count($rows)];
 }
@@ -40,17 +48,17 @@ $perSeason = [];  // season => ['real'=>…, 'counts'=>name=>n, 'champions'=>n d
 foreach ($seasons as $s) {
     $sid = $s['season_id'];
     if (!getSeasonResultsByRacer($pdo, $sid)) continue;
-    $counts = [];
+    $counts = []; $decided = 0;
     foreach ($registry as $key => $def) {
         $r = multiverseTop($pdo, $sid, $key);
         $universe[$sid][$key] = $r;
-        if ($r['top']) { $n = $r['top'][0]['name']; $counts[$n] = ($counts[$n] ?? 0) + 1; $wins[$n][$sid] = ($wins[$n][$sid] ?? 0) + 1; }
+        if ($r['top']) { $decided++; $n = $r['top'][0]['name']; $counts[$n] = ($counts[$n] ?? 0) + 1; $wins[$n][$sid] = ($wins[$n][$sid] ?? 0) + 1; }
     }
     arsort($counts);
-    $perSeason[$sid] = ['real_system' => $s['scoring_system'], 'real_champion' => trim((string)$s['champion_name']), 'counts' => $counts];
+    $perSeason[$sid] = ['real_system' => $s['scoring_system'], 'real_champion' => trim((string)$s['champion_name']), 'counts' => $counts, 'decided' => $decided];
 }
 $seasonIds = array_keys($universe);
-$totalUniverses = count($registry) * count($seasonIds);
+$totalUniverses = array_sum(array_column($perSeason, 'decided'));
 uasort($wins, fn($a, $b) => array_sum($b) <=> array_sum($a));
 
 $mostContested = null; $mostUnanimous = null;
@@ -91,7 +99,7 @@ include __DIR__ . '/../private/templates/header.php';
 
     <section class="mv-section">
         <h2 class="section-title">🏆 Universes won</h2>
-        <p class="section-subtitle"><?= $totalUniverses ?> universes across <?= count($seasonIds) ?> season<?= count($seasonIds) === 1 ? '' : 's' ?></p>
+        <p class="section-subtitle"><?= $totalUniverses ?> decided universes across <?= count($seasonIds) ?> season<?= count($seasonIds) === 1 ? '' : 's' ?></p>
         <div class="mv-bars">
             <?php $max = max(array_map('array_sum', $wins)); foreach ($wins as $n => $bySeason): $tot = array_sum($bySeason); ?>
                 <div class="mv-bar-row">
@@ -103,8 +111,8 @@ include __DIR__ . '/../private/templates/header.php';
             <?php endforeach; ?>
         </div>
         <div class="mv-facts">
-            <?php if ($mostContested !== null): ?><div class="mv-fact"><strong>Most contested:</strong> <?= strtoupper($mostContested) ?> — <?= $perSeason[$mostContested]['distinct'] ?> different champions across <?= count($registry) ?> universes.</div><?php endif; ?>
-            <?php if ($mostUnanimous !== null): ?><div class="mv-fact"><strong>Most unanimous:</strong> <?= strtoupper($mostUnanimous) ?> — <?= htmlspecialchars(array_key_first($perSeason[$mostUnanimous]['counts'])) ?> wins <?= $perSeason[$mostUnanimous]['lead'] ?> of <?= count($registry) ?>.</div><?php endif; ?>
+            <?php if ($mostContested !== null): ?><div class="mv-fact"><strong>Most contested:</strong> <?= strtoupper($mostContested) ?> — <?= $perSeason[$mostContested]['distinct'] ?> different champions across <?= $perSeason[$mostContested]['decided'] ?> universes.</div><?php endif; ?>
+            <?php if ($mostUnanimous !== null): ?><div class="mv-fact"><strong>Most unanimous:</strong> <?= strtoupper($mostUnanimous) ?> — <?= htmlspecialchars(array_key_first($perSeason[$mostUnanimous]['counts'])) ?> wins <?= $perSeason[$mostUnanimous]['lead'] ?> of <?= $perSeason[$mostUnanimous]['decided'] ?>.</div><?php endif; ?>
         </div>
     </section>
 
@@ -113,7 +121,7 @@ include __DIR__ . '/../private/templates/header.php';
         <h2 class="section-title"><?= strtoupper($sid) ?></h2>
         <p class="section-subtitle">
             Actually scored on <?= $realDef ? $realDef['icon'] . ' ' . htmlspecialchars(mvName($realDef, $sRules)) : htmlspecialchars($p['real_system']) ?><?= $p['real_champion'] !== '' ? ' · champion <strong>' . htmlspecialchars($p['real_champion']) . '</strong>' : '' ?>
-            · consensus champion <strong><?= htmlspecialchars($consensus) ?></strong> (<?= $p['counts'][$consensus] ?> of <?= count($registry) ?>)
+            · consensus champion <strong><?= htmlspecialchars($consensus) ?></strong> (<?= $p['counts'][$consensus] ?> of <?= $p['decided'] ?>)<?= $p['decided'] < count($registry) ? ' · ' . (count($registry) - $p['decided']) . ' universe' . (count($registry) - $p['decided'] === 1 ? '' : 's') . ' with no verdict' : '' ?>
             <?php if ($p['real_champion'] !== '' && $p['real_champion'] !== $consensus): ?><span class="mv-upset">the multiverse disagrees</span><?php endif; ?>
         </p>
         <div class="mv-summary">
@@ -127,7 +135,8 @@ include __DIR__ . '/../private/templates/header.php';
                         <span class="mv-cell-win"><span class="mv-dot" style="background:<?= $colours[$w['name']] ?? '#999' ?>"></span><?= htmlspecialchars($w['name']) ?> <small><?= scoreNum($w['score']) ?></small></span>
                         <span class="mv-cell-podium"><?php foreach (array_slice($u['top'], 1) as $i => $t): ?><span><?= $i === 0 ? '🥈' : '🥉' ?> <?= htmlspecialchars($t['name']) ?></span><?php endforeach; ?></span>
                     <?php else: ?>
-                        <span class="mv-cell-win mv-cell-win--none">nobody qualifies</span>
+                        <span class="mv-cell-win mv-cell-win--none">no verdict</span>
+                        <span class="mv-cell-podium"><span><?= htmlspecialchars($u['void'] ?? 'nobody qualifies') ?></span></span>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
