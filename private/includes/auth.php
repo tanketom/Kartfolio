@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/session.php';
 /**
  * Simple Admin Authentication
  * Path: /cdnmk/private/includes/auth.php
  */
 
-session_start();
+kartfolioSessionStart();
 
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/db.php'; // $pdo — needed for the login throttle

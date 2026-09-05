@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../private/includes/session.php';
 /**
  * Season Report Generator & Archiver
  * Path: /cdnmk/public_html/api/generate_season_report.php
@@ -8,7 +9,7 @@ require_once __DIR__ . '/../../private/includes/gp_logic.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/gemini_client.php';
 
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (session_status() === PHP_SESSION_NONE) { kartfolioSessionStart(); }
 require_admin();
 
 // POST + CSRF only: this endpoint archives the season and overwrites the

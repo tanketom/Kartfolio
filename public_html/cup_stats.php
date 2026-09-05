@@ -414,11 +414,11 @@ document.addEventListener("DOMContentLoaded", function() {
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: <?= json_encode($chartLabels) ?>,
+            labels: <?= jsonForScript($chartLabels) ?>,
             datasets: [
                 {
                     label: 'Avg Points per Racer',
-                    data: <?= json_encode($chartPPG) ?>,
+                    data: <?= jsonForScript($chartPPG) ?>,
                     backgroundColor: 'rgba(230, 0, 18, 0.8)',
                     borderColor: 'var(--nintendo-red)',
                     borderWidth: 2,

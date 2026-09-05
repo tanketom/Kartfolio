@@ -244,7 +244,7 @@ include __DIR__ . '/../private/templates/header.php';
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script>
 (function() {
-    const seasonId = <?= json_encode($seasonId) ?>;
+    const seasonId = <?= jsonForScript($seasonId) ?>;
     let animData = null;
     let currentFrame = -1;
     let playing = false;

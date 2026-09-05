@@ -8,4 +8,5 @@ return [
     'admin_password' => 'changeme',      // Admin login password (plaintext or bcrypt hash)
     // To generate a hash: php -r "echo password_hash('yourpassword', PASSWORD_DEFAULT);"
     'model_name'     => 'gemini-2.5-flash', // Gemini model to use for recaps
+    'session_cookie_secure' => null,     // null = auto (Secure unless local dev); false only for a plain-HTTP install
 ];

@@ -276,6 +276,16 @@ row order flipped the day `(race_date, id)` was indexed because
   `session_regenerate_id(true)` and is throttled via the `auth_throttle`
   table (8 fails / 15 min / IP). The `add_result` wall code is throttled the
   same way (10 / 10 min) and compared with `hash_equals`.
+- **Sessions start through `kartfolioSessionStart()`** (`session.php`), never a
+  bare `session_start()`. It sets HttpOnly + SameSite=Lax, and Secure unless the
+  request is local dev (`config.php` can force `session_cookie_secure`). The
+  `.htaccess` `php_value` block only works under mod_php; the live host runs PHP
+  behind nginx, so the live cookie had no flags until this existed. Config is
+  read via `kartfolioConfig()` in `config.php` (shared by db.php and session.php).
+- **Anything mutating must be POST + `verify_csrf()`** — `verify_csrf()` is a
+  no-op on GET, so a `?delete_id=` link is forgeable. JSON in `<script>` blocks
+  goes through `jsonForScript()` (HEX-escaped), and model-written text is
+  escaped before markdown-to-HTML (`formatTranscript`).
 - Season editing is admin-only via `/admin/seasons.php`. The old
   unauthenticated `admin_season.php` was deleted — do not reintroduce a
   public season editor. Every new state-changing page lives under `/admin/`

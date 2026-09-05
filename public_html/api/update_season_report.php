@@ -1,9 +1,10 @@
 <?php
+require_once __DIR__ . '/../../private/includes/session.php';
 /**
  * Update Season Report
  * Path: /cdnmk/public_html/api/update_season_report.php
  */
-session_start();
+kartfolioSessionStart();
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/csrf.php';
 

@@ -320,9 +320,9 @@ $retiredRacers = array_flip($retiredRacers);
 <script>
 (function() {
     const ctx = document.getElementById('eloChart').getContext('2d');
-    const rawLabels = <?= json_encode(array_values($timeline)) ?>;
-    const allDatasets = <?= json_encode($chart_series) ?>;
-    const currentSeasonRacers = <?= json_encode(array_values($currentSeasonRacers)) ?>;
+    const rawLabels = <?= jsonForScript(array_values($timeline)) ?>;
+    const allDatasets = <?= jsonForScript($chart_series) ?>;
+    const currentSeasonRacers = <?= jsonForScript(array_values($currentSeasonRacers)) ?>;
 
     // Convert date strings to Date objects for filtering
     const rawDates = rawLabels.map(s => new Date(s));

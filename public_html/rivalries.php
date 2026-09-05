@@ -287,8 +287,8 @@ document.addEventListener('keydown', function(e) {
         '#D946EF', '#84CC16', '#FB923C'
     ];
 
-    const allNodes = <?= json_encode($rwebNodes) ?>;
-    const allLinks = <?= json_encode($rwebLinks) ?>;
+    const allNodes = <?= jsonForScript($rwebNodes) ?>;
+    const allLinks = <?= jsonForScript($rwebLinks) ?>;
 
     const nodeColorMap = {};
     allNodes.forEach((n, i) => { nodeColorMap[n.id] = colorPalette[i % colorPalette.length]; });

@@ -13,10 +13,11 @@ $pdo->exec(file_get_contents(__DIR__ . '/../../private/data/tournament_schema.sq
 $message = "";
 
 // Deleting a tournament is destructive — admins only, even in tournament mode.
-if (isset($_GET['delete_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
     if (!is_admin()) { header('Location: /login.php'); exit; }
+    verify_csrf();   // a GET link was forgeable from any page the admin visited
     $stmt = $pdo->prepare("DELETE FROM tournaments WHERE id = ?");
-    $stmt->execute([$_GET['delete_id']]);
+    $stmt->execute([(int)($_POST['delete_id'] ?? 0)]);
     $message = "Tournament deleted.";
 }
 
@@ -143,11 +144,12 @@ include __DIR__ . '/../../private/templates/header.php';
                                     </a>
                                 <?php endif; ?>
                                 <?php if (is_admin()): ?>
-                                <a href="?delete_id=<?= $t['id'] ?>"
-                                   class="btn-danger tournaments-btn-sm"
-                                   onclick="event.preventDefault(); if(confirm('Delete this tournament? This will remove all bracket data.')) window.location.href = this.href;">
-                                    Delete
-                                </a>
+                                <form method="POST" class="tournaments-delete-form" onsubmit="return confirm('Delete this tournament? This will remove all bracket data.');">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="delete_id" value="<?= (int)$t['id'] ?>">
+                                    <button type="submit" class="btn-danger tournaments-btn-sm">Delete</button>
+                                </form>
                                 <?php endif; ?>
                             </div>
                         </td>

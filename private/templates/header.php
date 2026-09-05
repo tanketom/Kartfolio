@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/../includes/session.php';
 /**
  * Global Header Template - Responsive & Refined
  * Path: /cdnmk/private/templates/header.php
  */
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    kartfolioSessionStart();
 }
 require_once __DIR__ . '/../includes/gp_logic.php';
 require_once __DIR__ . '/../includes/settings.php';

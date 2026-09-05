@@ -1,11 +1,12 @@
 <?php
+require_once __DIR__ . '/../../private/includes/session.php';
 /**
  * Scoring Simulator API
  * Returns simulated standings for a given season + scoring system.
  * Path: /cdnmk/public_html/api/simulate_scoring.php
  */
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    kartfolioSessionStart();
 }
 
 header('Content-Type: application/json');

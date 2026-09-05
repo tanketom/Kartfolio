@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../private/includes/session.php';
 /**
  * MONSTER HUNT Chronicles — GP Story Archive
  * Path: /cdnmk/public_html/stories.php
@@ -24,7 +25,7 @@ $pdo->exec("
 ");
 
 // ── Admin check ────────────────────────────────────────────────────────────
-if (session_status() === PHP_SESSION_NONE) session_start();
+if (session_status() === PHP_SESSION_NONE) kartfolioSessionStart();
 $isAdmin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
 
 if ($isAdmin) {

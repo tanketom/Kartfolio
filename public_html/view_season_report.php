@@ -211,7 +211,7 @@ include __DIR__ . '/../private/templates/header.php';
                         var src = document.getElementById('tt-map'), out = document.createElement('canvas');
                         out.width = src.width * 3; out.height = src.height * 3;
                         var ctx = out.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(src, 0, 0, out.width, out.height);
-                        var a = document.createElement('a'); a.download = <?= json_encode('kartfolio-' . $sid . '-territory-map.png') ?>; a.href = out.toDataURL('image/png'); a.click();
+                        var a = document.createElement('a'); a.download = <?= jsonForScript('kartfolio-' . $sid . '-territory-map.png') ?>; a.href = out.toDataURL('image/png'); a.click();
                     });
                     </script>
                 </div>
@@ -303,7 +303,7 @@ include __DIR__ . '/../private/templates/header.php';
 </div>
 
 <script>
-const progressionData = <?= json_encode($progressionData) ?>;
+const progressionData = <?= jsonForScript($progressionData) ?>;
 const slider = document.getElementById('timelineSlider');
 const currentGP = document.getElementById('currentGP');
 const currentDate = document.getElementById('currentDate');

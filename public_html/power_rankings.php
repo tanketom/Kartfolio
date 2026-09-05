@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../private/includes/csrf.php';
 /**
  * Power Rankings - Composite Skill Metric
  * Path: /cdnmk/public_html/power_rankings.php
@@ -344,7 +345,7 @@ include __DIR__ . '/../private/templates/header.php';
     // ================================================================
     // Radar Chart - Top racers comparison
     // ================================================================
-    const allRankings = <?= json_encode($rankings) ?>;
+    const allRankings = <?= jsonForScript($rankings) ?>;
     const topN = allRankings.slice(0, Math.min(3, allRankings.length));
     const radarColors = ['var(--nintendo-red)', '#0066CC', '#2EBD59'];
 
@@ -416,7 +417,7 @@ include __DIR__ . '/../private/templates/header.php';
             try {
                 var res = await fetch('/api/gemini-power-rankings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': <?= json_encode(csrf_token()) ?> },
                     body: JSON.stringify({ rankings: allRankings })
                 });
                 var data = await res.json();

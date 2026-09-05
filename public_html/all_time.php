@@ -406,10 +406,10 @@ document.addEventListener("DOMContentLoaded", function() {
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: <?= json_encode($chartLabels) ?>,
+            labels: <?= jsonForScript($chartLabels) ?>,
             datasets: [{
                 label: 'Total Career Points',
-                data: <?= json_encode($chartData) ?>,
+                data: <?= jsonForScript($chartData) ?>,
                 backgroundColor: '#111',
                 borderRadius: 8
             }]

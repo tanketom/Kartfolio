@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../private/includes/session.php';
 /**
  * Gemini AI Power Rankings Commentary Generator
  * Path: /cdnmk/public_html/api/gemini_power_rankings.php
@@ -11,8 +12,10 @@ require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/gemini_client.php';
 
-// auth.php calls session_start() and loads config internally
+// auth.php calls kartfolioSessionStart() and loads config internally
 require_admin();
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['error' => 'POST only']); exit; }
+verify_csrf();   // token arrives in the X-CSRF-Token header (see power_rankings.php)
 
 header('Content-Type: application/json');
 

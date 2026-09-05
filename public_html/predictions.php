@@ -439,8 +439,8 @@ include __DIR__ . '/../private/templates/header.php';
 <script>
 (function() {
     const ctx = document.getElementById('pred-chart').getContext('2d');
-    const names = <?= json_encode(array_keys($probabilities)) ?>;
-    const probs = <?= json_encode(array_values($probabilities)) ?>;
+    const names = <?= jsonForScript(array_keys($probabilities)) ?>;
+    const probs = <?= jsonForScript(array_values($probabilities)) ?>;
     const colors = [
         'var(--nintendo-red)', '#0066CC', '#2EBD59', '#FF8C00', '#8B5CF6',
         '#EC4899', '#14B8A6', '#F59E0B', '#6366F1', '#EF4444',

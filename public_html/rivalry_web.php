@@ -66,8 +66,8 @@ for ($i = 0; $i < $racerCount; $i++) {
     }
 }
 
-$nodesJson = json_encode($nodes);
-$linksJson = json_encode($links);
+$nodesJson = jsonForScript($nodes);
+$linksJson = jsonForScript($links);
 
 $pageTitle = "Rivalry Web - Kartfolio";
 $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';

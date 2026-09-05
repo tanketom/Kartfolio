@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/session.php';
 /**
  * CSRF Token Protection
  * Path: /cdnmk/private/includes/csrf.php
@@ -9,7 +10,7 @@
  */
 
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    kartfolioSessionStart();
 }
 
 /**

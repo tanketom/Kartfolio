@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/../private/includes/session.php';
 /**
  * Admin Logout
  * Path: /cdnmk/public_html/logout.php
  */
 
-session_start();
+kartfolioSessionStart();
 
 // Unset all session variables
 $_SESSION = array();
