@@ -528,6 +528,7 @@ features:
 - Pace projection
 - Achievement gallery with progress bars
 - Rivalry vault page
+- The Cursed Crown scoring system (hot-potato penalty; see the done-list note)
 
 If they ask "what could we add" again, propose new ideas — don't recycle
 this list.
@@ -655,10 +656,12 @@ Cross-reference if you find half-implemented work:
   Price Is Right (per-GP hidden median/mean, closest-under wins, ladder
   points, best-N; `priceIsRightSeason()`; knobs `pir_target`, `pir_best_n`),
   The Great Equaliser (league avg − distance; `equaliserSeason()`; knob
-  `eq_mode`), The Cursed Crown (chronological wearer pass; `cursedCrownSeason()`;
-  knobs `cc_gp_cost`, `cc_final_cost`). `seasonGpGroups()` is the shared
-  gpid → humans grouping. Badges 🅱️ Bingo! and 🪦 Cursed. /scoring renders the
-  card, the per-GP bids and the crown line
+  `eq_mode`). `seasonGpGroups()` is the shared gpid → humans grouping. Badge
+  🅱️ Bingo!. /scoring renders the card and the per-GP bids. The Lounge sign
+  (`vertical.php`) shows a card wall / price board in the Territory map's slot.
+  A fourth, The Cursed Crown (a penalty that passes to whoever beats the
+  holder), was built, played through on real data and scrapped: its best play
+  is "don't beat the leader" — add it to the scrapped list, not the registry
 - **Badge sightings + frozen maps** — `badge_log` records the first GP night
   each racer was seen with each badge (`recordBadgeSightings()`, called from
   add_result after a GP is saved; the first call per season backfills with

@@ -113,10 +113,6 @@ if ($system === 'price_is_right') {
     if (isset($_GET['pir_best_n'])) $rules['pir_best_n'] = max(1, min(60, (int)$_GET['pir_best_n']));
 }
 if ($system === 'equaliser' && isset($_GET['eq_mode'])) $rules['eq_mode'] = in_array($_GET['eq_mode'], ['season', 'per_gp'], true) ? $_GET['eq_mode'] : 'season';
-if ($system === 'cursed_crown') {
-    if (isset($_GET['cc_gp_cost']))    $rules['cc_gp_cost']    = max(0, min(60, (int)$_GET['cc_gp_cost']));
-    if (isset($_GET['cc_final_cost'])) $rules['cc_final_cost'] = max(0, min(500, (int)$_GET['cc_final_cost']));
-}
 if ($system === 'form' && isset($_GET['form_window'])) $rules['form_window'] = max(1, min(50, (int)$_GET['form_window']));
 
 // MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's

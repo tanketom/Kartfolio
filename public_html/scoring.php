@@ -95,9 +95,6 @@ foreach ($racers as $racer) {
     } elseif ($scoringSystem === 'price_is_right') {
         $pir = priceIsRightSeason($pdo, $seasonId, $rules);
         $entry['pir'] = $pir['racers'][(int)$rid] ?? null; $entry['pir_targets'] = array_map(fn($g) => $g['target'], $pir['gps']); $entry['pir_best_n'] = $pir['best_n'];
-    } elseif ($scoringSystem === 'cursed_crown') {
-        $cc = cursedCrownSeason($pdo, $seasonId, $rules);
-        $entry['crown'] = $cc['racers'][(int)$rid] ?? null; $entry['crown_log'] = $cc['log']; $entry['crown_wearer'] = $cc['wearer']; $entry['crown_origin'] = $cc['origin'];
     } elseif ($scoringSystem === 'monster_hunt') {
         // Per-GP role + CR + outcome + XP, straight from the MONSTER HUNT
         // engine (mhSeasonHunts) — the same hunts the official score sums.
@@ -364,15 +361,6 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     <div class="scr-rule"><?= ($rules['eq_mode'] ?? 'season') === 'per_gp' ? 'Every GP is judged against that night\'s average, so a wild 60 and a dismal 20 hurt exactly as much.' : 'Judged on season averages, so one wild night can be averaged away.' ?></div>
                     <div class="scr-rule"><strong>Ties break on:</strong> GPs raced → name A→Z</div>
                 </div>
-            <?php elseif ($scoringSystem === 'cursed_crown'): ?>
-                <h2>🥀 How The Cursed Crown works</h2>
-                <div class="scr-formula-box"><code>Score = your average − <?= (int)($rules['cc_gp_cost'] ?? 5) ?> × GPs worn − <?= (int)($rules['cc_final_cost'] ?? 50) ?> if you wear it when the season closes</code></div>
-                <div class="scr-rules">
-                    <div class="scr-rule">Last season's champion starts with the crown (or GP 1's winner if they aren't racing).</div>
-                    <div class="scr-rule">Finish ahead of the wearer in a GP and it's yours. Ties leave it where it is.</div>
-                    <div class="scr-rule">Every GP you wear it costs <?= (int)($rules['cc_gp_cost'] ?? 5) ?> points — raced or not. Skipping doesn't help.</div>
-                    <div class="scr-rule"><strong>Ties break on:</strong> raw average → name A→Z</div>
-                </div>
             <?php else: ?>
                 <h2><?= $scoringInfo['icon'] ?> <?= htmlspecialchars($scoringInfo['name']) ?></h2>
                 <p><?= htmlspecialchars(!empty($scoringInfo['long_description']) ? $scoringInfo['long_description'] : $scoringInfo['description']) ?></p>
@@ -535,8 +523,6 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     </div>
                 <?php endforeach; ?>
             </div>
-        <?php elseif ($scoringSystem === 'cursed_crown' && !empty($rb['crown'])): $cr = $rb['crown']; ?>
-            <div class="scr-summary">avg <?= $cr['avg'] ?> &middot; worn <?= $cr['worn'] ?> GP<?= $cr['worn'] === 1 ? '' : 's' ?> (−<?= $cr['gp_cost'] ?>)<?= $cr['final'] ? ' &middot; wearing it now (−' . $cr['final_cost'] . ')' : '' ?> &middot; took it <?= $cr['taken'] ?>×, lost it <?= $cr['lost'] ?>×</div>
         <?php elseif ($scoringSystem !== 'black_box'): ?>
             <!-- Average/drop view -->
             <div class="scr-summary">

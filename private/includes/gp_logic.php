@@ -357,24 +357,6 @@ function getScoringSystemRegistry(): array {
                 'both'    => 'Equally average over the same number of GPs',
             ],
         ],
-        'cursed_crown' => [
-            'name'                   => 'The Cursed Crown',
-            'icon'                   => '🥀',
-            'description'            => fn($rules) => 'Beat the wearer and the crown is yours — costs ' . (int)($rules['cc_gp_cost'] ?? 5) . '/GP worn, ' . (int)($rules['cc_final_cost'] ?? 50) . ' on the final night',
-            'long_description'       => "Last season's champion starts the season wearing the crown (or the winner of GP 1 if they aren't racing). Whoever finishes ahead of the wearer in a GP takes it. Every GP you wear it costs points, whether you raced that night or not, and wearing it when the season closes costs a lot more. Your score is your plain average minus crown costs. It is MONSTER HUNT inverted: nobody wants to be the target, and beating the leader is a trap.",
-            'calculate'              => 'calculateCrownScore',
-            'breakdown'              => 'breakdownCrown',
-            'tooltip'                => 'tooltipCrown',
-            'qualifies_by_threshold' => true,
-            'sort'                   => null,
-            'tiebreak'               => [
-                'metric'  => fn($pdo, $rid, $season_id, $rules) => ($p = array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id))) ? array_sum($p) / count($p) : 0,
-                'level'   => 'Level after crown costs',
-                'ahead'   => 'raw average',
-                'both'    => 'Level after costs and on raw average',
-                'fmt'     => fn($v) => scoreNum(round($v, 1)),
-            ],
-        ],
     ];
     return $registry;
 }
@@ -3087,8 +3069,9 @@ function progressiveReplayableSystems(): array {
 }
 
 // ============================================================================
-// THE WEIRD ONES — Kart Bingo, The Price Is Right, The Great Equaliser,
-// The Cursed Crown. All read the season cache; per-GP systems group it by
+// THE WEIRD ONES — Kart Bingo, The Price Is Right, The Great Equaliser.
+// (The Cursed Crown was built and scrapped: a penalty that passes to whoever
+// beats the holder makes 'don't beat the leader' the best play.) All read the season cache; per-GP systems group it by
 // gpid once per season.
 // ============================================================================
 
@@ -3254,45 +3237,3 @@ function tooltipEqualiser(array $c, $score): string {
     return sprintf('⚖️ %s = league avg %s − your distance %s (you average %s%s)', scoreNum($score), scoreNum($c['league_avg'] ?? 0), scoreNum($c['dist'] ?? 0), scoreNum($c['avg'] ?? 0), ($c['mode'] ?? 'season') === 'per_gp' ? ', judged per GP' : '');
 }
 
-// ── The Cursed Crown ────────────────────────────────────────────────────────
-
-/** Chronological pass: who wears the crown after each GP, and what it cost everyone. */
-function cursedCrownSeason(PDO $pdo, string $season_id, array $rules): array {
-    static $cache = [];
-    $gpCost = (int)($rules['cc_gp_cost'] ?? 5); $finalCost = (int)($rules['cc_final_cost'] ?? 50);
-    $k = "$season_id:$gpCost:$finalCost";
-    if (isset($cache[$k])) return $cache[$k];
-    $names = racerNamesMap($pdo); $byName = array_flip(array_map('strval', $names));
-    $groups = seasonGpGroups($pdo, $season_id);
-    $roster = array_keys(getSeasonResultsByRacer($pdo, $season_id));
-    // last season's champion, if they race this season
-    $wearer = null; $origin = 'first GP winner';
-    $st = $pdo->prepare("SELECT champion_name FROM season_meta WHERE status = 'archived' AND season_id < ? AND champion_name IS NOT NULL AND champion_name != '' ORDER BY season_id DESC LIMIT 1");
-    $st->execute([$season_id]);
-    if (($champ = $st->fetchColumn()) && isset($byName[trim((string)$champ)]) && in_array((int)$byName[trim((string)$champ)], $roster, true)) { $wearer = (int)$byName[trim((string)$champ)]; $origin = 'last season\'s champion'; }
-    $worn = []; $taken = []; $lost = []; $log = [];
-    foreach ($groups as $gpid => $g) {
-        $top = null; foreach ($g as $rid => $r) if ($top === null || (int)$r['gp_points'] > (int)$g[$top]['gp_points'] || ((int)$r['gp_points'] === (int)$g[$top]['gp_points'] && $rid < $top)) $top = (int)$rid;
-        if ($wearer === null) { $wearer = $top; $taken[$top] = ($taken[$top] ?? 0) + 1; $log[] = ['gpid' => $gpid, 'from' => null, 'to' => $top, 'type' => 'claim']; continue; }
-        $worn[$wearer] = ($worn[$wearer] ?? 0) + 1;                     // costs whether they raced or not
-        if (isset($g[$wearer]) && $top !== $wearer && (int)$g[$top]['gp_points'] > (int)$g[$wearer]['gp_points']) {
-            $log[] = ['gpid' => $gpid, 'from' => $wearer, 'to' => $top, 'type' => 'beaten'];
-            $lost[$wearer] = ($lost[$wearer] ?? 0) + 1; $taken[$top] = ($taken[$top] ?? 0) + 1; $wearer = $top;
-        } else {
-            $log[] = ['gpid' => $gpid, 'from' => $wearer, 'to' => $wearer, 'type' => isset($g[$wearer]) ? 'defended' : 'absent'];
-        }
-    }
-    $racers = [];
-    foreach ($roster as $rid) {
-        $p = array_map(fn($r) => (int)$r['gp_points'], getRacerSeasonRows($pdo, (int)$rid, $season_id));
-        $avg = $p ? array_sum($p) / count($p) : 0;
-        $cost = ($worn[$rid] ?? 0) * $gpCost + ($wearer === (int)$rid ? $finalCost : 0);
-        $racers[(int)$rid] = ['avg' => round($avg, 2), 'worn' => $worn[$rid] ?? 0, 'gp_cost' => ($worn[$rid] ?? 0) * $gpCost, 'final' => $wearer === (int)$rid, 'final_cost' => $wearer === (int)$rid ? $finalCost : 0, 'taken' => $taken[$rid] ?? 0, 'lost' => $lost[$rid] ?? 0, 'score' => round($avg - $cost, 2), 'gps' => count($p)];
-    }
-    return $cache[$k] = ['wearer' => $wearer, 'origin' => $origin, 'racers' => $racers, 'log' => $log, 'gp_cost' => $gpCost, 'final_cost' => $finalCost];
-}
-function calculateCrownScore($pdo, $racer_id, $season_id, $rules) { return cursedCrownSeason($pdo, $season_id, (array)$rules)['racers'][(int)$racer_id]['score'] ?? 0; }
-function breakdownCrown($pdo, $racer_id, $season_id, $rules) { $s = cursedCrownSeason($pdo, $season_id, (array)$rules); return ($s['racers'][(int)$racer_id] ?? ['avg' => 0, 'worn' => 0, 'gp_cost' => 0, 'final' => false, 'final_cost' => 0, 'taken' => 0, 'lost' => 0, 'score' => 0, 'gps' => 0]) + ['wearer' => $s['wearer'], 'origin' => $s['origin'], 'per_gp' => $s['gp_cost'], 'end_cost' => $s['final_cost']]; }
-function tooltipCrown(array $c, $score): string {
-    return sprintf('🥀 %s = avg %s − %d (worn %d GP%s)%s · took it %d×, lost it %d×', scoreNum($score), scoreNum($c['avg'] ?? 0), (int)($c['gp_cost'] ?? 0), (int)($c['worn'] ?? 0), ($c['worn'] ?? 0) === 1 ? '' : 's', !empty($c['final']) ? ' − ' . (int)($c['final_cost'] ?? 0) . ' for wearing it now' : '', (int)($c['taken'] ?? 0), (int)($c['lost'] ?? 0));
-}

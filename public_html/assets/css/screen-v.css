@@ -363,3 +363,61 @@ body {
 .signage-container .tt-wnum { position: absolute; transform: translate(-50%, -50%); font-weight: 800; font-size: var(--tt-wn, 16px); color: #1a2238; background: #fff; border: 3px solid #1a2238; padding: 3px 8px; border-radius: 4px; }
 .signage-container .tt-flip { position: absolute; transform: translate(-50%, -100%); font-size: var(--tt-lbl, 22px); }
 .signage-container .tt-stop { display: none; }
+
+/* ── Scoring-system panels in the map's slot (Kart Bingo, The Price Is Right) ── */
+.signage-container .sign-panel { flex: 0 0 auto; height: 1380px; box-sizing: border-box; margin: 0 40px 24px; padding: 40px; overflow: hidden; display: flex; flex-direction: column; gap: 30px; background: #fbfaf5; border-radius: 28px; border: 6px solid #e6e2d8; color: #1b1b1f; }
+.signage-container .sign-panel--price { justify-content: space-between; }
+.sp-title { display: flex; justify-content: space-between; align-items: baseline; }
+.sp-title h3 { font-family: var(--font-display); font-size: 72px; font-weight: 700; margin: 0; line-height: 1; }
+.sp-title span { font-size: 40px; color: #6b6560; font-weight: 600; }
+.sp-empty { font-size: 48px; color: #6b6560; margin: 0; }
+.sp-dot { display: inline-block; width: 34px; height: 34px; border-radius: 50%; vertical-align: middle; margin-right: 16px; }
+/* card wall */
+.sp-wall { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px; }
+.sp-card { min-width: 0; background: #fff; border: 6px solid #e6e2d8; border-radius: 30px; padding: 24px 24px 22px; display: grid; gap: 16px; }
+.sp-card--hot { border-color: #F5B400; box-shadow: 0 0 0 12px #fff3c4; }
+.sp-card-head { display: flex; justify-content: space-between; align-items: center; }
+.sp-card-head b { font-size: 50px; font-weight: 800; text-transform: uppercase; line-height: 1; }
+.sp-card-head i { font-style: normal; font-family: var(--font-display); font-size: 44px; font-weight: 700; color: #219347; }
+.sp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.sp-sq { height: 172px; box-sizing: border-box; overflow: hidden; border-radius: 20px; background: #f4f2ea; border: 4px solid #e6e2d8; display: grid; place-content: center; text-align: center; padding: 10px; font-size: 31px; line-height: 1.1; font-weight: 700; color: #5a554e; text-wrap: balance; overflow-wrap: anywhere; }
+.sp-sq.on { background: #2EBD59; border-color: #219347; color: #fff; }
+.sp-sq.on::before { content: "✓"; font-family: var(--font-display); font-size: 48px; font-weight: 700; line-height: 1; margin-bottom: 6px; }
+.sp-card-foot { font-family: 'DM Mono', monospace; font-size: 36px; color: #6b6560; text-align: right; line-height: 1; }
+.sp-chase { display: grid; gap: 12px; }
+.sp-chase-row { display: grid; grid-template-columns: 340px minmax(0, 1fr) 400px; align-items: center; gap: 30px; height: 76px; padding: 0 30px; background: #fff; border-radius: 22px; border: 4px solid #e6e2d8; }
+.sp-chase-row b { font-size: 44px; font-weight: 800; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+.sp-pips { display: flex; gap: 10px; }
+.sp-pips i { width: 62px; height: 46px; border-radius: 10px; background: #ece9e0; border: 3px solid #ddd8cc; }
+.sp-pips i.on { background: #2EBD59; border-color: #219347; }
+.sp-chase-row em { font-style: normal; font-family: 'DM Mono', monospace; font-size: 36px; text-align: right; white-space: nowrap; }
+/* price board */
+.sp-hero { display: grid; grid-template-columns: 430px minmax(0, 1fr); gap: 30px; align-items: stretch; flex: 1; }
+.sp-tag { position: relative; background: #FFD23F; color: #1b1b1f; border-radius: 26px; padding: 28px 30px 28px 70px; display: grid; align-content: center; justify-items: center; text-align: center; box-shadow: 0 10px 0 #d9ae1e; }
+.sp-tag::before { content: ""; position: absolute; left: 26px; top: 50%; width: 28px; height: 28px; border-radius: 50%; background: #fff; transform: translateY(-50%); box-shadow: inset 0 0 0 5px #d9ae1e; }
+.sp-tag small { font-size: 34px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sp-tag b { font-family: 'DM Mono', monospace; font-size: 230px; font-weight: 500; line-height: 1; margin: 6px 0; }
+.sp-tag .sp-cup { font-family: var(--font-display); font-size: 40px; font-weight: 600; opacity: .8; }
+.sp-bids { display: grid; gap: 18px; }
+.sp-bid { display: grid; align-content: center; justify-items: center; gap: 6px; border: 6px solid #dedbd2; border-radius: 26px; padding: 18px 10px; background: #fff; min-width: 0; }
+.sp-bid .n { font-size: 40px; font-weight: 800; text-transform: uppercase; }
+.sp-bid .pts { font-family: 'DM Mono', monospace; font-size: 140px; font-weight: 500; line-height: 1; }
+.sp-bid .lad { font-size: 32px; font-weight: 700; color: #219347; text-align: center; }
+.sp-bid.win { border-color: #F5B400; background: #fff6d6; }
+.sp-bid.over { border-style: dashed; color: #8a8a8a; }
+.sp-bid.over .pts { text-decoration: line-through; text-decoration-thickness: 8px; text-decoration-color: var(--nintendo-red); }
+.sp-bid.over .lad { color: var(--nintendo-red); }
+.sp-prev { display: grid; gap: 16px; }
+.sp-prev-row { display: grid; grid-template-columns: 560px minmax(0, 1fr); align-items: center; gap: 24px; height: 126px; padding: 0 30px; background: #fff; border-radius: 22px; border: 4px solid #e6e2d8; font-size: 40px; }
+.sp-prev-row .t { font-family: 'DM Mono', monospace; font-size: 44px; white-space: nowrap; overflow: hidden; }
+.sp-prev-row .t small { font-family: var(--font-body, Inter, sans-serif); font-size: 30px; font-weight: 700; color: #6b6560; letter-spacing: .06em; margin-right: 12px; }
+.sp-prev-row .b { display: flex; gap: 30px; font-weight: 700; flex-wrap: wrap; overflow: hidden; }
+.sp-prev-row .b s { color: #8a8a8a; text-decoration-color: var(--nintendo-red); text-decoration-thickness: 5px; }
+.sp-prev-row .b .w { color: #219347; }
+.sp-ladder { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.sp-ladder div { background: #fff; border: 4px solid #e6e2d8; border-radius: 22px; padding: 22px 24px; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; min-width: 0; }
+.sp-ladder .r { font-family: var(--font-display); font-size: 44px; color: var(--nintendo-red); font-weight: 700; }
+.sp-ladder .n { font-size: 34px; font-weight: 800; text-transform: uppercase; overflow: hidden; white-space: nowrap; }
+.sp-ladder .m { font-family: 'DM Mono', monospace; font-size: 60px; }
+.sp-ladder small { grid-column: 2 / -1; font-size: 28px; color: #6b6560; font-weight: 600; white-space: nowrap; }
+.sp-hint { font-size: 32px; color: #6b6560; font-weight: 600; }

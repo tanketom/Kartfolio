@@ -40,8 +40,6 @@ $exampleRules = newSeasonDefaults('average_attendance') + [
     'pir_target'         => 'median',
     'pir_best_n'         => 15,
     'eq_mode'            => 'season',
-    'cc_gp_cost'         => 5,
-    'cc_final_cost'      => 50,
 ];
 
 // Grouped presentation. Order within each group mirrors the registry.
@@ -84,7 +82,7 @@ $groups = [
     [
         'title' => 'The Weird Ones',
         'blurb' => 'Systems that break the rules on purpose — what counts, when you find out, or whether being good is even the goal. Seeded bingo cards, a hidden target you must not exceed, a season won by being average, and a crown nobody wants.',
-        'keys'  => ['kart_bingo', 'price_is_right', 'equaliser', 'cursed_crown'],
+        'keys'  => ['kart_bingo', 'price_is_right', 'equaliser'],
     ],
 ];
 
