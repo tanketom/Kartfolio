@@ -4,6 +4,8 @@
  * Path: /cdnmk/public_html/tournaments_hall_of_fame.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'tournaments');   // Admin → Modules
 
 $pageTitle = "Tournament Hall of Fame - Kartfolio";
 $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';

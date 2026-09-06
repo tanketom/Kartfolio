@@ -16,6 +16,8 @@
  */
 
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'wrapped');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/auth.php';        // require_admin + session
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';

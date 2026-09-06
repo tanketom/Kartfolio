@@ -51,7 +51,7 @@ try {
 } catch (Exception $e) {}
 
 // 3. Fetch News for Ticker & Bottom Grid
-$newsStmt = $pdo->prepare("SELECT * FROM recap_archive ORDER BY created_at DESC LIMIT 2");
+$newsStmt = $pdo->prepare("SELECT * FROM recap_archive WHERE status = 'published' ORDER BY pinned DESC, created_at DESC LIMIT 2");
 $newsStmt->execute();
 $latestNews = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -95,7 +95,7 @@ $onThisDay = $onThisDayStmt->fetchAll(PDO::FETCH_ASSOC);
 // Build a gpid → recap_id map (linked_gpids is a comma-separated list)
 $otdRecapMap = [];
 if (!empty($onThisDay)) {
-    $recapLinksStmt = $pdo->query("SELECT id, linked_gpids FROM recap_archive WHERE linked_gpids IS NOT NULL AND linked_gpids != ''");
+    $recapLinksStmt = $pdo->query("SELECT id, linked_gpids FROM recap_archive WHERE status = 'published' AND linked_gpids IS NOT NULL AND linked_gpids != ''");
     foreach ($recapLinksStmt->fetchAll(PDO::FETCH_ASSOC) as $rec) {
         foreach (explode(',', $rec['linked_gpids']) as $gid) {
             $gid = trim($gid);
@@ -323,7 +323,7 @@ $liveFormatLabels = [
                     <a href="/racer/<?= $row['id'] ?>" class="racer-name racer-name-link">
                         <?= htmlspecialchars($row['name']) ?>
                     </a>
-                    <?php if (isset($mikkoliigaByRacer[$row['id']])):
+                    <?php if (isset($mikkoliigaByRacer[$row['id']]) && moduleEnabled($pdo, 'mikkoliiga')):
                         $mk = $mikkoliigaByRacer[$row['id']];
                         $mkTip = sprintf('Mikkoliiga member · #%d of %d · %d internal pts (best %d GPs)',
                             $mk['rank'], $mikkoliigaTotalMembers, $mk['score'], $mk['gps']);
@@ -480,7 +480,7 @@ $liveFormatLabels = [
     </section>
     <?php endif; ?>
 
-    <?php if (!empty($teamStandings)): ?>
+    <?php if (!empty($teamStandings) && moduleEnabled($pdo, 'teams')): ?>
     <section class="team-home-section">
         <div class="section-header">
             <h3 class="section-title">🤝 Team Standings</h3>
@@ -508,7 +508,7 @@ $liveFormatLabels = [
     </section>
     <?php endif; ?>
 
-    <?php if (!empty($mikkoliigaTop3)): ?>
+    <?php if (!empty($mikkoliigaTop3) && moduleEnabled($pdo, 'mikkoliiga')): ?>
     <section class="mikko-section">
         <div class="section-header">
             <h3 class="section-title">🌟 Mikkoliiga Top 3</h3>

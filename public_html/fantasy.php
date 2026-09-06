@@ -12,6 +12,8 @@
  * Runs Sunday 18:00 → Sunday 18:00.
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'fantasy');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/elo_engine.php';
 require_once __DIR__ . '/../private/includes/csrf.php';

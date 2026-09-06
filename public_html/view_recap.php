@@ -28,7 +28,8 @@ $stmt = $pdo->prepare("SELECT * FROM recap_archive WHERE id = ?");
 $stmt->execute([$id]);
 $recap = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$recap) { die("Broadcast not found."); }
+if (!$recap || (($recap['status'] ?? 'published') !== 'published' && !$isAdmin)) { http_response_code(404); die("Broadcast not found."); }
+$isDraft = ($recap['status'] ?? 'published') !== 'published';
 
 // 2. Fetch Contextual Race Results (The "Sidebar")
 $recentGPs = [];
@@ -113,6 +114,14 @@ include __DIR__ . '/../private/templates/header.php';
             <img src="/assets/img/<?= $pInfo['img'] ?>" class="hero-logo" onerror="this.src='/assets/img/program_default.png'">
             <div class="hero-text">
                 <span class="hero-subtitle">OFFICIAL BROADCAST SOURCE</span>
+                <?php if (!empty($isDraft)): ?>
+                <div class="recap-draft-banner">
+                    <strong>Draft</strong> — only admins can see this. 
+                    <form method="POST" action="/admin/news" class="recap-draft-form"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$id ?>"><input type="hidden" name="action" value="publish"><button type="submit" class="btn-primary btn-sm">Publish</button></form>
+                    <a href="/admin/edit-recap?id=<?= (int)$id ?>" class="btn-secondary btn-sm">Edit</a>
+                    <a href="/admin/news" class="btn-secondary btn-sm">News desk</a>
+                </div>
+                <?php endif; ?>
                 <h1 class="hero-title"><?= htmlspecialchars($pInfo['label']) ?></h1>
             </div>
         </div>

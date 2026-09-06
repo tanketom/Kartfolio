@@ -686,6 +686,15 @@ Cross-reference if you find half-implemented work:
   A fourth, The Cursed Crown (a penalty that passes to whoever beats the
   holder), was built, played through on real data and scrapped: its best play
   is "don't beat the leader" — add it to the scrapped list, not the registry
+- **Three admin tools** — `/admin/audit` (data anomalies with a fix link each;
+  read-only), `/admin/modules` (feature switches: `moduleCatalog()` /
+  `moduleEnabled()` / `requireModule()` in `settings.php`; a module page calls
+  `requireModule($pdo, 'x')` after its requires, links wrap in
+  `moduleEnabled()`; the rows are `enable_*` settings so the generic settings
+  page shows them too), `/admin/news` (broadcasts land as `status='draft'` and
+  are published, unpublished or pinned there; every public reader of
+  `recap_archive` filters `status = 'published'`, tickers order
+  `pinned DESC` — a new reader must do the same)
 - **Badge sightings + frozen maps** — `badge_log` records the first GP night
   each racer was seen with each badge (`recordBadgeSightings()`, called from
   add_result after a GP is saved; the first call per season backfills with

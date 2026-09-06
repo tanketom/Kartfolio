@@ -30,6 +30,8 @@ ignore_user_abort(true);
 $currentSeason = getCurrentSeasonNumber();
 
 // Check if director wants a custom time range or length
+require_once __DIR__ . '/../../private/includes/settings.php';
+if (!moduleEnabled($pdo, 'broadcasts')) { http_response_code(403); die('AI broadcasts are switched off (Admin → Modules).'); }
 $userNotes = trim($_POST['notes'] ?? '');
 $customTimeRange = null;
 $customLength = null;
@@ -379,15 +381,17 @@ if ($httpCode === 200 && $response) {
         $linkedIDsString = implode(',', $gpidList);
 
         // Save to DB
+        // Drafts land on the News desk for a read before anyone else sees them.
+        $asDraft = !empty($_POST['draft']);
         $save = $pdo->prepare("
             INSERT INTO recap_archive 
-            (season_id, recap_text, headline, key_quote, program_key, linked_gpids) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            (season_id, recap_text, headline, key_quote, program_key, linked_gpids, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ");
-        $save->execute([$currentSeason, $bodyText, $headline, $quote, $pKey, $linkedIDsString]);
+        $save->execute([$currentSeason, $bodyText, $headline, $quote, $pKey, $linkedIDsString, $asDraft ? 'draft' : 'published']);
         
         $newId = $pdo->lastInsertId();
-        header("Location: /view-recap/$newId");
+        header($asDraft ? "Location: /admin/news?open=$newId" : "Location: /view-recap/$newId");
         exit;
     } else {
         echo "<h1>AI Generation Failed</h1>";

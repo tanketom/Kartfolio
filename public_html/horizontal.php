@@ -53,7 +53,7 @@ $field  = array_slice($allRacers, 3, 7);
 
 // 3. Ticker Logic
 $tickerLines = [];
-$newsStmt = $pdo->query("SELECT headline, key_quote FROM recap_archive ORDER BY created_at DESC LIMIT 2");
+$newsStmt = $pdo->query("SELECT headline, key_quote FROM recap_archive WHERE status = 'published' ORDER BY pinned DESC, created_at DESC LIMIT 2");
 while($row = $newsStmt->fetch()) { $tickerLines[] = ['h' => $row['headline'], 'q' => $row['key_quote']]; }
 
 // 4. QR Code

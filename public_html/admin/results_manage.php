@@ -30,9 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 2. HANDLE DELETION
-if (isset($_GET['delete_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_one') {
+    verify_csrf();   // was a GET link — forgeable from any page the admin visited
     $stmt = $pdo->prepare("DELETE FROM results WHERE id = ?");
-    $stmt->execute([$_GET['delete_id']]);
+    $stmt->execute([(int)($_POST['delete_id'] ?? 0)]);
     $message = "Entry deleted.";
 }
 
@@ -244,7 +245,12 @@ include __DIR__ . '/../../private/templates/header.php';
                         <td>
                             <div class="admin-row-actions">
                                 <button type="submit" class="btn-primary admin-btn-save-sm">SAVE</button>
-                                <a href="?delete_id=<?= $res['id'] ?>" class="btn-danger" onclick="event.preventDefault(); showConfirm({icon: '🗑️', title: 'Delete Result?', message: 'This will permanently delete this race result. This action cannot be undone.'}).then(ok => { if(ok) window.location.href = this.href; });">×</a>
+                                <form method="POST" class="rm-delete-form" onsubmit="event.preventDefault(); showConfirm({icon: '🗑️', title: 'Delete Result?', message: 'This will permanently delete this race result. This action cannot be undone.'}).then(ok => { if(ok) this.submit(); });">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="delete_one">
+                                    <input type="hidden" name="delete_id" value="<?= (int)$res['id'] ?>">
+                                    <button type="submit" class="btn-danger">×</button>
+                                </form>
                             </div>
                         </td>
                     </form>

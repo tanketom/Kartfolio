@@ -10,6 +10,8 @@
  */
 
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'teams');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 
 $seasonId  = $_GET['season'] ?? getCurrentSeasonNumber();

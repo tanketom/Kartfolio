@@ -99,7 +99,7 @@ $mhStory = $storyStmt->fetch(PDO::FETCH_ASSOC) ?: null;
 $newsStmt = $pdo->prepare("
     SELECT id, headline, key_quote, program_key, created_at
     FROM recap_archive
-    WHERE linked_gpids LIKE ? OR linked_gpids LIKE ? OR linked_gpids LIKE ? OR linked_gpids = ?
+    WHERE status = 'published' AND (linked_gpids LIKE ? OR linked_gpids LIKE ? OR linked_gpids LIKE ? OR linked_gpids = ?)
     ORDER BY created_at DESC
 ");
 $pat1 = $gpid;

@@ -6197,3 +6197,9 @@ th.rotate > div {
 .cards-tier-chip--bronze { border-color: #b8763a; } .cards-tier-chip--silver { border-color: #9ea3ab; } .cards-tier-chip--gold { border-color: #d19a12; }
 .cards-tier-chip--platinum { border-color: #7f8fa8; } .cards-tier-chip--diamond { border-color: #3aa0d8; }
 .cards-tier-chip--holo { border-image: linear-gradient(120deg, #ff5f6d, #ffc371, #7dff9a, #4facfe, #b06bff) 1; }
+
+/* Draft banner on a broadcast only admins can see */
+.recap-draft-banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: #fff3c4; color: #7a5200; border: 2px solid #f5b400; font-size: .9rem; }
+.recap-draft-form { display: inline; margin: 0; }
+.recap-draft-banner .btn-sm { padding: 4px 10px; font-size: .8rem; }
+

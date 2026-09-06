@@ -10,6 +10,8 @@
  * Path: /cdnmk/public_html/mikkoliiga.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'mikkoliiga');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/elo_engine.php';
 

@@ -18,6 +18,8 @@
  */
 
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'tournaments');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/csrf.php';
 require_once __DIR__ . '/../private/includes/worldcup_tournament.php';
 

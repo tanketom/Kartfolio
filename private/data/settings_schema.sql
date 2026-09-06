@@ -23,5 +23,12 @@ INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, catego
     ('enable_tournaments', '1', 'boolean', 'features', 'Enable tournament system'),
     ('enable_broadcasts', '1', 'boolean', 'features', 'Enable AI broadcast generation'),
     ('enable_rivalries', '1', 'boolean', 'features', 'Enable rivalry tracking'),
+    ('enable_fantasy', '1', 'boolean', 'features', 'Fantasy predictions module'),
+    ('enable_stickers', '1', 'boolean', 'features', 'Sticker album module'),
+    ('enable_mikkoliiga', '1', 'boolean', 'features', 'Mikkoliiga sub-league module'),
+    ('enable_teams', '1', 'boolean', 'features', 'Teams (constructor scoring) module'),
+    ('enable_cards', '1', 'boolean', 'features', 'Trading cards module'),
+    ('enable_wrapped', '1', 'boolean', 'features', 'Wrapped year-in-review module'),
+    ('enable_underground', '1', 'boolean', 'features', 'Underground betting den module'),
     ('wall_code', '', 'text', 'features', 'Four-digit code displayed on the Gameslab wall. Required to submit GP results.'),
     ('stickers_epoch', '2026-06-20', 'text', 'features', 'Sticker packs drop for GPs logged on/after this date (YYYY-MM-DD).');

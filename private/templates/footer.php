@@ -43,11 +43,13 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     </div>
 
     <!-- Hidden Underground Link -->
+    <?php if (moduleEnabled($pdo, 'underground')): ?>
     <div style="text-align: center; margin-top: 20px; padding: 10px;">
         <a href="/underground" style="font-size: 0.65rem; color: #222; text-decoration: none; font-family: monospace; opacity: 0.2; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.2'">
             ⚠️ unauthorized access
         </a>
     </div>
+    <?php endif; ?>
 </footer>
 
 <style>

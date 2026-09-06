@@ -79,7 +79,7 @@ function signSquareLabel(string $label): string {
 
 // News Ticker Logic
 $tickerLines = [];
-$newsStmt = $pdo->query("SELECT headline, key_quote FROM recap_archive ORDER BY created_at DESC LIMIT 2");
+$newsStmt = $pdo->query("SELECT headline, key_quote FROM recap_archive WHERE status = 'published' ORDER BY pinned DESC, created_at DESC LIMIT 2");
 while($row = $newsStmt->fetch()) {
     $tickerLines[] = strtoupper($row['headline']) . ": \"" . $row['key_quote'] . "\"";
 }

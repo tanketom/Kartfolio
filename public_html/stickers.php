@@ -11,6 +11,8 @@
  */
 
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'stickers');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/csrf.php';
 require_once __DIR__ . '/../private/includes/stickers.php';
 

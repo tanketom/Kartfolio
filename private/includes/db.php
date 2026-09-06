@@ -359,6 +359,11 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // News desk: broadcasts are drafts until published; one can be pinned to the ticker.
+    foreach (["status TEXT DEFAULT 'published'", "pinned INTEGER DEFAULT 0"] as $col) {
+        try { $pdo->exec("ALTER TABLE recap_archive ADD COLUMN $col"); } catch (PDOException $e) {}
+    }
+
     // Settings table + default rows (INSERT OR IGNORE — never overwrites an
     // admin's values). header.php used to exec this on every render.
     $settingsSchema = __DIR__ . '/../data/settings_schema.sql';

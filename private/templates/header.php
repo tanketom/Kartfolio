@@ -92,7 +92,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                     <a href="/records">Record Book</a>
                     <a href="/cup-mastery">Cup Mastery Grid</a>
                     <a href="/track-favourites">🏁 Track Favourites</a>
-                    <a href="/mikkoliiga">🌟 Mikkoliiga</a>
+                    <?php if (moduleEnabled($pdo, 'mikkoliiga')): ?><a href="/mikkoliiga">🌟 Mikkoliiga</a><?php endif; ?>
 
                 </div>
             </div>
@@ -117,6 +117,9 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                             <a href="/admin/sticker-board">🩹 Sticker Board</a>
                             <a href="/admin/results">Results</a>
                             <a href="/admin/commissioner-desk">🗒️ Commissioner's Desk</a>
+                            <a href="/admin/news">📰 News desk</a>
+                            <a href="/admin/audit">🔎 Data audit</a>
+                            <a href="/admin/modules">🧩 Modules</a>
                             <a href="/admin/settings">⚙️ Settings</a>
                         </div>
                     </div>

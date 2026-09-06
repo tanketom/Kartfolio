@@ -4,6 +4,8 @@
  * Displays all racer cards with season filter and PDF export
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'cards');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
 require_once __DIR__ . '/../private/includes/card_rendering.php';

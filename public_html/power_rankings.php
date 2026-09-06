@@ -199,7 +199,7 @@ $cachedCommentary = [];
 try {
     $cacheStmt = $pdo->prepare("
         SELECT recap_text FROM recap_archive
-        WHERE program_key = 'power_rankings' AND season_id = ?
+        WHERE program_key = 'power_rankings' AND season_id = ? AND status = 'published'
         ORDER BY created_at DESC
         LIMIT 1
     ");

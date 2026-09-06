@@ -5,6 +5,8 @@
  * Path: /cdnmk/public_html/underground.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+requireModule($pdo, 'underground');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/assets.php';
 
 // For now, hardcode wallet balance (Phase 2 will connect to database)

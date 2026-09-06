@@ -186,7 +186,7 @@ include __DIR__ . '/../private/templates/header.php';
                 admin page if a correction is needed.
             </p>
             <div class="about-cta-buttons">
-                <a href="/mikkoliiga" class="btn btn-secondary about-cta-btn">View Current Standings</a>
+                <?php if (moduleEnabled($pdo, 'mikkoliiga')): ?><a href="/mikkoliiga" class="btn btn-secondary about-cta-btn">View Current Standings</a><?php endif; ?>
             </div>
         </section>
 

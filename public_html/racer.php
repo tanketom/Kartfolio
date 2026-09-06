@@ -605,7 +605,7 @@ $rivalries = $rivalriesStmt->fetchAll(PDO::FETCH_ASSOC);
 $newsStmt = $pdo->prepare("
     SELECT *
     FROM recap_archive
-    WHERE LOWER(headline) LIKE ? OR LOWER(headline) LIKE ? OR LOWER(recap_text) LIKE ?
+    WHERE status = 'published' AND (LOWER(headline) LIKE ? OR LOWER(headline) LIKE ? OR LOWER(recap_text) LIKE ?)
     ORDER BY created_at DESC
     LIMIT 5
 ");
@@ -619,7 +619,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 <div class="container stats-container">
     <?php
     // Wrapped entry point — public in December, admins can preview any time.
-    $wrappedShow = ((int)date('n') === 12) || $isAdminViewer;
+    $wrappedShow = (((int)date('n') === 12) || $isAdminViewer) && moduleEnabled($pdo, 'wrapped');
     if ($wrappedShow):
         $wrappedYear = date('Y');
     ?>
@@ -651,13 +651,13 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
             // it early as an art-preview link.
             $stkEpoch = getSetting($pdo, 'stickers_epoch', '2026-06-21') ?: '2026-06-21';
             $stkLive  = date('Y-m-d') >= $stkEpoch;
-            if ($stkLive || $isAdminViewer): ?>
+            if (($stkLive || $isAdminViewer) && moduleEnabled($pdo, 'stickers')): ?>
                 <a href="/stickers/<?= (int)$racerId ?>" class="stk-profile-chip">
                     🩹 Sticker album →
                     <?php if (!$stkLive): ?><span class="racer-wrapped-preview">admin preview</span><?php endif; ?>
                 </a>
             <?php endif; ?>
-            <?php if (!empty($racer['in_mikkoliiga'])): ?>
+            <?php if (!empty($racer['in_mikkoliiga']) && moduleEnabled($pdo, 'mikkoliiga')): ?>
                 <a href="/mikkoliiga" class="mikko-member-badge">
                     🌟 MIKKOLIIGA MEMBER
                     <?php if ($mikkoliigaInfo): ?>
@@ -669,7 +669,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
         <a href="/" class="btn btn-secondary">← Back to Leaderboard</a>
     </header>
 
-    <?php if (!empty($racer['in_mikkoliiga']) && $mikkoliigaInfo): ?>
+    <?php if (!empty($racer['in_mikkoliiga']) && $mikkoliigaInfo && moduleEnabled($pdo, 'mikkoliiga')): ?>
     <div class="mikko-profile-banner">
         <div class="mikko-profile-banner-icon">🌟</div>
         <div class="mikko-profile-banner-content">

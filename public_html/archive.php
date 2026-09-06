@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
+require_once __DIR__ . '/../private/includes/settings.php';
 require_once __DIR__ . '/../private/includes/programs.php';
 
 $currentSeason = getCurrentSeasonNumber();
@@ -17,7 +18,7 @@ if (isset($_GET['msg']) && $_GET['msg'] === 'deleted') {
 include __DIR__ . '/../private/templates/header.php';
 
 // 1. Fetch Archive List
-$stmt = $pdo->prepare("SELECT * FROM recap_archive ORDER BY created_at DESC");
+$stmt = $pdo->prepare("SELECT * FROM recap_archive WHERE status = 'published' ORDER BY created_at DESC");
 $stmt->execute();
 $recaps = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -37,6 +38,7 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
     <?php endif; ?>
 
     <?php if (isset($_SESSION['is_admin'])): ?>
+    <?php if (moduleEnabled($pdo, 'broadcasts')): ?>
     <section class="admin-ecology-box">
         <div class="ecology-status">
             <div class="live-indicator"></div>
@@ -44,8 +46,9 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
         </div>
         <p>Analyzes last week's races, current form rankings, and rivalry data to generate AI commentary.</p>
 
-        <form action="api/gemini_recap.php" method="POST" class="admin-gen-form">
+        <form action="/api/gemini_recap.php" method="POST" class="admin-gen-form">
             <?= csrf_field() ?>
+            <input type="hidden" name="draft" value="1">
             <div class="admin-input-group">
                 <label>Select Program</label>
                 <select name="program" class="admin-select">
@@ -58,11 +61,12 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
                 <label>Director Notes (Optional)</label>
                 <textarea name="notes" placeholder="Specify focus, time range, or length (e.g. 'Tom's dominance', 'last 3 days', '500 words', 'short', 'detailed')..." class="admin-textarea"></textarea>
             </div>
-            <button type="submit" class="btn-generate">Broadcast Now</button>
+            <button type="submit" class="btn-generate">Generate draft → News desk</button>
         </form>
     </section>
+    <?php endif; ?>
 
-    <section class="admin-ecology-box admin-press-box">
+    <section class="admin-ecology-box admin-press-box" id="press">
         <div class="ecology-status">
             <div class="press-indicator"></div>
             <h2>📰 OMK Press Office</h2>
@@ -87,6 +91,7 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
                 <label>Linked GPIDs (optional, comma-separated — e.g. s03gp14, s03gp15)</label>
                 <input type="text" name="linked_gpids" class="admin-select" placeholder="s03gp14, s03gp15">
             </div>
+            <label class="admin-inline-check"><input type="checkbox" name="draft" value="1"> Save as a draft on the News desk instead of publishing</label>
             <button type="submit" class="btn-generate btn-publish">📢 Publish</button>
         </form>
     </section>

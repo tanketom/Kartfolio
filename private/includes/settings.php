@@ -117,3 +117,39 @@ function getSettingsByCategory($pdo) {
 
     return $grouped;
 }
+
+// ── Modules ─────────────────────────────────────────────────────────────────
+/** Every switchable feature: key => setting row, title, icon, what it hides. */
+function moduleCatalog(): array {
+    return [
+        'tournaments' => ['setting' => 'enable_tournaments', 'icon' => '🏆', 'title' => 'Tournaments',   'desc' => 'Brackets, Survivor, World Cup pick-em and the Hall of Fame. Players can run tournaments themselves while this is on.', 'hides' => 'the Tournaments menu entry, the tournament hub, pick-em and the tournaments Hall of Fame'],
+        'fantasy'     => ['setting' => 'enable_fantasy',     'icon' => '🔮', 'title' => 'Fantasy',       'desc' => 'Weekly predictions with confidence picks, scored against the results.', 'hides' => '/fantasy and its links'],
+        'stickers'    => ['setting' => 'enable_stickers',    'icon' => '🩹', 'title' => 'Sticker album', 'desc' => 'Packs dropped per GP, albums per racer, the admin sticker board.', 'hides' => 'the album pages and the album chip on profiles'],
+        'mikkoliiga'  => ['setting' => 'enable_mikkoliiga',  'icon' => '🌟', 'title' => 'Mikkoliiga',    'desc' => 'The casual sub-league with its own best-10 table.', 'hides' => 'the menu entry, the homepage top-3 panel, member badges and the standings page'],
+        'teams'       => ['setting' => 'enable_teams',       'icon' => '🤝', 'title' => 'Teams',         'desc' => 'Constructor scoring: racers grouped into teams, best N per GP.', 'hides' => 'the homepage team standings and /teams'],
+        'cards'       => ['setting' => 'enable_cards',       'icon' => '🎴', 'title' => 'Trading cards', 'desc' => 'The printable season set with foil tiers and the OMK backing.', 'hides' => '/cards (the profile card stays)'],
+        'wrapped'     => ['setting' => 'enable_wrapped',     'icon' => '🎁', 'title' => 'Wrapped',       'desc' => 'The December year-in-review per racer.', 'hides' => 'the Wrapped pages and the profile call-to-action'],
+        'underground' => ['setting' => 'enable_underground', 'icon' => '⚠️', 'title' => 'Underground',   'desc' => "Waluigi's betting den, reachable from the footer's hidden link.", 'hides' => 'the page and the footer link'],
+        'broadcasts'  => ['setting' => 'enable_broadcasts',  'icon' => '📻', 'title' => 'AI broadcasts', 'desc' => 'Gemini-written news programs (the Press Office stays available).', 'hides' => 'the generate form on the archive and the News desk generator'],
+    ];
+}
+
+/** Is a module switched on? Unknown keys are on, so a new page never vanishes by accident. */
+function moduleEnabled($pdo, string $module): bool {
+    $cat = moduleCatalog();
+    if (!isset($cat[$module])) return true;
+    return (bool) getSetting($pdo, $cat[$module]['setting'], true);
+}
+
+/** Gate a module's page: 404 with a short page when the module is off. */
+function requireModule($pdo, string $module): void {
+    if (moduleEnabled($pdo, $module)) return;
+    http_response_code(404);
+    $title = moduleCatalog()[$module]['title'] ?? ucfirst($module);
+    $pageTitle = "$title is switched off";
+    include __DIR__ . '/../templates/header.php';
+    echo '<div class="container"><div class="empty-state"><h1>' . htmlspecialchars($title) . ' is switched off</h1><p>A commissioner can switch it back on under Admin → Modules.</p><p><a href="/" class="btn btn-secondary">← Back to the standings</a></p></div></div>';
+    include __DIR__ . '/../templates/footer.php';
+    exit;
+}
+

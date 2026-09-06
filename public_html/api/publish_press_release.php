@@ -52,14 +52,15 @@ if ($linkedRaw !== '') {
 
 $seasonId = getCurrentSeasonNumber();
 
+$asDraft = !empty($_POST['draft']);
 $stmt = $pdo->prepare("
     INSERT INTO recap_archive
-        (season_id, recap_text, headline, key_quote, program_key, linked_gpids)
-    VALUES (?, ?, ?, ?, 'press_office', ?)
+        (season_id, recap_text, headline, key_quote, program_key, linked_gpids, status)
+    VALUES (?, ?, ?, ?, 'press_office', ?, ?)
 ");
-$stmt->execute([$seasonId, $body, $headline, $keyQuote, $linkedGpids]);
+$stmt->execute([$seasonId, $body, $headline, $keyQuote, $linkedGpids, $asDraft ? 'draft' : 'published']);
 $id = (int)$pdo->lastInsertId();
 
-// Land on the freshly-published item.
-header("Location: /view-recap/{$id}");
+// A draft lands on the News desk; a published item on its own page.
+header($asDraft ? "Location: /admin/news?open={$id}" : "Location: /view-recap/{$id}");
 exit;

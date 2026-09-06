@@ -73,7 +73,7 @@ $feudStmt->execute([$seasonId . "%"]);
 $topFeud = $feudStmt->fetch(PDO::FETCH_ASSOC);
 
 // 4. Fetch Latest News Recap
-$newsStmt = $pdo->prepare("SELECT headline, key_quote FROM recap_archive ORDER BY created_at DESC LIMIT 1");
+$newsStmt = $pdo->prepare("SELECT headline, key_quote FROM recap_archive WHERE status = 'published' ORDER BY pinned DESC, created_at DESC LIMIT 1");
 $newsStmt->execute();
 $latestNews = $newsStmt->fetch(PDO::FETCH_ASSOC);
 
