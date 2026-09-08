@@ -19,6 +19,18 @@ function kartfolioRequestIsHttps(): bool {
         || (string)($_SERVER['SERVER_PORT'] ?? '') === '443';
 }
 
+/**
+ * Signage pages may be embedded off-site by the kiosk CMS at skrin.bgo.city
+ * (the CDN info screen). Every other page stays frame-locked to this origin.
+ * Keep this list tight — only pages actually iframed off-site belong here.
+ * To let the kiosk show another screen (e.g. auto-vertical.php), add its
+ * basename here.
+ */
+function kartfolioIsSignagePage(): bool {
+    $signagePages = ['vertical.php'];
+    return in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), $signagePages, true);
+}
+
 function kartfolioContentSecurityPolicy(): string {
     return implode('; ', [
         "default-src 'self'",
@@ -27,7 +39,11 @@ function kartfolioContentSecurityPolicy(): string {
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https://api.qrserver.com",
         "connect-src 'self'",
-        "frame-ancestors 'self'",
+        // Signage pages allow the kiosk as an additional frame ancestor; all
+        // other pages permit only same-origin framing.
+        kartfolioIsSignagePage()
+            ? "frame-ancestors 'self' https://skrin.bgo.city"
+            : "frame-ancestors 'self'",
         "base-uri 'self'",
         "form-action 'self'",
         "object-src 'none'",
@@ -38,7 +54,10 @@ function kartfolioSendSecurityHeaders(): void {
     if (PHP_SAPI === 'cli' || headers_sent()) return;
     header('Content-Security-Policy: ' . kartfolioContentSecurityPolicy());
     header('X-Content-Type-Options: nosniff');
-    header('X-Frame-Options: SAMEORIGIN');
+    // X-Frame-Options has no cross-origin allow-list in browsers, so it can't
+    // express "self + skrin"; omit it on signage pages and let the CSP
+    // frame-ancestors directive (above) carry the framing policy there.
+    if (!kartfolioIsSignagePage()) header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     if (kartfolioRequestIsHttps()) header('Strict-Transport-Security: max-age=31536000');
 }
