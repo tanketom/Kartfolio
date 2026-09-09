@@ -42,7 +42,7 @@ function kartfolioContentSecurityPolicy(): string {
         // Signage pages allow the kiosk as an additional frame ancestor; all
         // other pages permit only same-origin framing.
         kartfolioIsSignagePage()
-            ? "frame-ancestors 'self' https://skrin.bgo.city"
+            ? "frame-ancestors 'self' https://skrin.bgo.city http://localhost:8899"
             : "frame-ancestors 'self'",
         "base-uri 'self'",
         "form-action 'self'",
