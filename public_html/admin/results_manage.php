@@ -16,17 +16,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update') {
-    $stmt = $pdo->prepare("UPDATE results SET 
-        gp_points = ?, rank = ?, character_used = ?, 
-        kart_setup = ?, cup_name = ?, is_lol = ? 
-        WHERE id = ?");
-    
-    $is_lol = isset($_POST['is_lol']) ? 1 : 0;
-    $stmt->execute([
-        $_POST['gp_points'], $_POST['rank'], $_POST['character_used'], 
-        $_POST['kart_setup'], $_POST['cup_name'], $is_lol, $_POST['id']
-    ]);
-    $message = "Result updated successfully!";
+    // gpid and race_date are editable here because they were not, and a
+    // mistyped GPID (or one that got autocapitalised, which hides the GP from
+    // every `gpid LIKE 's04%'` query) could previously only be fixed by
+    // deleting the row and retyping it. Same normalisation as add_result.
+    $newGpid = strtolower(trim((string)($_POST['gpid'] ?? '')));
+    $newDate = trim((string)($_POST['race_date'] ?? ''));
+    if (!preg_match('/^s[0-9]+gp[0-9]+$/', $newGpid)) {
+        $message = "GPID must look like s05gp07 — the row was not changed.";
+    } else {
+        $stmt = $pdo->prepare("UPDATE results SET
+            gpid = ?, race_date = ?, gp_points = ?, rank = ?, character_used = ?,
+            kart_setup = ?, cup_name = ?, is_lol = ?
+            WHERE id = ?");
+
+        $is_lol = isset($_POST['is_lol']) ? 1 : 0;
+        try {
+            $stmt->execute([
+                $newGpid, $newDate, $_POST['gp_points'], $_POST['rank'], $_POST['character_used'],
+                $_POST['kart_setup'], $_POST['cup_name'], $is_lol, $_POST['id']
+            ]);
+            $message = "Result updated successfully!";
+        } catch (PDOException $e) {
+            // The unique (gpid, racer_id) index — moving a row onto a GP this
+            // racer is already in.
+            $message = "That racer already has a result in {$newGpid}. Nothing was changed.";
+        }
+    }
 }
 
 // 2. HANDLE DELETION
@@ -220,13 +236,17 @@ include __DIR__ . '/../../private/templates/header.php';
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="update">
                         <input type="hidden" name="id" value="<?= $res['id'] ?>">
+                        <input type="hidden" name="delete_id" value="<?= (int)$res['id'] ?>">
 
                         <td class="admin-td-center">
                             <input type="checkbox" class="row-checkbox admin-checkbox-scaled" value="<?= $res['id'] ?>" onchange="updateBulkActions()">
                         </td>
                         <td>
-                            <strong class="admin-gpid-text"><?= $res['gpid'] ?></strong><br>
-                            <span class="admin-date-text"><?= date('Y-m-d', strtotime($res['race_date'])) ?></span>
+                            <input type="text" name="gpid" value="<?= htmlspecialchars($res['gpid']) ?>"
+                                   pattern="[sS][0-9]+[gG][pP][0-9]+" title="e.g. s05gp07"
+                                   class="admin-select admin-input-gpid">
+                            <input type="date" name="race_date" value="<?= htmlspecialchars(date('Y-m-d', strtotime($res['race_date']))) ?>"
+                                   class="admin-select admin-input-date">
                         </td>
                         <td>
                             <select name="cup_name" class="admin-select admin-select-cup">
@@ -245,12 +265,7 @@ include __DIR__ . '/../../private/templates/header.php';
                         <td>
                             <div class="admin-row-actions">
                                 <button type="submit" class="btn-primary admin-btn-save-sm">SAVE</button>
-                                <form method="POST" class="rm-delete-form" onsubmit="event.preventDefault(); showConfirm({icon: '🗑️', title: 'Delete Result?', message: 'This will permanently delete this race result. This action cannot be undone.'}).then(ok => { if(ok) this.submit(); });">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="delete_one">
-                                    <input type="hidden" name="delete_id" value="<?= (int)$res['id'] ?>">
-                                    <button type="submit" class="btn-danger">×</button>
-                                </form>
+                                <button type="button" class="btn-danger" onclick="rmDeleteRow(this)">×</button>
                             </div>
                         </td>
                     </form>
@@ -262,6 +277,34 @@ include __DIR__ . '/../../private/templates/header.php';
 </div>
 
 <script>
+/**
+ * Delete one result row.
+ *
+ * The delete used to be its own <form> nested inside the row's update form.
+ * Browsers drop a nested form but keep its inputs, so the row submitted BOTH
+ * action=update and action=delete_one — and PHP takes the last value, which
+ * meant pressing SAVE deleted the result. The confirm dialog went missing
+ * with the inner form too, so it deleted silently.
+ *
+ * One form per row now; this retargets it. Note `btn.form` and `form.elements`
+ * rather than closest()/querySelector(): a <form> written directly inside a
+ * <tr> is parsed as an empty element with its controls as siblings, so the
+ * inputs are associated with it without being contained by it.
+ */
+function rmDeleteRow(btn) {
+    const form = btn.form;
+    if (!form) return;
+    showConfirm({
+        icon: '🗑️',
+        title: 'Delete Result?',
+        message: 'This will permanently delete this race result. This action cannot be undone.'
+    }).then(ok => {
+        if (!ok) return;
+        form.elements['action'].value = 'delete_one';
+        form.submit();
+    });
+}
+
 function updateBulkActions() {
     const checkboxes = document.querySelectorAll('.row-checkbox:checked');
     const count = checkboxes.length;

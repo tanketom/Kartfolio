@@ -3274,4 +3274,7 @@
 .news-open-quote { font-style: italic; color: var(--gray-600, #4b5563); margin: 0 0 12px; }
 .news-open-body { line-height: 1.6; max-width: 72ch; white-space: normal; }
 .admin-inline-check { display: block; margin: 8px 0; font-size: .9rem; }
-.rm-delete-form { display: inline; margin: 0; }
+/* The row's GPID and date are editable: a mistyped or autocapitalised GPID
+   hides a whole GP from every season query, and used to be unfixable here. */
+.admin-input-gpid { width: 110px; font-family: var(--font-mono, monospace); font-size: .8rem; }
+.admin-input-date { width: 130px; font-size: .8rem; margin-top: 4px; }
