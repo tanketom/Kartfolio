@@ -6234,3 +6234,75 @@ th.rotate > div {
 .lex-link { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--nintendo-red, #E60012); cursor: help; }
 .lex-link:hover { color: var(--nintendo-red, #E60012); border-bottom-style: solid; }
 .report-yearbook-link { margin: 6px 0 0; font-size: .9rem; }
+
+
+/* ── The Vault, now the second half of /records ─────────────────────────
+   Moved out of an inline <style> block when the two pages merged. */
+.vault-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+}
+.vault-card {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-left: 4px solid #FFD700;
+    border-radius: 8px;
+    padding: 18px 22px;
+    color: var(--gray-900);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.vault-card.vault-record { border-left-color: #2EBD59; }
+.vault-icon { font-size: 2rem; line-height: 1; }
+.vault-h {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--nintendo-red);
+    letter-spacing: 0.5px;
+}
+.vault-big {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: var(--gray-900);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+}
+.vault-body {
+    color: var(--gray-700);
+    line-height: 1.5;
+    font-size: 0.9rem;
+    margin: 0;
+}
+.vault-body strong { color: var(--gray-900); }
+.vault-body a { color: var(--nintendo-red); text-decoration: none; }
+.vault-body a:hover { text-decoration: underline; }
+.vault-body em { color: #2EBD59; font-style: normal; font-weight: 700; }
+
+
+/* ── /season-chart view tabs (Positions | The Race) ───────────────────────
+   Added when /animate-season merged into this page. */
+.sc-views { display: flex; gap: 8px; margin: 0 0 18px; flex-wrap: wrap; }
+.sc-view {
+    font-family: var(--font-display);
+    font-size: .9rem;
+    font-weight: 700;
+    padding: 9px 18px;
+    border: 2px solid var(--gray-300, #d1d5db);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--gray-600, #4b5563);
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.sc-view:hover { border-color: var(--nintendo-red, #e60012); color: var(--nintendo-red, #e60012); }
+.sc-view.is-on {
+    background: var(--nintendo-red, #e60012);
+    border-color: var(--nintendo-red, #e60012);
+    color: #fff;
+}
+#sc-panel-race[hidden], #sc-panel-positions[hidden] { display: none !important; }

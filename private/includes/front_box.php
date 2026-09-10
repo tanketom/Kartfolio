@@ -74,7 +74,7 @@ function frontBoxVault(PDO $pdo): ?array {
         'headline' => $row['name'] . ' · ' . (int)$row['gp_points'] . ' points',
         'line' => 'The best single Grand Prix anyone has ever posted'
                   . ($cup !== '' ? ', on the ' . $cup . ' Cup' : '') . '.',
-        'href' => '/vault',
+        'href' => '/records#vault',
     ];
 }
 

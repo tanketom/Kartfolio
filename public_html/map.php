@@ -42,8 +42,8 @@ $sections = [
         ['/rivalry_web.php',   '🕸️', 'Rivalry web',             'Force-directed graph of every rivalry — visualises the social structure of the league.'],
         ['/timeline',          '🗓️', 'Timeline',                'Season-by-season timeline of races, results, and milestones.'],
         ['/timeline/s03gp01',  '🏁', 'Single GP detail',        'Full breakdown of one Grand Prix — results, Elo deltas, MH Chronicles, related broadcasts. URL ends in the GPID.'],
-        ['/season-chart',      '📈', 'Season chart',            'F1-style spaghetti chart of standings rank by GP. Crossings show where rivalries flipped.'],
-        ['/vault',             '🗄️', 'The Vault',               'Curiosities and outliers — closest wins, biggest blowouts, most loyal characters, season LOL champions.'],
+        ['/season-chart',      '📈', 'Season chart',            'Positions GP by GP, F1-style — plus the same season as a bar-chart race'],
+        ['/records#vault',             '🗄️', 'The Vault',               'Curiosities and outliers — closest wins, biggest blowouts, most loyal characters, season LOL champions.'],
         ['/records',           '📖', 'Record Book',             'Peak single-GP scores, longest streaks, perfect 60 counts, and other career bests.'],
         ['/badges-overview',   '🏅', 'Badges',                  'Every racer\'s career badge progress — what\'s unlocked, what\'s next.'],
         ['/elo-trends',        '📉', 'Elo trends',              'Elo trajectory charts — each racer\'s rating curve over the league\'s history.'],
@@ -85,9 +85,7 @@ $sections = [
         ['/add-result',        '🚀', 'Log a Grand Prix',        'Result-entry form for league members. Requires the four-digit Gameslab wall code.'],
         ['/cards',             '🃏', 'Trading cards',           'Browse every racer\'s trading card (auto-generated SVGs).'],
         ['/stickers/1',        '🩹', 'Sticker album',           'Panini-style collection — one pack per GP raced (from next season), anyone can tear them open. Replace the id with any racer\'s number.'],
-        ['/rank-graphic',      '🖼️', 'Standings graphic',       'Exportable standings card — shareable image for Discord or social.'],
-        ['/animate-season',    '🎬', 'Season animation',        'Animated season recap — rank changes round by round.'],
-        ['/api/v1/standings',  '🔌', 'JSON API',                'Read-only public data feed (standings, racers, teams, mikkoliiga, seasons) for embeds & Discord. CORS-open.'],
+        ['/rank-graphic',      '🖼️', 'Standings graphic',       'Exportable standings card — shareable image for Discord or social.'],        ['/api/v1/standings',  '🔌', 'JSON API',                'Read-only public data feed (standings, racers, teams, mikkoliiga, seasons) for embeds & Discord. CORS-open.'],
     ],
 
     'About this site' => [

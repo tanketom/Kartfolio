@@ -87,7 +87,7 @@ include __DIR__ . '/../private/templates/header.php';
             <a class="btn btn-primary" href="/">Standings</a>
             <a class="btn" href="/timeline">Timeline</a>
             <a class="btn" href="/records">Records</a>
-            <a class="btn" href="/vault">The Vault</a>
+            <a class="btn" href="/records">Record Book</a>
             <a class="btn" href="/map">Site map</a>
         </div>
         <p class="notfound-omk">— filed by the OMK Press Office</p>
