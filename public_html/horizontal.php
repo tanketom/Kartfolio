@@ -82,7 +82,7 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                         <div class="racer-name-row">
                             <div class="racer-name"><?= htmlspecialchars($entry['name']) ?></div>
                             <?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?>
-                            <?php if (!empty($entry['mikko'])): ?><span class="mikko-sign-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?>
+                            <?php if (!empty($entry['mikko'])): ?><span class="mikko-leaderboard-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?>
                             <div class="badge-container">
                                 <?php foreach ($entry['badges'] as $b): ?><span class="badge-icon<?= !empty($b['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($b['title']) ?>"><?= $b['icon'] ?></span><?php endforeach; ?>
                                 <?php if (!empty($entry['badge_overflow'])): ?><span class="badge-more">+<?= (int)$entry['badge_overflow'] ?></span><?php endif; ?>
@@ -121,7 +121,7 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                     </div>
                     <div class="racer-portrait"><img src="/assets/img/<?= rawurlencode($entry['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'"></div>
                     <div class="racer-info">
-                        <div class="racer-name"><?= htmlspecialchars($entry['name']) ?><?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?><?php if (!empty($entry['mikko'])): ?><span class="mikko-sign-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?></div>
+                        <div class="racer-name"><?= htmlspecialchars($entry['name']) ?><?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?><?php if (!empty($entry['mikko'])): ?><span class="mikko-leaderboard-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?></div>
                         <?php if (!empty($entry['badges'])): ?>
                         <div class="badge-container">
                             <?php foreach (array_slice($entry['badges'], 0, 5) as $b): ?><span class="badge-icon<?= !empty($b['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($b['title']) ?>"><?= $b['icon'] ?></span><?php endforeach; ?>

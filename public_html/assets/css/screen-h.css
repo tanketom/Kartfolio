@@ -222,11 +222,9 @@
 }
 
 /* ── Front-page parity: tie chips, tonight's badges, Mikkoliiga rank ── */
-.rank-tie {
-    display: inline-block; margin-left: 10px; padding: 1px 12px; border-radius: 999px;
-    background: var(--nintendo-red); color: #fff;
-    font-size: .38em; font-weight: 900; letter-spacing: .08em; vertical-align: middle;
-}
+/* The homepage's chips (global.css), scaled for this screen. */
+.rank-tie { margin-left: 12px; padding: 2px 12px; font-size: .95rem; letter-spacing: .05em; border-width: 2.5px; }
+.field-card .rank-tie { font-size: .72rem; padding: 1px 9px; margin-left: 8px; border-width: 2px; }
 /* Podium cards put the name and its badges on separate lines: side by side in
    one flex row, six badges plus an overflow chip squeezed the name down to an
    ellipsis ("AN..." for Andreas). */
@@ -236,10 +234,8 @@
 .podium-card .badge-container { flex: 1 0 100%; margin-top: 4px; }
 .podium-card .badge-icon { font-size: 1.6rem; line-height: 1; }
 .field-card  .badge-icon { font-size: 1.1rem; line-height: 1; }
-.badge-icon--new { border-radius: 8px; background: #fff8dc; box-shadow: 0 0 0 3px #F5B400, 0 0 14px rgba(245, 180, 0, .7); }
-.badge-more { font-size: 1rem; font-weight: 800; color: #7a746c; }
-.mikko-sign-badge {
-    display: inline-block; margin-left: 10px; padding: 1px 10px; border-radius: 999px;
-    background: #fff3c4; color: #7a5200; border: 2px solid #f5b400;
-    font-size: .9rem; font-weight: 800; vertical-align: middle; white-space: nowrap;
-}
+.podium-card .badge-icon--new::after { top: -3px; right: -4px; width: 11px; height: 11px; border-width: 2.5px; }
+.badge-more { font-family: var(--font-display); font-size: .95rem; font-weight: 700; color: var(--gray-500, #6b7280); }
+.field-card .badge-more { font-size: .78rem; }
+.podium-card .mikko-leaderboard-badge { font-size: .85rem; padding: 3px 12px; border-radius: 14px; }
+.field-card  .mikko-leaderboard-badge { font-size: .68rem; padding: 2px 9px; border-radius: 11px; margin-left: 8px; }

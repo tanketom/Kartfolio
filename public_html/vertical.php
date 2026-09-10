@@ -187,7 +187,7 @@ while($row = $newsStmt->fetch()) {
                         <div class="racer-name"><?= htmlspecialchars($row['name']) ?></div>
                         <?php if (!empty($row['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($row['tie']) ?>">TIE</span><?php endif; ?>
                         <?php if (!empty($row['mikko'])): ?>
-                            <span class="mikko-sign-badge">🌟 #<?= (int)$row['mikko']['rank'] ?></span>
+                            <span class="mikko-leaderboard-badge">🌟 #<?= (int)$row['mikko']['rank'] ?></span>
                         <?php endif; ?>
                     </div>
                     <?php if (!empty($row['badges'])): ?>

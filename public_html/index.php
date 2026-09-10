@@ -724,32 +724,6 @@ $liveFormatLabels = [
     font-style: italic;
 }
 
-/* ── Mikkoliiga marker on main leaderboard cards ──────────────────── */
-.mikko-leaderboard-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: #FFD700;
-    color: #3a2c00;
-    font-size: 0.7rem;
-    font-weight: 900;
-    padding: 2px 8px;
-    border-radius: 10px;
-    margin-left: 8px;
-    text-decoration: none;
-    letter-spacing: 0.5px;
-    vertical-align: middle;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.mikko-leaderboard-badge:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(255, 200, 0, 0.4);
-}
-.mikko-leaderboard-rank {
-    font-weight: 700;
-    color: #5a3a00;
-    font-size: 0.68rem;
-}
 </style>
 
 <?php include __DIR__ . '/../private/templates/footer.php'; ?>

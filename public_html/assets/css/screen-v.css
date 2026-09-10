@@ -141,24 +141,40 @@ body {
     align-items: center;
 }
 
+/* The base .news-ticker-wrap is a 45px web strip. Dropped unchanged into a
+   160px signage footer it sat as a thin band floating inside a tall black box,
+   with 3rem text clipped by its own overflow:hidden. It fills the footer here. */
 .signage-footer .news-ticker-wrap {
     width: 100%;
+    height: 100%;
     border-radius: 0;
     margin-bottom: 0;
+    border-bottom: 0;
+    border-top: 8px solid var(--nintendo-red);
+    background: var(--ink, #111);
 }
 
 .signage-footer .ticker-label {
-    font-size: 2.5rem;
+    font-family: var(--font-display);
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: .06em;
     height: 100%;
-    padding: 0 60px;
+    padding: 0 56px;
 }
+
+.signage-footer .ticker-content { height: 100%; }
 
 .signage-footer .ticker-move {
     font-size: 3rem;
+    line-height: 152px;      /* the footer's inner height: centres one long line */
 }
 
 .signage-footer .ticker-item {
+    padding: 0;
     margin-right: 200px;
+    font-size: 3rem;
+    letter-spacing: .01em;
 }
 
 /* 7. INELIGIBLE STATE */
@@ -174,6 +190,10 @@ body {
     height: 2560px;
     padding: 0;
     box-sizing: border-box;
+    /* The slides and the ticker are absolutely positioned. Without this they
+       resolve against the viewport instead of the 2048x2560 sign, so the
+       layout only looked right when the window happened to match. */
+    position: relative;
 }
 
 .v-header {
@@ -271,12 +291,52 @@ body {
     min-width: 350px;
 }
 
+/* The rotator's slides are absolute, so the ticker — the only in-flow child —
+   floated to the TOP of the sign and the slide covered all but a sliver of it.
+   It is anchored to the bottom the slides already reserve for it, and filled
+   the way the Lounge sign's footer is: no 45px web strip inside a black box. */
 .v-footer-ticker {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     height: 150px;
     background: var(--ink);
-    width: 100%;
     display: flex;
     align-items: center;
+}
+
+.v-footer-ticker .news-ticker-wrap {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    margin-bottom: 0;
+    border-bottom: 0;
+    border-top: 8px solid var(--nintendo-red);
+    background: var(--ink, #111);
+}
+
+.v-footer-ticker .ticker-label {
+    font-family: var(--font-display);
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    height: 100%;
+    padding: 0 48px;
+}
+
+.v-footer-ticker .ticker-content { height: 100%; }
+
+.v-footer-ticker .ticker-move {
+    font-size: 2.8rem;
+    line-height: 142px;      /* 150px footer less its 8px red top border */
+}
+
+.v-footer-ticker .ticker-item {
+    padding: 0;
+    margin-right: 200px;
+    font-size: 2.8rem;
+    letter-spacing: .01em;
 }
 
 .v-card.gold {
@@ -427,22 +487,32 @@ body {
    160px wide with a 5rem number and already stacks a rank-change arrow, so a
    third item pushed the rank out of the card. Beside the name it also sits
    where the confusion is — two identical scores. */
+/* The same chips the homepage uses (global.css), scaled to the sign: the tie
+   pill is ink-on-cream with an ink outline, the Mikkoliiga chip is solid gold,
+   and a badge earned tonight wears a red dot rather than a glow. */
 .signage-container .rank-tie {
-    display: inline-block; margin-left: 18px; padding: 2px 18px; border-radius: 999px;
-    background: var(--nintendo-red); color: #fff;
-    font-size: 26px; font-weight: 900; letter-spacing: .1em; vertical-align: middle;
+    margin-left: 20px; padding: 4px 24px;
+    font-size: 2.1rem; letter-spacing: .05em;
+    border-width: 5px;
 }
-.signage-container .badge-icon--new {
-    position: relative; border-radius: 10px;
-    box-shadow: 0 0 0 5px #F5B400, 0 0 22px rgba(245, 180, 0, .75);
-    background: #fff8dc;
+/* The dot tracks the badge it sits on: the homepage pairs an 8px dot with a
+   1.4rem badge, and the sign's badges are 1.8rem, so 11px keeps the ratio.
+   At 22px it read as an emoji of its own. */
+.signage-container .badge-icon--new::after {
+    top: -3px; right: -4px;
+    width: 11px; height: 11px;
+    border-width: 3px;
 }
-.signage-container .badge-more { font-size: 30px; font-weight: 800; color: #7a746c; margin-left: 8px; align-self: center; }
-.mikko-sign-badge {
-    display: inline-block; margin-left: 18px; padding: 3px 16px; border-radius: 999px;
-    background: #fff3c4; color: #7a5200; border: 3px solid #f5b400;
-    font-size: 28px; font-weight: 800; white-space: nowrap; vertical-align: middle;
+.signage-container .badge-more {
+    font-family: var(--font-display);
+    font-size: 1.9rem; font-weight: 700; color: var(--gray-500, #6b7280);
+    margin-left: 10px; align-self: center;
 }
+.signage-container .mikko-leaderboard-badge {
+    font-size: 1.8rem; gap: 10px; padding: 6px 22px; border-radius: 22px;
+    margin-left: 20px; letter-spacing: .04em;
+}
+.signage-container .mikko-leaderboard-rank { font-size: 1.7rem; }
 .sign-tonight {
     flex: 0 0 auto; margin: 0 40px 20px; padding: 18px 28px;
     background: linear-gradient(135deg, #fff8dc 0%, #fff3c4 100%);
@@ -450,23 +520,19 @@ body {
     display: flex; align-items: center; gap: 26px;
 }
 .sign-tonight-label {
-    flex: 0 0 auto; font-size: 30px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase;
-    color: #7a5200; line-height: 1.1; max-width: 210px;
+    flex: 0 0 auto; font-family: var(--font-display); font-size: 1.9rem; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase; color: #7a5200; line-height: 1.1; max-width: 230px;
 }
 .sign-tonight-items { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
 .sign-tonight-item { display: inline-flex; align-items: center; gap: 12px; background: #fff; border-radius: 18px; padding: 10px 20px; border: 3px solid #f0dfa0; }
 .sign-tonight-icon { font-size: 44px; line-height: 1; }
-.sign-tonight-item b { font-size: 34px; font-weight: 800; text-transform: uppercase; }
-.sign-tonight-item em { font-style: normal; font-size: 28px; color: #6b6560; }
-.sign-tonight-more { font-size: 30px; font-weight: 800; color: #7a5200; }
+.sign-tonight-item b { font-family: var(--font-display); font-size: 2.1rem; font-weight: 700; letter-spacing: -.01em; text-transform: uppercase; }
+.sign-tonight-item em { font-style: normal; font-size: 1.7rem; color: #6b6560; }
+.sign-tonight-more { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; color: #7a5200; }
 
 /* Same parity chips on the auto-rotator, which uses .ghost-body / .v-card
    rather than the .signage-container layout above. */
-.ghost-body .rank-tie {
-    display: inline-block; margin-left: 14px; padding: 2px 16px; border-radius: 999px;
-    background: var(--nintendo-red); color: #fff;
-    font-size: 1.6rem; font-weight: 900; letter-spacing: .08em; vertical-align: middle;
-}
+.ghost-body .rank-tie { margin-left: 16px; padding: 3px 18px; font-size: 1.5rem; letter-spacing: .05em; border-width: 4px; }
 /* The rotator's cards are a fixed 156px tall and already carry a 5rem name and
    a meta line, so its badges ride INLINE after the name — stacked as a third
    row they pushed "N GPs Raced" out of the bottom of every card. */
@@ -474,10 +540,7 @@ body {
 .ghost-body .badge-icon { font-size: 1.5rem; line-height: 1; }
 /* An 80px name on a 120px line plus a badge row did not fit the 148px card. */
 #slide-rankings .v-name { line-height: 1.05; }
-.ghost-body .badge-icon--new { border-radius: 10px; background: #fff8dc; box-shadow: 0 0 0 5px #F5B400, 0 0 22px rgba(245, 180, 0, .75); }
-.ghost-body .badge-more { font-size: 2rem; font-weight: 800; color: #7a746c; align-self: center; }
-.ghost-body .mikko-sign-badge {
-    display: inline-block; margin-left: 18px; padding: 2px 16px; border-radius: 999px;
-    background: #fff3c4; color: #7a5200; border: 3px solid #f5b400;
-    font-size: 2rem; font-weight: 800; vertical-align: middle;
-}
+.ghost-body .badge-icon--new::after { top: -4px; right: -5px; width: 14px; height: 14px; border-width: 3px; }
+.ghost-body .badge-more { font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--gray-500, #6b7280); align-self: center; }
+.ghost-body .mikko-leaderboard-badge { font-size: 1.5rem; gap: 8px; padding: 4px 16px; border-radius: 18px; margin-left: 16px; }
+.ghost-body .mikko-leaderboard-rank { font-size: 1.4rem; }
