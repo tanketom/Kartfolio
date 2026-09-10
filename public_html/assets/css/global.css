@@ -2125,15 +2125,38 @@ select, textarea {
 }
 .notfound-line {
     max-width: 46ch;
-    margin: 0 auto 26px;
+    margin: 0 auto 18px;
     color: var(--gray-600, #4b5563);
     line-height: 1.6;
 }
-.notfound-line code {
+.notfound-path {
+    max-width: 52ch;
+    margin: 0 auto 14px;
+    font-size: .88rem;
+    color: var(--gray-500, #6b7280);
+}
+.notfound-path code {
     background: var(--gray-100, #f3f4f6);
     border-radius: 6px;
     padding: 2px 6px;
     word-break: break-all;
+}
+/* The running Ludwig tally — a real number out of the results table. */
+.notfound-tally {
+    display: inline-block;
+    margin: 0 auto 26px;
+    padding: 10px 18px;
+    border: 2px dashed var(--gray-300, #d1d5db);
+    border-radius: 12px;
+    font-size: .9rem;
+    color: var(--gray-600, #4b5563);
+}
+.notfound-tally strong { color: var(--nintendo-red, #e60012); }
+.notfound-omk {
+    margin: 22px 0 0;
+    font-size: .82rem;
+    font-style: italic;
+    color: var(--gray-400, #9ca3af);
 }
 .notfound-links {
     display: flex;

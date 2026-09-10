@@ -34,24 +34,67 @@ require_once __DIR__ . '/../private/includes/settings.php';
 
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
 $pageTitle  = 'Page not found — ' . $leagueName;
+
+/**
+ * The league already has a culprit for a run that was going fine until it
+ * wasn't: the Ludwig Obstruction, logged per result as is_lol. A missing page
+ * is just one more of those. Everything here is Kartfolio's own vocabulary —
+ * the LOL flag, the perfect 60, the wall code, the OMK — so it reads the same
+ * in any commissioner's league, with no league's name baked in.
+ */
+$excuses = [
+    ['Ludwig got here first.',
+     'The page was blocking, item-spamming, or worse. Logged as a Ludwig Obstruction and filed with the stewards.'],
+    ['It fell off Rainbow Road.',
+     'No barriers on that stretch. Lakitu is out there somewhere, fishing.'],
+    ['Blue shell.',
+     'The page was leading comfortably right up until it wasn\'t. Nothing anyone could have done.'],
+    ['Did not qualify.',
+     'This URL raced too few Grand Prix to appear in the standings. It is not ranked, it is not eligible, and it is not here.'],
+    ['No GPID matches that.',
+     'The OMK has reviewed the request, found no corresponding Grand Prix, and considers the matter closed.'],
+    ['Not on the wall.',
+     'No wall code, no entry. That is rather the point of the wall code.'],
+    ['Finished 13th.',
+     'In a twelve-kart field. Take a moment with that.'],
+    ['Shortcut not unlocked.',
+     'You needed a mushroom for that one, and you are out of mushrooms.'],
+    ['Item box was empty.',
+     'Somebody ahead of you had already taken it. It was probably Ludwig.'],
+];
+$excuse = $excuses[random_int(0, count($excuses) - 1)];
+
+// A real number from the league's own record, when there is one to show.
+$lols = 0;
+try { $lols = (int)$pdo->query("SELECT COALESCE(SUM(is_lol), 0) FROM results")->fetchColumn(); }
+catch (PDOException $e) {}
+
 include __DIR__ . '/../private/templates/header.php';
 ?>
 
 <div class="stats-container">
     <div class="notfound">
         <div class="notfound-code">404</div>
-        <h1 class="notfound-title">No such page</h1>
-        <p class="notfound-line">
+        <h1 class="notfound-title"><?= htmlspecialchars($excuse[0]) ?></h1>
+        <p class="notfound-line"><?= htmlspecialchars($excuse[1]) ?></p>
+        <p class="notfound-path">
             Nothing lives at <code><?= htmlspecialchars($path !== '' ? $path : '/') ?></code>.
-            It may have been renamed, or the link that sent you here is out of date.
         </p>
+        <?php if ($lols > 0): ?>
+        <p class="notfound-tally">
+            🐢 Ludwig has obstructed <strong><?= number_format($lols) ?></strong>
+            otherwise-decent run<?= $lols === 1 ? '' : 's' ?> on record.
+            Consider this one <?= number_format($lols + 1) ?>.
+        </p>
+        <?php endif; ?>
         <div class="notfound-links">
             <a class="btn btn-primary" href="/">Standings</a>
             <a class="btn" href="/timeline">Timeline</a>
             <a class="btn" href="/records">Records</a>
-            <a class="btn" href="/archive">News</a>
+            <a class="btn" href="/vault">The Vault</a>
             <a class="btn" href="/map">Site map</a>
         </div>
+        <p class="notfound-omk">— filed by the OMK Press Office</p>
     </div>
 </div>
 
