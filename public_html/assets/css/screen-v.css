@@ -52,19 +52,32 @@ body {
 /* 4. MAIN CONTENT AREA */
 .signage-main {
     flex: 1;
-    padding: 40px 40px;
+    /* 80px matches the header's gutter, so a card's edge lines up with the
+       league name above it instead of sitting 40px proud of it. */
+    padding: 40px 80px;
     display: flex;
     flex-direction: column;
     gap: 24px;
+    /* Cards cap out at max-height, so a short season leaves the leftover as
+       margin above and below the stack rather than a void under it. */
+    justify-content: center;
 }
 
 /* 5. RACER CARDS - VERTICAL DISPLAY VARIANT */
 .signage-container .racer-card {
     width: 100%;
-    height: 180px;
+    /* Was a fixed 180px with no vertical padding, while the name + badges +
+       meta stack measures ~180px on its own: every card quietly clipped its
+       own first and last few pixels, which is what read as "no margins".
+       The cards now share whatever height the season leaves them — a
+       five-racer sign had 1260px going spare — down to an equal split when
+       ten of them have to fit. */
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: 300px;
     display: flex;
     align-items: center;
-    padding: 0 60px;
+    padding: 18px 60px;
     margin-bottom: 0;
     border: 5px solid var(--ink);
     border-radius: 28px;
@@ -80,9 +93,24 @@ body {
 .signage-container .racer-card.bronze { background: #fdf0e8; }
 
 /* Card Element Scaling */
+/* The rank and its change arrow wrapped onto a second line in a 160px column,
+   making this box 240px tall inside a 180px card — the arrow ended up down by
+   the meta line, adrift from its own number. One row, one line, never wraps. */
 .signage-container .rank-number {
-    font-size: 5rem;
-    width: 160px;
+    font-size: 5.5rem;
+    width: 230px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.signage-container .rank-number .rank-up,
+.signage-container .rank-number .rank-down,
+.signage-container .rank-number .rank-same {
+    font-size: .46em;
+    line-height: 1;
 }
 
 .signage-container .racer-portrait {
@@ -96,17 +124,21 @@ body {
 }
 
 .signage-container .racer-name {
+    line-height: 1.05;
     font-size: 4.5rem;
 }
 
 .signage-container .racer-stat-label {
-    font-size: 1.8rem;
+    /* The front page runs its meta line at ~0.53x the name; this was 0.40x,
+       which is why the sign read as a big name with fine print under it. */
+    font-size: 2.1rem;
+    line-height: 1.15;
     margin-top: 10px;
 }
 
 .signage-container .racer-score {
     font-size: 6rem;
-    min-width: 350px;
+    min-width: 380px;
 }
 
 /* Badge Icons */
@@ -116,10 +148,10 @@ body {
 
 .signage-container .badge-container--below {
     margin-left: 0;
-    margin-top: 6px;
+    margin-top: 8px;
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 8px;
+    gap: 6px 10px;
 }
 
 .signage-container .badge-icon {
@@ -128,10 +160,31 @@ body {
 }
 
 .signage-container .badge-container--below .badge-icon {
-    font-size: 1.8rem;
+    /* The front page's badges are ~0.8x its name; these were 0.4x, so the row
+       read as a line of specks under a very large name. */
+    font-size: 2.4rem;
     margin-right: 0;
     line-height: 1;
 }
+
+/* A ten-racer season gives each card ~178px, and the roomy scale above needs
+   214px — it overflowed by 23px, clipping the meta line on every row. The
+   compact scale is what fits three lines in that space with room to breathe.
+   Measure after changing either: every card's scrollHeight - clientHeight
+   must be 0, on a five-racer season AND a ten-racer one. */
+.signage-container .signage-main--dense .racer-card { padding: 10px 60px; }
+.signage-container .signage-main--dense .racer-name { font-size: 3.2rem; }
+.signage-container .signage-main--dense .badge-container--below .badge-icon { font-size: 2rem; }
+.signage-container .signage-main--dense .badge-container--below { margin-top: 6px; gap: 4px 8px; }
+.signage-container .signage-main--dense .badge-icon--new::after { top: -3px; right: -4px; width: 12px; height: 12px; border-width: 3px; }
+.signage-container .signage-main--dense .racer-stat-label { font-size: 1.8rem; margin-top: 8px; }
+.signage-container .signage-main--dense .racer-score { font-size: 5rem; min-width: 320px; }
+.signage-container .signage-main--dense .rank-number { font-size: 4.2rem; width: 190px; gap: 12px; }
+.signage-container .signage-main--dense .racer-portrait { width: 112px; height: 112px; margin-right: 32px; }
+.signage-container .signage-main--dense .racer-portrait img { height: 104px; }
+.signage-container .signage-main--dense .rank-tie { margin-left: 14px; padding: 2px 16px; font-size: 1.4rem; border-width: 3px; }
+.signage-container .signage-main--dense .mikko-leaderboard-badge { font-size: 1.6rem; padding: 3px 14px; }
+.signage-container .signage-main--dense .badge-more { font-size: 1.5rem; margin-left: 8px; }
 
 /* 6. FOOTER TICKER */
 .signage-footer {
@@ -496,11 +549,11 @@ body {
     border-width: 5px;
 }
 /* The dot tracks the badge it sits on: the homepage pairs an 8px dot with a
-   1.4rem badge, and the sign's badges are 1.8rem, so 11px keeps the ratio.
+   1.4rem badge, and the sign's badges are 2.4rem, so 14px keeps the ratio.
    At 22px it read as an emoji of its own. */
 .signage-container .badge-icon--new::after {
-    top: -3px; right: -4px;
-    width: 11px; height: 11px;
+    top: -4px; right: -5px;
+    width: 14px; height: 14px;
     border-width: 3px;
 }
 .signage-container .badge-more {
@@ -513,22 +566,26 @@ body {
     margin-left: 20px; letter-spacing: .04em;
 }
 .signage-container .mikko-leaderboard-rank { font-size: 1.7rem; }
+/* Tonight's new badges. This was a gold-bordered panel of bordered chips —
+   a box of boxes, and nothing on the homepage looks like it. It is a plain
+   line of text now, on the sign's own gutter, so the cards below are the only
+   boxes on the screen. */
 .sign-tonight {
-    flex: 0 0 auto; margin: 0 40px 20px; padding: 18px 28px;
-    background: linear-gradient(135deg, #fff8dc 0%, #fff3c4 100%);
-    border: 5px solid #f5b400; border-radius: 26px;
-    display: flex; align-items: center; gap: 26px;
+    flex: 0 0 auto;
+    margin: 0 80px;
+    padding: 28px 0 4px;
+    display: flex; align-items: center; gap: 32px;
 }
 .sign-tonight-label {
     flex: 0 0 auto; font-family: var(--font-display); font-size: 1.9rem; font-weight: 700;
-    letter-spacing: .04em; text-transform: uppercase; color: #7a5200; line-height: 1.1; max-width: 230px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--gray-500, #6b7280); line-height: 1.1;
 }
-.sign-tonight-items { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
-.sign-tonight-item { display: inline-flex; align-items: center; gap: 12px; background: #fff; border-radius: 18px; padding: 10px 20px; border: 3px solid #f0dfa0; }
-.sign-tonight-icon { font-size: 44px; line-height: 1; }
+.sign-tonight-items { display: flex; flex-wrap: wrap; gap: 8px 44px; align-items: center; }
+.sign-tonight-item { display: inline-flex; align-items: center; gap: 14px; }
+.sign-tonight-icon { font-size: 40px; line-height: 1; }
 .sign-tonight-item b { font-family: var(--font-display); font-size: 2.1rem; font-weight: 700; letter-spacing: -.01em; text-transform: uppercase; }
-.sign-tonight-item em { font-style: normal; font-size: 1.7rem; color: #6b6560; }
-.sign-tonight-more { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; color: #7a5200; }
+.sign-tonight-item em { font-style: normal; font-size: 2rem; color: var(--gray-500, #6b7280); }
+.sign-tonight-more { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; color: var(--gray-500, #6b7280); }
 
 /* Same parity chips on the auto-rotator, which uses .ghost-body / .v-card
    rather than the .signage-container layout above. */

@@ -158,7 +158,9 @@ while($row = $newsStmt->fetch()) {
         </section>
         <?php endif; ?>
 
-        <main class="signage-main">
+        <?php /* Nine or ten rows leave each card under 210px, which the roomy
+                 type overflows — the sign drops to a compact scale there. */ ?>
+        <main class="signage-main<?= count($leaderboard) >= 9 ? ' signage-main--dense' : '' ?>">
             <?php foreach ($leaderboard as $idx => $row):
                 $rank = $row['rank'];
                 $isQualifying = $row['qualifies'];
