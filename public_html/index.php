@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
+require_once __DIR__ . '/../private/includes/leaderboard.php';
 
 $pageTitle = "Leaderboard - Kartfolio";
 include __DIR__ . '/../private/templates/header.php';
@@ -140,34 +141,10 @@ if ($latestDate) {
 // 5. Previous standings for rank-change arrows
 $previousStandings = calculatePreviousStandings($pdo, $seasonId, $latestDate, $rules);
 
-// 6. Fetch Leaderboard
-$standings = [];
-foreach (getActiveRacers($pdo, $seasonId) as $r) {
-    $raceCount = getRaceCount($pdo, $r['id'], $seasonId);
-    $standings[] = [
-        'id'        => $r['id'],
-        'name'      => $r['name'],
-        'score'     => calculateGPScore($pdo, $r['id'], $seasonId),
-        'breakdown' => getScoringBreakdown($pdo, $r['id'], $seasonId),
-        'char'      => getMostUsedCharacter($pdo, $r['id'], $seasonId),
-        'badges'    => ($raceCount >= 3) ? sortBadgesByRarity(getRacerBadges($pdo, $r['id'], $seasonId), badgeHolderCounts($pdo, $seasonId)) : [],   // rarest first
-        'raceCount' => $raceCount,
-    ];
-}
-sortStandingsByScoring($standings, $scoringInfo['system'], $pdo, $seasonId);
-
-// Calculate rank changes
-foreach ($standings as $index => &$racer) {
-    $currentRank = $index + 1;
-    $previousRank = $previousStandings[$racer['id']] ?? null;
-
-    if ($previousRank !== null) {
-        $racer['rank_change'] = $previousRank - $currentRank; // Positive = moved up, Negative = moved down
-    } else {
-        $racer['rank_change'] = null; // New to leaderboard
-    }
-}
-unset($racer);
+// 6. Fetch Leaderboard — the shared builder in leaderboard.php, which the
+// three signage screens also use so a wall screen can never disagree with
+// this page about order, badges or ties.
+$standings = leaderboardRows($pdo, $seasonId);
 
 // Live tournament(s) — any not-yet-completed tournament gets a banner at the
 // very top linking to its public view. Newest first; extras roll into a count.

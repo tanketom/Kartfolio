@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/assets.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
+require_once __DIR__ . '/../private/includes/leaderboard.php';
 require_once __DIR__ . '/../private/includes/settings.php';
 
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
@@ -27,32 +28,12 @@ $racerStmt->execute([$seasonId . "%"]);
 $activeRacers = $racerStmt->fetchAll();
 
 $standings = [];
-foreach ($activeRacers as $r) {
-    $score = calculateGPScore($pdo, $r['id'], $seasonId);
-    $char      = getMostUsedCharacter($pdo, $r['id'], $seasonId) ?: 'Mii';   // season cache, same tiebreak as the old GROUP BY
-    $raceCount = getRaceCount($pdo, $r['id'], $seasonId);
-
-    $standings[] = [
-        'id' => $r['id'],
-        'name' => $r['name'],
-        'score' => $score,
-        'char' => $char,
-        'count' => $raceCount,
-        'qualifies' => racerQualifies($raceCount, $rules)
-    ];
-}
+// The shared builder the homepage and the other signs use: registry sort,
+// rank moves, tie notes, Mikkoliiga rank, and badges rarest-first with the
+// ones earned tonight marked. This page showed no badges at all before.
+$standings = leaderboardRows($pdo, $seasonId, 4);   // four fit inline on a 156px card
+$newTonight = leaderboardNewTonight($pdo, $seasonId);
 $currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-// Sort through the registry — this page carried a stale copy of the Top-12
-// sort and a score-only sort for every other system (no tiebreak at all).
-sortStandingsByScoring($standings, $currentScoringSystem, $pdo, $seasonId);
-
-// Calculate rank changes
-foreach ($standings as $index => &$racer) {
-    $currentRank = $index + 1;
-    $previousRank = $previousStandings[$racer['id']] ?? null;
-    $racer['rank_change'] = ($previousRank !== null) ? ($previousRank - $currentRank) : null;
-}
-unset($racer);
 $leaderboard = array_slice($standings, 0, 11);
 
 // 3. Fetch Nemesis Logic
@@ -99,8 +80,8 @@ if ($latestNews) $tickerLines[] = ['h' => $latestNews['headline'], 'q' => $lates
                 <div class="v-season-label">S<?= strtoupper(substr($seasonId, 1)) ?> STANDINGS</div>
             </header>
             <main class="v-main-large">
-                <?php foreach ($leaderboard as $idx => $entry): 
-                    $rank = $idx + 1;
+                <?php foreach ($leaderboard as $idx => $entry):
+                    $rank = $entry['rank'];
                     $rankClass = ($entry['qualifies'] && $rank <= 3) ? ['gold', 'silver', 'bronze'][$rank-1] : "";
                 ?>
                 <div class="v-card <?= $rankClass ?> <?= !$entry['qualifies'] ? 'v-ineligible' : '' ?>">
@@ -116,10 +97,10 @@ if ($latestNews) $tickerLines[] = ['h' => $latestNews['headline'], 'q' => $lates
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
-                    <div class="v-portrait-wrap"><img src="/assets/img/<?= $entry['char'] ?>.png"></div>
+                    <div class="v-portrait-wrap"><img src="/assets/img/<?= rawurlencode($entry['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'"></div>
                     <div class="v-name-box">
-                        <div class="v-name"><?= $entry['name'] ?></div>
-                        <div class="v-meta-small"><?= $entry['count'] ?> GPs Raced</div>
+                        <div class="v-name"><?= htmlspecialchars($entry['name']) ?><?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?><?php if (!empty($entry['mikko'])): ?><span class="mikko-sign-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?></div>
+                        <div class="v-meta-small"><?= (int)$entry['raceCount'] ?> GPs Raced<?php if (!empty($entry['badges'])): ?><span class="badge-container badge-container--inline"><?php foreach ($entry['badges'] as $b): ?><span class="badge-icon<?= !empty($b['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($b['title']) ?>"><?= $b['icon'] ?></span><?php endforeach; ?><?php if (!empty($entry['badge_overflow'])): ?><span class="badge-more">+<?= (int)$entry['badge_overflow'] ?></span><?php endif; ?></span><?php endif; ?></div>
                     </div>
                     <div class="v-score"><?= number_format($entry['score'], 2) ?></div>
                 </div>

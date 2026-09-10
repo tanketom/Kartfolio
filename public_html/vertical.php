@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
+require_once __DIR__ . '/../private/includes/leaderboard.php';
 require_once __DIR__ . '/../private/includes/settings.php';
 require_once __DIR__ . '/../private/includes/assets.php';
 
@@ -20,29 +21,11 @@ $rules = getSeasonRules($pdo, $seasonId);
 $latestDate       = getLatestRaceDate($pdo, $seasonId);
 $previousStandings = calculatePreviousStandings($pdo, $seasonId, $latestDate, $rules);
 
-$standings = [];
-foreach (getActiveRacers($pdo, $seasonId) as $r) {
-    $raceCount = getRaceCount($pdo, $r['id'], $seasonId);
-    $standings[] = [
-        'id'        => $r['id'],
-        'name'      => $r['name'],
-        'score'     => calculateGPScore($pdo, $r['id'], $seasonId),
-        'char'      => getMostUsedCharacter($pdo, $r['id'], $seasonId),
-        'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $seasonId) : [],
-        'raceCount' => $raceCount,
-        // "N of 12 cups counted" for Top-12 seasons — read from the breakdown
-        // like index.php does. This key was printed but never set (always 0).
-        'cupsCounted' => (int)(getScoringBreakdown($pdo, $r['id'], $seasonId)['components']['cups_counted'] ?? 0),
-    ];
-}
-sortStandingsByScoring($standings, $rules['scoring_system'] ?? 'average_attendance', $pdo, $seasonId);
-
-// Calculate rank changes
-foreach ($standings as $index => &$racer) {
-    $previousRank = $previousStandings[$racer['id']] ?? null;
-    $racer['rank_change'] = ($previousRank !== null) ? ($previousRank - ($index + 1)) : null;
-}
-unset($racer);
+// One builder for the homepage and every sign: badges rarest-first with the
+// ones earned tonight marked and kept, tie notes, Mikkoliiga rank, rank moves.
+// A sign that disagrees with the homepage is noticed from across the room.
+$standings = leaderboardRows($pdo, $seasonId, 10);
+$newTonight = leaderboardNewTonight($pdo, $seasonId);
 $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
 $systemName    = getScoringSystemInfo($pdo, $seasonId)['name'] ?? 'GPScore™';
 $isTerritory   = ($scoringSystem === 'territory');
@@ -163,10 +146,22 @@ while($row = $newsStmt->fetch()) {
         </section>
         <?php endif; ?>
 
+        <?php if ($newTonight): ?>
+        <section class="sign-tonight">
+            <span class="sign-tonight-label">Earned tonight</span>
+            <div class="sign-tonight-items">
+                <?php foreach (array_slice($newTonight, 0, 6) as $n): ?>
+                    <span class="sign-tonight-item"><span class="sign-tonight-icon"><?= $n['icon'] ?></span><b><?= htmlspecialchars($n['name']) ?></b><em><?= htmlspecialchars($n['title']) ?></em></span>
+                <?php endforeach; ?>
+                <?php if (count($newTonight) > 6): ?><span class="sign-tonight-more">+<?= count($newTonight) - 6 ?> more</span><?php endif; ?>
+            </div>
+        </section>
+        <?php endif; ?>
+
         <main class="signage-main">
-            <?php foreach ($leaderboard as $idx => $row): 
-                $rank = $idx + 1;
-                $isQualifying = racerQualifies($row['raceCount'], $rules);
+            <?php foreach ($leaderboard as $idx => $row):
+                $rank = $row['rank'];
+                $isQualifying = $row['qualifies'];
                 $rankClass = ($isQualifying && $rank <= 3) ? ['gold', 'silver', 'bronze'][$rank-1] : "";
             ?>
             <div class="racer-card <?= $rankClass ?> <?= !$isQualifying ? 'racer-ineligible' : '' ?>">
@@ -190,12 +185,17 @@ while($row = $newsStmt->fetch()) {
                 <div class="racer-info">
                     <div class="racer-name-row">
                         <div class="racer-name"><?= htmlspecialchars($row['name']) ?></div>
+                        <?php if (!empty($row['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($row['tie']) ?>">TIE</span><?php endif; ?>
+                        <?php if (!empty($row['mikko'])): ?>
+                            <span class="mikko-sign-badge">🌟 #<?= (int)$row['mikko']['rank'] ?></span>
+                        <?php endif; ?>
                     </div>
                     <?php if (!empty($row['badges'])): ?>
                     <div class="badge-container badge-container--below">
                         <?php foreach ($row['badges'] as $badge): ?>
-                            <span class="badge-icon"><?= $badge['icon'] ?></span>
+                            <span class="badge-icon<?= !empty($badge['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($badge['title']) ?>"><?= $badge['icon'] ?></span>
                         <?php endforeach; ?>
+                        <?php if (!empty($row['badge_overflow'])): ?><span class="badge-more">+<?= (int)$row['badge_overflow'] ?></span><?php endif; ?>
                     </div>
                     <?php endif; ?>
                     <div class="racer-stat-label">

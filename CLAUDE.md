@@ -734,6 +734,23 @@ Cross-reference if you find half-implemented work:
   escapes the needle because the haystack is already escaped, and parks
   matches as placeholders until the end — substituting anchors inline let a
   later term match text inside a title attribute it had just written
+- **One leaderboard builder** — `leaderboardRows($pdo, $seasonId, $badgeLimit)`
+  in `private/includes/leaderboard.php` feeds the homepage AND all three
+  signage screens (`vertical.php`, `horizontal.php`, `auto-vertical.php`).
+  Each surface used to build its own rows and they had drifted: only the
+  homepage sorted badges by rarity or marked the ones earned on the latest
+  race night, and the signs printed two identical scores with no hint which
+  tie-break separated them. The builder returns rank, rank_change, tie note,
+  Mikkoliiga rank, breakdown, tooltip, cupsCounted and badges (rarest first,
+  each carrying `held` and `is_new`); `$badgeLimit` caps a sign's row, and a
+  badge earned tonight survives the cap because it is the news.
+  `leaderboardNewTonight()` feeds the Lounge sign's "Earned tonight" strip.
+  **A new leaderboard surface uses this, never its own loop.**
+  Sign layout is unforgiving: the Lounge rank column is 160px and already
+  stacks a rank-change arrow (the tie chip rides next to the NAME), the Game
+  Room podium wraps badges under the name, and the rotator's 156px cards put
+  them on the meta line. Check a change against a season with a tie and a
+  badge earned on the latest night — `s04` has two ties.
 - **Badge sightings + frozen maps** — `badge_log` records the first GP night
   each racer was seen with each badge (`recordBadgeSightings()`, called from
   add_result after a GP is saved; the first call per season backfills with

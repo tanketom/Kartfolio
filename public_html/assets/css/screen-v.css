@@ -421,3 +421,63 @@ body {
 .sp-ladder .m { font-family: 'DM Mono', monospace; font-size: 60px; }
 .sp-ladder small { grid-column: 2 / -1; font-size: 28px; color: #6b6560; font-weight: 600; white-space: nowrap; }
 .sp-hint { font-size: 32px; color: #6b6560; font-weight: 600; }
+
+/* ── Front-page parity: tie chips, new badges, Mikkoliiga, tonight's strip ── */
+/* The tie chip rides next to the NAME, not in the rank column: that column is
+   160px wide with a 5rem number and already stacks a rank-change arrow, so a
+   third item pushed the rank out of the card. Beside the name it also sits
+   where the confusion is — two identical scores. */
+.signage-container .rank-tie {
+    display: inline-block; margin-left: 18px; padding: 2px 18px; border-radius: 999px;
+    background: var(--nintendo-red); color: #fff;
+    font-size: 26px; font-weight: 900; letter-spacing: .1em; vertical-align: middle;
+}
+.signage-container .badge-icon--new {
+    position: relative; border-radius: 10px;
+    box-shadow: 0 0 0 5px #F5B400, 0 0 22px rgba(245, 180, 0, .75);
+    background: #fff8dc;
+}
+.signage-container .badge-more { font-size: 30px; font-weight: 800; color: #7a746c; margin-left: 8px; align-self: center; }
+.mikko-sign-badge {
+    display: inline-block; margin-left: 18px; padding: 3px 16px; border-radius: 999px;
+    background: #fff3c4; color: #7a5200; border: 3px solid #f5b400;
+    font-size: 28px; font-weight: 800; white-space: nowrap; vertical-align: middle;
+}
+.sign-tonight {
+    flex: 0 0 auto; margin: 0 40px 20px; padding: 18px 28px;
+    background: linear-gradient(135deg, #fff8dc 0%, #fff3c4 100%);
+    border: 5px solid #f5b400; border-radius: 26px;
+    display: flex; align-items: center; gap: 26px;
+}
+.sign-tonight-label {
+    flex: 0 0 auto; font-size: 30px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase;
+    color: #7a5200; line-height: 1.1; max-width: 210px;
+}
+.sign-tonight-items { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.sign-tonight-item { display: inline-flex; align-items: center; gap: 12px; background: #fff; border-radius: 18px; padding: 10px 20px; border: 3px solid #f0dfa0; }
+.sign-tonight-icon { font-size: 44px; line-height: 1; }
+.sign-tonight-item b { font-size: 34px; font-weight: 800; text-transform: uppercase; }
+.sign-tonight-item em { font-style: normal; font-size: 28px; color: #6b6560; }
+.sign-tonight-more { font-size: 30px; font-weight: 800; color: #7a5200; }
+
+/* Same parity chips on the auto-rotator, which uses .ghost-body / .v-card
+   rather than the .signage-container layout above. */
+.ghost-body .rank-tie {
+    display: inline-block; margin-left: 14px; padding: 2px 16px; border-radius: 999px;
+    background: var(--nintendo-red); color: #fff;
+    font-size: 1.6rem; font-weight: 900; letter-spacing: .08em; vertical-align: middle;
+}
+/* The rotator's cards are a fixed 156px tall and already carry a 5rem name and
+   a meta line, so its badges ride INLINE after the name — stacked as a third
+   row they pushed "N GPs Raced" out of the bottom of every card. */
+.ghost-body .badge-container--inline { display: inline-flex; flex-wrap: nowrap; gap: 7px; margin-left: 16px; vertical-align: middle; }
+.ghost-body .badge-icon { font-size: 1.5rem; line-height: 1; }
+/* An 80px name on a 120px line plus a badge row did not fit the 148px card. */
+#slide-rankings .v-name { line-height: 1.05; }
+.ghost-body .badge-icon--new { border-radius: 10px; background: #fff8dc; box-shadow: 0 0 0 5px #F5B400, 0 0 22px rgba(245, 180, 0, .75); }
+.ghost-body .badge-more { font-size: 2rem; font-weight: 800; color: #7a746c; align-self: center; }
+.ghost-body .mikko-sign-badge {
+    display: inline-block; margin-left: 18px; padding: 2px 16px; border-radius: 999px;
+    background: #fff3c4; color: #7a5200; border: 3px solid #f5b400;
+    font-size: 2rem; font-weight: 800; vertical-align: middle;
+}

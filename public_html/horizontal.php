@@ -7,6 +7,7 @@ require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/assets.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
+require_once __DIR__ . '/../private/includes/leaderboard.php';
 require_once __DIR__ . '/../private/includes/settings.php';
 
 $selectedSeason = getCurrentSeasonNumber();
@@ -19,33 +20,12 @@ $rules = getSeasonRules($pdo, $selectedSeason);
 $latestDate        = getLatestRaceDate($pdo, $selectedSeason);
 $previousStandings = calculatePreviousStandings($pdo, $selectedSeason, $latestDate, $rules);
 
-// 3. Build standings
-$allRacers = [];
-foreach (getActiveRacers($pdo, $selectedSeason) as $r) {
-    $raceCount = getRaceCount($pdo, $r['id'], $selectedSeason);
-    $allRacers[] = [
-        'id'        => $r['id'],
-        'name'      => $r['name'],
-        'score'     => calculateGPScore($pdo, $r['id'], $selectedSeason),
-        'char'      => getMostUsedCharacter($pdo, $r['id'], $selectedSeason),
-        'raceCount' => $raceCount,
-        'qualifies' => racerQualifies($raceCount, $rules),
-        'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $selectedSeason) : [],
-        // "N of 12 cups counted" for Top-12 seasons — read from the breakdown
-        // like index.php does. This key was printed but never set (a PHP 8
-        // undefined-key warning and an empty number on the sign).
-        'cupsCounted' => (int)(getScoringBreakdown($pdo, $r['id'], $selectedSeason)['components']['cups_counted'] ?? 0),
-    ];
-}
+// 3. Build standings — the shared builder the homepage and the Lounge sign
+// use, so badges are rarest-first with tonight's marked, and a tie is
+// explained rather than shown as two identical numbers.
+$allRacers = leaderboardRows($pdo, $selectedSeason, 6);
+$newTonight = leaderboardNewTonight($pdo, $selectedSeason);
 $currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-sortStandingsByScoring($allRacers, $currentScoringSystem, $pdo, $selectedSeason);
-
-// Calculate rank changes
-foreach ($allRacers as $index => &$racer) {
-    $previousRank = $previousStandings[$racer['id']] ?? null;
-    $racer['rank_change'] = ($previousRank !== null) ? ($previousRank - ($index + 1)) : null;
-}
-unset($racer);
 
 // Split into Left (1-3) and Right (4-10)
 $podium = array_slice($allRacers, 0, 3);
@@ -97,12 +77,15 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
-                    <div class="racer-portrait"><img src="/assets/img/<?= $entry['char'] ?>.png" onerror="this.src='/assets/img/Mii.png'"></div>
+                    <div class="racer-portrait"><img src="/assets/img/<?= rawurlencode($entry['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'"></div>
                     <div class="racer-info">
                         <div class="racer-name-row">
-                            <div class="racer-name"><?= $entry['name'] ?></div>
+                            <div class="racer-name"><?= htmlspecialchars($entry['name']) ?></div>
+                            <?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?>
+                            <?php if (!empty($entry['mikko'])): ?><span class="mikko-sign-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?>
                             <div class="badge-container">
-                                <?php foreach ($entry['badges'] as $b): ?><span class="badge-icon"><?= $b['icon'] ?></span><?php endforeach; ?>
+                                <?php foreach ($entry['badges'] as $b): ?><span class="badge-icon<?= !empty($b['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($b['title']) ?>"><?= $b['icon'] ?></span><?php endforeach; ?>
+                                <?php if (!empty($entry['badge_overflow'])): ?><span class="badge-more">+<?= (int)$entry['badge_overflow'] ?></span><?php endif; ?>
                             </div>
                         </div>
                         <div class="racer-stat-label"><?= $entry['raceCount'] ?> GPs</div>
@@ -136,9 +119,14 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
-                    <div class="racer-portrait"><img src="/assets/img/<?= $entry['char'] ?>.png" onerror="this.src='/assets/img/Mii.png'"></div>
+                    <div class="racer-portrait"><img src="/assets/img/<?= rawurlencode($entry['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'"></div>
                     <div class="racer-info">
-                        <div class="racer-name"><?= $entry['name'] ?></div>
+                        <div class="racer-name"><?= htmlspecialchars($entry['name']) ?><?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?><?php if (!empty($entry['mikko'])): ?><span class="mikko-sign-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?></div>
+                        <?php if (!empty($entry['badges'])): ?>
+                        <div class="badge-container">
+                            <?php foreach (array_slice($entry['badges'], 0, 5) as $b): ?><span class="badge-icon<?= !empty($b['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($b['title']) ?>"><?= $b['icon'] ?></span><?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
                         <div class="racer-stat-label"><?= $entry['raceCount'] ?> GPs</div>
                     </div>
                     <div class="racer-score">
