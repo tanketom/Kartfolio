@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../private/includes/prose.php';
 /**
  * Single-GP detail page — /timeline/<gpid>
  *
@@ -225,7 +226,7 @@ include __DIR__ . '/../private/templates/header.php';
     <section class="gp-story-section">
         <h2 class="gp-section-h">⚔️ MONSTER HUNT Chronicles</h2>
         <p class="gp-section-sub">Generated <?= date('M j, Y', strtotime($mhStory['generated_at'])) ?></p>
-        <div class="gp-story-body"><?= nl2br(htmlspecialchars($mhStory['story_text'])) ?></div>
+        <div class="gp-story-body"><?= lexiconLinkify($pdo, nl2br(htmlspecialchars($mhStory['story_text']))) ?></div>
     </section>
     <?php endif; ?>
 

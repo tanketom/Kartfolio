@@ -6203,3 +6203,21 @@ th.rotate > div {
 .recap-draft-form { display: inline; margin: 0; }
 .recap-draft-banner .btn-sm { padding: 4px 10px; font-size: .8rem; }
 
+
+/* Fantasy: season board switcher */
+.fan-board-head { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+.fan-board-switch { display: flex; gap: 6px; flex-wrap: wrap; }
+.fan-board-link { font-size: .78rem; font-weight: 800; padding: 4px 11px; border-radius: 999px; text-decoration: none; background: var(--gray-100, #f3f4f6); color: var(--gray-600, #4b5563); border: 2px solid transparent; }
+.fan-board-link:hover { background: var(--gray-200, #e5e7eb); }
+.fan-board-link-active { background: #fff; border-color: var(--nintendo-red, #E60012); color: var(--nintendo-red, #E60012); }
+.fan-board-note { margin: 4px 0 14px; font-size: .85rem; color: var(--gray-500, #6b7280); }
+
+/* Hall of Fame: fantasy champion line on a season card */
+.archive-fantasy { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin: 8px 0; font-size: .85rem; }
+.archive-fantasy-name { font-weight: 800; }
+.archive-fantasy-label { color: var(--gray-500, #6b7280); font-size: .75rem; }
+
+/* Lexicon auto-links inside league prose */
+.lex-link { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--nintendo-red, #E60012); cursor: help; }
+.lex-link:hover { color: var(--nintendo-red, #E60012); border-bottom-style: solid; }
+.report-yearbook-link { margin: 6px 0 0; font-size: .9rem; }

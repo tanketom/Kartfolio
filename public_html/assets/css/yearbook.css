@@ -1,0 +1,108 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Season Yearbook — four A4 sheets, on screen and on paper.
+   A page is 794 × 1123 px, which is A4 at 96 dpi, so html2canvas captures
+   it at exactly the PDF's aspect ratio and the browser's own print lands
+   on the same grid.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.yb-shell { max-width: 860px; }
+
+.yb-toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.yb-toolbar-title { margin: 0; font-size: 1.6rem; }
+.yb-toolbar-sub { margin: 4px 0 0; color: var(--gray-600, #4b5563); font-size: .9rem; }
+.yb-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.yb-pages { display: grid; gap: 26px; justify-items: center; }
+.yb-page {
+    width: 794px; height: 1123px;
+    box-sizing: border-box;
+    padding: 54px 60px;
+    background: #fff;
+    color: #1b1b1f;
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .16);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+@media (max-width: 900px) {
+    .yb-pages { justify-items: start; }
+    .yb-page { transform: scale(.44); transform-origin: top left; margin-bottom: -620px; }
+}
+
+/* ── Page furniture ─────────────────────────────────────────────────── */
+.yb-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px solid var(--nintendo-red, #E60012); padding-bottom: 10px; margin-bottom: 24px; }
+.yb-head h2 { margin: 0; font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 2rem; font-weight: 700; }
+.yb-head span { font-size: .82rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b6560; }
+.yb-sub { font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 1.15rem; margin: 22px 0 10px; }
+.yb-para { font-size: .92rem; line-height: 1.55; color: #37343a; margin: 0 0 10px; }
+.yb-note { font-style: italic; color: #4b4750; }
+
+/* ── 1. Cover ───────────────────────────────────────────────────────── */
+.yb-cover { justify-content: space-between; text-align: center; }
+.yb-cover-top { border-bottom: 3px solid var(--nintendo-red, #E60012); padding-bottom: 16px; }
+.yb-league { font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 2rem; font-weight: 700; letter-spacing: -.01em; }
+.yb-org { font-size: .74rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #8a857f; margin-top: 6px; }
+.yb-cover-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; }
+.yb-season-no { font-family: 'DM Mono', monospace; font-size: 1.05rem; letter-spacing: .34em; color: var(--nintendo-red, #E60012); font-weight: 500; }
+.yb-season-name { font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 3.6rem; font-weight: 700; line-height: 1.05; margin: 10px 0 8px; text-wrap: balance; }
+.yb-dates { font-size: .95rem; color: #6b6560; margin-bottom: 46px; }
+.yb-champ { display: flex; flex-direction: column; align-items: center; }
+.yb-champ-img { width: 190px; height: 190px; object-fit: contain; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, .22)); }
+.yb-champ-label { margin-top: 12px; font-size: .78rem; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: #8a857f; }
+.yb-champ-name { font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 2.9rem; font-weight: 700; line-height: 1.1; }
+.yb-cover-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+.yb-fact { border: 2px solid #e6e2d8; border-radius: 12px; padding: 12px 6px; }
+.yb-fact b { display: block; font-family: 'DM Mono', monospace; font-size: 1.5rem; font-weight: 500; }
+.yb-fact span { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8a857f; }
+.yb-cover-foot { border-top: 2px solid #e6e2d8; padding-top: 14px; font-size: .85rem; font-weight: 700; color: #6b6560; }
+
+/* ── 2. Standings ───────────────────────────────────────────────────── */
+.yb-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.yb-table th { text-align: left; font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #8a857f; padding: 0 8px 8px; border-bottom: 2px solid #e6e2d8; }
+.yb-table td { padding: 7px 8px; border-bottom: 1px solid #efece5; font-variant-numeric: tabular-nums; }
+.yb-table .r { text-align: right; }
+.yb-place { width: 44px; font-weight: 800; font-size: 1.05rem; }
+.yb-name { font-weight: 700; }
+.yb-name em { font-style: normal; font-weight: 500; font-size: .72rem; color: #9a958f; margin-left: 6px; }
+.yb-score { font-family: 'DM Mono', monospace; font-weight: 500; }
+.yb-medal-1 { background: #fff8e1; } .yb-medal-2 { background: #f4f4f4; } .yb-medal-3 { background: #faefe6; }
+.yb-medal .yb-name { font-size: 1.02rem; }
+.yb-unranked { color: #9a958f; }
+.yb-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.yb-chip { font-size: .8rem; padding: 4px 11px; border-radius: 999px; background: #f4f2ea; border: 1px solid #e6e2d8; }
+.yb-chip b { color: var(--nintendo-red, #E60012); margin-right: 4px; }
+.yb-chip em { font-style: normal; color: #8a857f; font-family: 'DM Mono', monospace; margin-left: 4px; }
+
+/* ── 3. Superlatives + awards ───────────────────────────────────────── */
+.yb-sup-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.yb-sup { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; column-gap: 12px; align-items: center; border: 2px solid #e6e2d8; border-radius: 14px; padding: 14px 16px; }
+.yb-sup-icon { grid-row: 1 / span 3; font-size: 2rem; }
+.yb-sup-title { font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #8a857f; }
+.yb-sup-who { font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 1.3rem; font-weight: 700; line-height: 1.1; }
+.yb-sup-value { font-family: 'DM Mono', monospace; font-size: .95rem; color: var(--nintendo-red, #E60012); }
+.yb-sup-extra { grid-column: 2; font-size: .74rem; color: #8a857f; }
+.yb-awards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; }
+.yb-award { display: flex; justify-content: space-between; gap: 10px; font-size: .84rem; padding: 5px 0; border-bottom: 1px dotted #ddd8cc; }
+.yb-award-cat { color: #6b6560; }
+.yb-award-win { font-weight: 800; white-space: nowrap; }
+
+/* ── 4. Map + badges ────────────────────────────────────────────────── */
+.yb-map { position: relative; background: #1a2238; border: 4px solid #1a2238; border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+.yb-map canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.yb-badge-wall { display: grid; gap: 6px; margin-top: 6px; }
+.yb-badge-row { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #efece5; }
+.yb-badge-name { font-weight: 800; font-size: .9rem; }
+.yb-badge-icons { font-size: 1.15rem; line-height: 1.5; word-break: break-word; }
+.yb-colophon { margin-top: auto; padding-top: 16px; border-top: 2px solid #e6e2d8; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: #9a958f; text-align: center; }
+
+/* ── Print: the sheets and nothing else ─────────────────────────────── */
+@media print {
+    @page { size: A4 portrait; margin: 0; }
+    body { background: #fff; }
+    header, footer, .main-nav, .news-ticker-wrap, .yb-toolbar, .breadcrumb { display: none !important; }
+    .container, .yb-shell { max-width: none; margin: 0; padding: 0; }
+    .yb-pages { display: block; gap: 0; }
+    .yb-page { width: 210mm; height: 297mm; transform: none; margin: 0; padding: 14mm 16mm; box-shadow: none; border-radius: 0; break-after: page; page-break-after: always; }
+    .yb-page:last-child { break-after: auto; page-break-after: auto; }
+}

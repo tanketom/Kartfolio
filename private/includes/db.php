@@ -331,6 +331,29 @@ try {
     try { $pdo->exec("ALTER TABLE fantasy_bets ADD COLUMN confidence INTEGER NOT NULL DEFAULT 1"); }
     catch (PDOException $e) {}
 
+    // Which season a fantasy week belongs to. Written by fantasyEnsureWeek()
+    // when the row is born; the backfill below fills the weeks that predate
+    // the column. A week runs deadline-to-deadline AHEAD of the racing, so it
+    // belongs to the latest season that had started (or was within a week of
+    // starting) by its deadline — that puts a week closing the day before a
+    // new season's first race with the new season, which is what it predicts.
+    try { $pdo->exec("ALTER TABLE fantasy_weeks ADD COLUMN season_id TEXT"); } catch (PDOException $e) {}
+    try {
+        $pdo->exec("
+            UPDATE fantasy_weeks SET season_id = (
+                SELECT s FROM (
+                    SELECT SUBSTR(gpid, 1, INSTR(gpid, 'g') - 1) AS s, MIN(race_date) AS a
+                    FROM results WHERE gpid LIKE 's%' GROUP BY s
+                ) WHERE date(fantasy_weeks.deadline) >= date(a, '-7 day')
+                ORDER BY a DESC LIMIT 1
+            ) WHERE season_id IS NULL");
+    } catch (PDOException $e) {}
+
+    // The season's fantasy champion, frozen when the season is archived.
+    foreach (["fantasy_champion TEXT", "fantasy_champion_points INTEGER"] as $col) {
+        try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col"); } catch (PDOException $e) {}
+    }
+
     // Badge sightings: when each racer was first seen holding each badge, so
     // the homepage can mark badges earned on the latest race night. Rows
     // with a NULL first_gpid were backfilled (earned before the log existed).

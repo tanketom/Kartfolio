@@ -285,7 +285,11 @@ row order flipped the day `(race_date, id)` was indexed because
 - **Anything mutating must be POST + `verify_csrf()`** — `verify_csrf()` is a
   no-op on GET, so a `?delete_id=` link is forgeable. JSON in `<script>` blocks
   goes through `jsonForScript()` (HEX-escaped), and model-written text is
-  escaped before markdown-to-HTML (`formatTranscript`).
+  escaped before markdown-to-HTML. There is exactly ONE prose formatter,
+  `formatLeagueProse()` in `private/includes/prose.php` — escape, then bold,
+  then paragraphs, then lexicon links. Two pages used to carry their own copy
+  and only one of them escaped, so the season narrative rendered raw markup
+  for months. Never write a second one.
 - **Security headers come from PHP** (`http_headers.php`, called by db.php on
   every request): a Content-Security-Policy that allows exactly the hosts the
   pages load (cdnjs, jsdelivr, d3js.org, Google Fonts, the QR service) plus
@@ -695,6 +699,31 @@ Cross-reference if you find half-implemented work:
   are published, unpublished or pinned there; every public reader of
   `recap_archive` filters `status = 'published'`, tickers order
   `pinned DESC` — a new reader must do the same)
+- **Fantasy resets each season** — `fantasy_weeks.season_id` is written when
+  the week row is born (`fantasyEnsureWeek()`), backfilled once in db.php for
+  older weeks, and never re-derived at read time: two places used to guess it
+  from race dates and could disagree. `fantasyLeaderboard($pdo, $seasonId)` in
+  `private/includes/fantasy.php` is the only board query — pass null for
+  all-time. `/fantasy` shows the current season with tabs for past ones,
+  `snapshotFantasyChampion()` freezes the winner into
+  `season_meta.fantasy_champion` at archive time next to the other snapshots,
+  and the Fantasy Champion badge reads the same helper. A week runs AHEAD of
+  its racing, so a week closing days before a season's first race belongs to
+  the new season
+- **Season yearbook** — `/season-yearbook?season=sNN` (`yearbook.php`): four
+  A4 sheets (cover, final standings, records, honours plus the frozen map on
+  Territory seasons) that save as a PDF through the same jsPDF + html2canvas
+  pipeline as the trading cards, and print from the browser via the
+  `@media print` block in `yearbook.css`. A page is 794 × 1123 px, which is A4
+  at 96 dpi, so the capture and the printed sheet share one grid. Archived
+  seasons only
+- **Lexicon auto-linking** — `lexiconLinkify()` (`prose.php`) links the first
+  mention of each lexicon term in broadcasts, season narratives and MONSTER
+  HUNT chronicles. It walks tag/text segments, never links inside an existing
+  anchor, matches longest term first so "Monster Hunter" beats "MONSTER HUNT",
+  escapes the needle because the haystack is already escaped, and parks
+  matches as placeholders until the end — substituting anchors inline let a
+  later term match text inside a title attribute it had just written
 - **Badge sightings + frozen maps** — `badge_log` records the first GP night
   each racer was seen with each badge (`recordBadgeSightings()`, called from
   add_result after a GP is saved; the first call per season backfills with

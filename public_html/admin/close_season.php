@@ -111,6 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         snapshotMikkoliigaMembership($pdo, $seasonId);
         snapshotSeasonPlacements($pdo, $seasonId);
         snapshotSeasonMap($pdo, $seasonId);   // Territory seasons: freeze the final map
+        require_once __DIR__ . '/../../private/includes/fantasy.php';
+        snapshotFantasyChampion($pdo, $seasonId);   // the fantasy board resets with the season
 
         // Report generation is a POST+CSRF endpoint — a plain redirect can't
         // reach it, so hand off through the auto-submitting token bridge.

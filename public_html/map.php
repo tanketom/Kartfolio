@@ -27,6 +27,7 @@ $sections = [
         ['/teams',             '🤝', 'Teams',                   'Constructor-style team standings — best ' . TEAM_BEST_N . ' members per GP. Rosters set by an admin per season.'],
         ['/all-time',          '🏆', 'All-time records',        'Cross-season leaderboard tracking career totals and peak performances.'],
         ['/season-archives',   '📚', 'Hall of Fame',            'Every closed season with champion, awards, and a final report.'],
+        ['/season-yearbook?season=s01', '📖', 'Season yearbook',   'Four printable A4 pages per archived season: cover, final standings, records, honours and the final map. Saves as a PDF or prints from the browser.'],
         ['/view-season-report?season=s02', '📜', 'Season report',  'Full archived season report — final standings, champion, season awards, AI narrative.'],
     ],
 

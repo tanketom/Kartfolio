@@ -141,6 +141,8 @@ CREATE TABLE IF NOT EXISTS season_meta (
     hm_cap FLOAT DEFAULT 2.0,
     -- Territory (GPs a cup can be raced without its holder before it changes hands; 0 = never)
     tt_decay_gps INTEGER DEFAULT 4,
+    fantasy_champion TEXT DEFAULT NULL,
+    fantasy_champion_points INTEGER DEFAULT NULL,
     -- Kart Bingo / The Price Is Right / The Great Equaliser
     bg_line_pts INTEGER DEFAULT 100,
     bg_card_pts INTEGER DEFAULT 500,
@@ -307,7 +309,8 @@ CREATE TABLE IF NOT EXISTS fantasy_weeks (
     week_key TEXT NOT NULL UNIQUE,
     deadline TEXT NOT NULL,
     scored BOOLEAN DEFAULT 0,
-    scored_at DATETIME DEFAULT NULL
+    scored_at DATETIME DEFAULT NULL,
+    season_id TEXT DEFAULT NULL      -- the season this week's predictions belong to
 );
 
 CREATE TABLE IF NOT EXISTS fantasy_bets (

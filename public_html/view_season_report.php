@@ -4,6 +4,7 @@
  * Path: /cdnmk/public_html/view_season_report.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/prose.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
 
@@ -127,22 +128,8 @@ function calculateGPScoreUpTo($pdo, $racer_id, $season_id, $date) {
     }
 }
 
-// 4. Formatter (same as view_recap.php)
-function formatTranscript($text) {
-    // Bold **Name**
-    $text = preg_replace('/\*\*(.*?)\*\*/', '<strong class="highlight-name">$1</strong>', $text);
-    // Paragraphs
-    $paragraphs = preg_split('/\n\s*\n/', $text);
-    $formatted = "";
-    foreach ($paragraphs as $p) {
-        $cleanP = trim($p);
-        if (!empty($cleanP)) {
-            $cleanP = nl2br($cleanP);
-            $formatted .= "<p>$cleanP</p>";
-        }
-    }
-    return $formatted;
-}
+// 4. Formatter — shared with the broadcast page (private/includes/prose.php).
+//    The copy that lived here never escaped its input.
 
 $pageTitle = "History of Season " . strtoupper($sid);
 $scoringInfo = getScoringSystemInfo($pdo, $sid);
@@ -162,6 +149,7 @@ include __DIR__ . '/../private/templates/header.php';
                         <div class="omk-full">Organisation Mondiale du Karting</div>
                     </div>
                     <h1 class="report-title">SEASON <?= strtoupper($sid) ?></h1>
+                    <p class="report-yearbook-link"><a href="/season-yearbook?season=<?= htmlspecialchars($sid) ?>">📖 Open the printable yearbook</a></p>
                     <div class="scoring-badge">
                         <span class="scoring-badge-icon"><?= $scoringInfo['icon'] ?></span>
                         <span class="scoring-badge-name">
@@ -221,7 +209,7 @@ include __DIR__ . '/../private/templates/header.php';
                     <?php
                         $cleanText = preg_replace('/^1\.?\s*HEADLINE:/i', '', (string)($seasonMeta['ecology_report'] ?? ''));
                         $cleanText = trim($cleanText);
-                        echo formatTranscript($cleanText);
+                        echo formatLeagueProse($pdo, $cleanText);
                     ?>
                 </div>
 

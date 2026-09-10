@@ -17,6 +17,7 @@ requireModule($pdo, 'fantasy');   // Admin → Modules
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/elo_engine.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
+require_once __DIR__ . '/../private/includes/fantasy.php';
 
 // ============================================================
 // 1. Schema — the fantasy tables are created by db.php's versioned
@@ -59,9 +60,13 @@ $weekKey = $deadline->format('Y-\\WW');
  * never from a plain page view. (It used to INSERT on every GET, so any
  * crawler hit took a write lock.) A week nobody bet on simply never exists.
  */
-function fantasyEnsureWeek(PDO $pdo, string $weekKey, DateTime $deadline): void {
-    $pdo->prepare("INSERT OR IGNORE INTO fantasy_weeks (week_key, deadline) VALUES (?, ?)")
-        ->execute([$weekKey, $deadline->format('Y-m-d H:i:s')]);
+function fantasyEnsureWeek(PDO $pdo, string $weekKey, DateTime $deadline, string $seasonId): void {
+    $pdo->prepare("INSERT OR IGNORE INTO fantasy_weeks (week_key, deadline, season_id) VALUES (?, ?, ?)")
+        ->execute([$weekKey, $deadline->format('Y-m-d H:i:s'), $seasonId]);
+    // A row created before the column existed (or before a season was set)
+    // adopts the season on the next bet, so the board never loses a week.
+    $pdo->prepare("UPDATE fantasy_weeks SET season_id = ? WHERE week_key = ? AND (season_id IS NULL OR season_id = '')")
+        ->execute([$seasonId, $weekKey]);
 }
 
 // ============================================================
@@ -274,6 +279,15 @@ $mode = 'leaderboard';
 if (isset($_GET['submit'])) $mode = 'submit';
 if (isset($_GET['score'])) $mode = 'score';
 
+// Which board: this season by default, all time or a past season on request.
+// The board resets every season — a season's points stay in that season.
+$fantasySeasons = fantasySeasonsPlayed($pdo);
+$boardParam = trim((string)($_GET['board'] ?? ''));
+$boardSeason = $currentSeason;                                  // null means all time
+if ($boardParam === 'all') $boardSeason = null;
+elseif ($boardParam !== '' && in_array($boardParam, $fantasySeasons, true)) $boardSeason = $boardParam;
+$boardLabel = $boardSeason === null ? 'All-Time' : strtoupper($boardSeason) . ' Season';
+
 // ============================================================
 // 6. Handle POST submission
 // ============================================================
@@ -300,7 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'submit') {
         if (!$predictorId) {
             $submitError = 'Please select who you are or enter a name.';
         } else {
-            fantasyEnsureWeek($pdo, $weekKey, $deadline);   // the week row is born with its first bet
+            fantasyEnsureWeek($pdo, $weekKey, $deadline, $currentSeason);   // the week row is born with its first bet
             $betCount = 0;
             $dupeCount = 0;
 
@@ -540,44 +554,8 @@ $whStmt = $pdo->query("SELECT week_key, deadline, scored FROM fantasy_weeks ORDE
 $weekHistory = $whStmt->fetchAll(PDO::FETCH_ASSOC);
 
 if ($mode === 'leaderboard') {
-    // Aggregate leaderboard across all weeks. Hit/total counts ignore push
-    // results (points_earned = 1 on H2H tie) and only count strict positives.
-    $lbStmt = $pdo->query("
-        SELECT fp.id as predictor_id, fp.racer_id, fp.guest_name,
-               COALESCE(SUM(fb.points_earned), 0) as total_points,
-               COUNT(DISTINCT fb.week_key) as weeks_played,
-               SUM(CASE WHEN fb.bet_type = 'mvp' AND fb.points_earned > 0 THEN 1 ELSE 0 END) as mvp_hits,
-               SUM(CASE WHEN fb.bet_type = 'h2h' AND fb.points_earned >= 3 THEN 1 ELSE 0 END) as h2h_hits,
-               SUM(CASE WHEN fb.bet_type = 'prop' AND fb.points_earned > 0 THEN 1 ELSE 0 END) as prop_hits,
-               SUM(CASE WHEN fb.points_earned > 0 THEN 1 ELSE 0 END) as total_hits,
-               SUM(CASE WHEN fb.points_earned IS NOT NULL AND fb.points_earned != 1 THEN 1 ELSE 0 END) as graded_bets,
-               SUM(CASE WHEN fb.confidence = 3 THEN 1 ELSE 0 END) as locks_made,
-               SUM(CASE WHEN fb.confidence = 3 AND fb.points_earned > 0 THEN 1 ELSE 0 END) as locks_hit
-        FROM fantasy_predictors fp
-        JOIN fantasy_bets fb ON fp.id = fb.predictor_id
-        WHERE fb.points_earned IS NOT NULL
-        GROUP BY fp.id
-        ORDER BY total_points DESC
-    ");
-    $leaderboard = $lbStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Compute accuracy %.
-    foreach ($leaderboard as &$lb) {
-        $lb['accuracy_pct'] = (int)$lb['graded_bets'] > 0
-            ? round((int)$lb['total_hits'] / (int)$lb['graded_bets'] * 100)
-            : 0;
-    }
-    unset($lb);
-
-    // Fill display names
-    foreach ($leaderboard as &$lb) {
-        if ($lb['racer_id'] && isset($racerNameMap[$lb['racer_id']])) {
-            $lb['display_name'] = $racerNameMap[$lb['racer_id']];
-        } else {
-            $lb['display_name'] = $lb['guest_name'] ?: 'Unknown';
-        }
-    }
-    unset($lb);
+    // One helper, season-filtered — see private/includes/fantasy.php.
+    $leaderboard = fantasyLeaderboard($pdo, $boardSeason);
 }
 
 // ============================================================
@@ -635,7 +613,21 @@ include __DIR__ . '/../private/templates/header.php';
     <?php if ($mode === 'leaderboard'): ?>
 
     <div class="racer-card fan-leaderboard-card">
-        <h2 class="fan-section-title">Season Leaderboard</h2>
+        <div class="fan-board-head">
+            <h2 class="fan-section-title"><?= htmlspecialchars($boardLabel) ?> Leaderboard</h2>
+            <?php if (count($fantasySeasons) > 1 || ($fantasySeasons && $fantasySeasons[0] !== $currentSeason)): ?>
+            <nav class="fan-board-switch">
+                <a href="/fantasy" class="fan-board-link<?= $boardSeason === $currentSeason ? ' fan-board-link-active' : '' ?>"><?= strtoupper(htmlspecialchars($currentSeason)) ?></a>
+                <?php foreach ($fantasySeasons as $fs): if ($fs === $currentSeason) continue; ?>
+                    <a href="/fantasy?board=<?= htmlspecialchars($fs) ?>" class="fan-board-link<?= $boardSeason === $fs ? ' fan-board-link-active' : '' ?>"><?= strtoupper(htmlspecialchars($fs)) ?></a>
+                <?php endforeach; ?>
+                <a href="/fantasy?board=all" class="fan-board-link<?= $boardSeason === null ? ' fan-board-link-active' : '' ?>">All time</a>
+            </nav>
+            <?php endif; ?>
+        </div>
+        <p class="fan-board-note"><?= $boardSeason === null
+            ? 'Every graded prediction ever placed, across all seasons.'
+            : 'Points reset each season. Earlier seasons are still on the tabs above.' ?></p>
         <?php if (!empty($leaderboard)): ?>
         <div class="table-scroll-wrapper">
             <table class="clean-table">
@@ -670,7 +662,14 @@ include __DIR__ . '/../private/templates/header.php';
             </table>
         </div>
         <?php else: ?>
-        <div class="fan-empty">No predictions scored yet. Get your picks in!</div>
+        <div class="fan-empty">
+            <?php if ($boardSeason !== null && $fantasySeasons): ?>
+                No predictions scored yet this season &mdash; the board starts fresh. Get your picks in, or
+                <a href="/fantasy?board=all">see the all-time board</a>.
+            <?php else: ?>
+                No predictions scored yet. Get your picks in!
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
     </div>
 

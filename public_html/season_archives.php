@@ -76,6 +76,13 @@ $tournaments = $tournamentsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <?php if ($scoringInfo['system'] === 'territory'): ?>
                         <a class="archive-map-link" href="/view-season-report?season=<?= htmlspecialchars($s['season_id']) ?>#final-map">🗺️ Final map</a>
                     <?php endif; ?>
+                    <?php if (!empty($s['fantasy_champion'])): ?>
+                        <div class="archive-fantasy">
+                            <span class="archive-fantasy-icon">🧙</span>
+                            <span class="archive-fantasy-name"><?= htmlspecialchars($s['fantasy_champion']) ?></span>
+                            <span class="archive-fantasy-label">Fantasy champion<?= $s['fantasy_champion_points'] !== null ? ' · ' . (int)$s['fantasy_champion_points'] . ' pts' : '' ?></span>
+                        </div>
+                    <?php endif; ?>
                     <div class="archive-scoring-badge">
                         <span class="archive-scoring-icon"><?= $scoringInfo['icon'] ?></span>
                         <span class="archive-scoring-name">
@@ -91,6 +98,7 @@ $tournaments = $tournamentsStmt->fetchAll(PDO::FETCH_ASSOC);
                         Archived <?= !empty($s['closed_at']) ? date('M Y', strtotime($s['closed_at'])) : '—' ?>
                     </p>
 
+                    <a href="/season-yearbook?season=<?= htmlspecialchars($s['season_id']) ?>" class="btn btn-secondary archive-report-btn">📖 Yearbook</a>
                     <a href="/view-season-report?season=<?= $s['season_id'] ?>" class="btn btn-primary archive-report-btn">
                         View Historical Report
                     </a>

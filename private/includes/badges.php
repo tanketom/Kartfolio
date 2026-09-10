@@ -8,6 +8,7 @@ require_once __DIR__ . '/mk_data.php';
 require_once __DIR__ . '/stickers.php';
 require_once __DIR__ . '/worldcup_tournament.php';
 require_once __DIR__ . '/quests.php';
+require_once __DIR__ . '/fantasy.php';
 require_once __DIR__ . '/snl_tournament.php';
 require_once __DIR__ . '/badge_catalog.php';
 
@@ -151,38 +152,10 @@ function badgeCareerContext($pdo) {
         }
     } catch (PDOException $e) { /* teams tables absent */ }
 
-    // ── Fantasy Champion: top predictor of an archived season, mapped to a racer.
-    //    Fantasy weeks are keyed by deadline date, not by GP, so a week belongs to
-    //    the season whose race dates contain its deadline (7-day lead for the
-    //    first week). Points come from fantasy_bets — the table /fantasy grades into. ──
-    $fantasyChampions = [];
-    try {
-        $spans = [];   // season_id => [first race − 7d, last race]
-        foreach ($pdo->query("SELECT SUBSTR(gpid, 1, INSTR(gpid, 'g') - 1) AS s, MIN(race_date) AS a, MAX(race_date) AS b FROM results WHERE gpid LIKE 's%' GROUP BY s")->fetchAll(PDO::FETCH_ASSOC) as $r)
-            if (in_array($r['s'], $archivedSeasons, true)) $spans[$r['s']] = [date('Y-m-d', strtotime($r['a'] . ' -7 days')), substr((string)$r['b'], 0, 10)];
-        $weekSeason = [];
-        foreach ($pdo->query("SELECT week_key, deadline FROM fantasy_weeks WHERE scored = 1")->fetchAll(PDO::FETCH_ASSOC) as $w) {
-            $d = substr((string)$w['deadline'], 0, 10);
-            foreach ($spans as $s => [$a, $b]) if ($d >= $a && $d <= $b) { $weekSeason[$w['week_key']] = $s; break; }
-        }
-        if ($weekSeason) {
-            $best = [];
-            $fq = $pdo->query("
-                SELECT fb.week_key, fp.racer_id, SUM(fb.points_earned) AS pts
-                FROM fantasy_bets fb JOIN fantasy_predictors fp ON fp.id = fb.predictor_id
-                WHERE fp.racer_id IS NOT NULL AND fb.points_earned IS NOT NULL
-                GROUP BY fb.week_key, fp.racer_id");
-            $tot = [];   // season => racer => pts
-            foreach ($fq->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                $s = $weekSeason[$r['week_key']] ?? null;
-                if ($s !== null) $tot[$s][(int)$r['racer_id']] = ($tot[$s][(int)$r['racer_id']] ?? 0) + (float)$r['pts'];
-            }
-            foreach ($tot as $s => $byRacer) {
-                $max = max($byRacer);
-                if ($max > 0) foreach ($byRacer as $rid => $pts) if ($pts == $max) $fantasyChampions[$rid] = true;
-            }
-        }
-    } catch (PDOException $e) { /* fantasy tables absent */ }
+    // ── Fantasy Champion: top predictor of an archived season. Which season a
+    //    fantasy week belongs to is stored on the week row now, so this reads
+    //    the same board /fantasy shows instead of re-deriving it from dates. ──
+    $fantasyChampions = fantasyChampionRacerIds($pdo, $archivedSeasons);
 
     // ── Bracket Buster: won a completed tournament (4+ entrants) as the lowest seed ──
     $bracketBusters = [];

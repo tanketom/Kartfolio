@@ -5,6 +5,7 @@ require_once __DIR__ . '/../private/includes/session.php';
  * Path: /cdnmk/public_html/view_recap.php
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/prose.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
 
 if (session_status() === PHP_SESSION_NONE) { kartfolioSessionStart(); }
@@ -68,25 +69,7 @@ if (!empty($linkedIDs)) {
     $recentGPs = $contextStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// 3. Formatter
-function formatTranscript($text) {
-    // Escape first: the text is model output whose prompt carried racer-entered
-    // nicknames and catchphrases, so it must never reach the page as markup.
-    $text = htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
-    // Bold **Name**
-    $text = preg_replace('/\*\*(.*?)\*\*/', '<strong class="highlight-name">$1</strong>', $text);
-    // Paragraphs
-    $paragraphs = preg_split('/\n\s*\n/', $text);
-    $formatted = "";
-    foreach ($paragraphs as $p) {
-        $cleanP = trim($p);
-        if (!empty($cleanP)) {
-            $cleanP = nl2br($cleanP);
-            $formatted .= "<p>$cleanP</p>";
-        }
-    }
-    return $formatted;
-}
+// 3. Formatter — shared with the season report (private/includes/prose.php).
 
 // 4. Program Definitions — shared catalog (includes OMK Press Office)
 require_once __DIR__ . '/../private/includes/programs.php';
@@ -97,7 +80,7 @@ $pInfo = getProgramInfo($pKey);
 
 $h = htmlspecialchars($recap['headline'] ?? 'Untitled Broadcast');
 $q = htmlspecialchars($recap['key_quote'] ?? '');
-$formattedText = formatTranscript($recap['recap_text'] ?? '');
+$formattedText = formatLeagueProse($pdo, $recap['recap_text'] ?? '');
 $s = strtoupper($recap['season_id'] ?? 'S01');
 $date = date('F j, Y', strtotime($recap['created_at']));
 
