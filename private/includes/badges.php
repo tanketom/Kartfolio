@@ -179,8 +179,35 @@ function badgeCareerContext($pdo) {
         }
     } catch (Throwable $e) { /* no S&L data */ }
 
+    // ── Mikkoliiga, across seasons ──────────────────────────────────────────
+    // The Long Game: a member in three or more seasons' snapshots.
+    $mikkoSeasons = [];
+    try {
+        foreach ($pdo->query("SELECT racer_id, COUNT(DISTINCT season_id) AS n FROM mikkoliiga_membership GROUP BY racer_id") as $r) {
+            $mikkoSeasons[(int)$r['racer_id']] = (int)$r['n'];
+        }
+    } catch (PDOException $e) { /* table absent on an old install */ }
+
+    // Cold Start: took the win in the very first Mikkoliiga GP they ever
+    // contested. Walks seasons oldest-first and stops at each racer's debut;
+    // mikkoliigaSeasonPerGP is cached per season, so this is one pass, not one
+    // per racer.
+    $mikkoColdStart = [];
+    try {
+        $seasonsAsc = $pdo->query("SELECT DISTINCT SUBSTR(gpid, 1, 3) AS s FROM results WHERE gpid LIKE 's%' ORDER BY s ASC")->fetchAll(PDO::FETCH_COLUMN);
+        $debuted = [];
+        foreach ($seasonsAsc as $sid) {
+            foreach (mikkoliigaSeasonPerGP($pdo, (string)$sid) as $rid => $byGp) {
+                $rid = (int)$rid;
+                if (isset($debuted[$rid]) || !$byGp) continue;
+                $debuted[$rid] = true;
+                if (reset($byGp) === mkPointsForRank(1)) $mikkoColdStart[$rid] = true;
+            }
+        }
+    } catch (Throwable $e) { /* no Mikkoliiga history */ }
+
     return $cache = compact(
-        'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten'
+        'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart'
     );
 }
 
@@ -192,6 +219,150 @@ function badgeCareerContext($pdo) {
  * Black Box pass (every racer's BB score recomputed inside every racer's
  * badge call). Memoised here so each underlying query runs once.
  */
+/**
+ * Everything the Mikkoliiga badges need, from ONE pass over the sub-league's
+ * per-GP points (mikkoliigaSeasonPerGP, already cached) — no per-racer
+ * queries. Returns maps keyed by racer_id.
+ *
+ * Mikkoliiga scores differently from the main league and that is the whole
+ * point of these badges: members are ranked among THEMSELVES in each GP on the
+ * 15/12/10/9/… scale, a GP only counts when two or more of them race it, and a
+ * season is the sum of a member's best MIKKOLIIGA_BEST_X. The best-N cap and
+ * the members-only field are shapes nothing else in the league produces.
+ *
+ * Thresholds are deliberately low. This is a casual sub-league: its best
+ * season so far ran four contested GPs, so anything gated at ten would never
+ * fire for anyone.
+ */
+function mikkoliigaSeasonFacts(PDO $pdo, string $season_id): array {
+    $perGP = mikkoliigaSeasonPerGP($pdo, $season_id);
+    $blank = ['wins' => [], 'contested' => [], 'cleanSweep' => [], 'perfectTen' => [], 'overflow' => [],
+              'nestEgg' => [], 'bestOfRest' => [], 'metronome' => [], 'fullGrid' => [], 'odile' => [],
+              'freeFall' => [], 'reeledIn' => [], 'sundayDriver' => []];
+    if (!$perGP) return $blank;
+
+    $memberCount = count(getMikkoliigaMemberIds($pdo, $season_id));
+    $standings   = getMikkoliigaStandings($pdo, $season_id);
+    $leaderId    = ($standings && ($standings[0]['score'] ?? 0) > 0) ? (int)$standings[0]['id'] : null;
+    $finalRank   = [];
+    foreach ($standings as $i => $row) $finalRank[(int)$row['id']] = $i + 1;
+
+    // Points are unique per position on the MK scale, so they invert cleanly.
+    $rankOf = array_flip(MK_POINTS_SCALE);   // 15 => 0, 12 => 1, …
+    foreach ($rankOf as $pts => $i) $rankOf[$pts] = $i + 1;
+
+    // Every contested GP, in order, with who scored what.
+    $gpids = [];
+    foreach ($perGP as $rid => $byGp) foreach ($byGp as $gpid => $pts) $gpids[$gpid] = true;
+    $gpids = array_keys($gpids);
+    sort($gpids, SORT_STRING);
+
+    $out = $blank;
+    $positions = [];        // rid => [gpid => position among members]
+    foreach ($perGP as $rid => $byGp) {
+        $rid = (int)$rid;
+        $scores = array_values($byGp);
+        rsort($scores);
+        $wins = count(array_filter($scores, fn($p) => $p === mkPointsForRank(1)));
+        $n    = count($scores);
+
+        $out['wins'][$rid]      = $wins;
+        $out['contested'][$rid] = $n;
+        if ($n >= 3 && $wins === $n)              $out['cleanSweep'][$rid] = true;
+        if ($n >= MIKKOLIIGA_BEST_X)              $out['perfectTen'][$rid] = true;
+        if ($n >  MIKKOLIIGA_BEST_X)              $out['overflow'][$rid]   = true;
+        // The scores past the cap are dropped; a dropped WIN is the joke.
+        $dropped = array_slice($scores, MIKKOLIIGA_BEST_X);
+        if ($dropped && max($dropped) === mkPointsForRank(1)) $out['nestEgg'][$rid] = true;
+
+        foreach ($byGp as $gpid => $pts) $positions[$rid][$gpid] = $rankOf[$pts] ?? null;
+    }
+
+    // Odile Honorary Award: nobody turned up more often. Shared when level —
+    // an attendance honour has no reason to need a tiebreak.
+    $mostContested = $out['contested'] ? max($out['contested']) : 0;
+    if ($mostContested >= 2) {
+        foreach ($out['contested'] as $rid => $n) if ($n === $mostContested) $out['odile'][$rid] = true;
+    }
+
+    foreach ($positions as $rid => $byGp) {
+        // Best of the Rest: second among members in a GP the season's eventual
+        // leader won.
+        if ($leaderId !== null && $rid !== $leaderId) {
+            foreach ($byGp as $gpid => $pos) {
+                if ($pos === 2 && ($positions[$leaderId][$gpid] ?? null) === 1) { $out['bestOfRest'][$rid] = true; break; }
+            }
+        }
+        // Metronome: three contested GPs in a row in the same position.
+        $run = 1; $prev = null;
+        foreach ($byGp as $gpid => $pos) {
+            $run = ($prev !== null && $pos === $prev) ? $run + 1 : 1;
+            if ($run >= 3) { $out['metronome'][$rid] = true; break; }
+            $prev = $pos;
+        }
+    }
+
+    // Full Grid: a GP every member on the roster turned up for.
+    if ($memberCount >= 2) {
+        foreach ($gpids as $gpid) {
+            $present = [];
+            foreach ($perGP as $rid => $byGp) if (isset($byGp[$gpid])) $present[] = (int)$rid;
+            if (count($present) === $memberCount) foreach ($present as $rid) $out['fullGrid'][$rid] = true;
+        }
+    }
+
+    // ── The season as it stood after each GP ────────────────────────────────
+    // Best-N recomputed at every checkpoint, which is what makes "led at some
+    // point" and "was 20 behind" answerable at all.
+    $sofar = []; $ledAt = []; $deficit = [];
+    foreach ($gpids as $gpid) {
+        foreach ($perGP as $rid => $byGp) {
+            if (isset($byGp[$gpid])) $sofar[(int)$rid][] = $byGp[$gpid];
+        }
+        $table = [];
+        foreach ($sofar as $rid => $scores) {
+            $s = $scores; rsort($s);
+            $table[$rid] = array_sum(array_slice($s, 0, MIKKOLIIGA_BEST_X));
+        }
+        if (!$table) continue;
+        arsort($table);
+        $top = (int)array_key_first($table);
+        if ($table[$top] > 0) $ledAt[$top] = true;
+        foreach ($table as $rid => $score) {
+            foreach ($table as $other => $otherScore) {
+                if ($rid === $other) continue;
+                if ($otherScore - $score >= 20) $deficit[$rid][$other] = true;
+            }
+        }
+    }
+
+    foreach ($ledAt as $rid => $_) {
+        if (($finalRank[$rid] ?? 99) > 3) $out['freeFall'][$rid] = true;
+    }
+    foreach ($deficit as $rid => $others) {
+        foreach (array_keys($others) as $other) {
+            if (($finalRank[$rid] ?? 99) < ($finalRank[$other] ?? 99)) { $out['reeledIn'][$rid] = true; break; }
+        }
+    }
+
+    // Sunday Driver: first showed up after the season's halfway point and still
+    // finished top three. (Membership carries no join date — the snapshot is
+    // taken at archive time — so "arrived late" is read from when they first
+    // raced, which is the thing anyone would actually notice.)
+    $half = (int)floor(count($gpids) / 2);
+    if ($half >= 1) {
+        $lateFrom = array_slice($gpids, $half);
+        $lateSet  = array_flip($lateFrom);
+        foreach ($perGP as $rid => $byGp) {
+            $rid = (int)$rid;
+            $first = array_key_first($byGp);
+            if (isset($lateSet[$first]) && ($finalRank[$rid] ?? 99) <= 3) $out['sundayDriver'][$rid] = true;
+        }
+    }
+
+    return $out;
+}
+
 function badgeSeasonContext($pdo, $season_id) {
     static $cache = [];
     if (isset($cache[$season_id])) return $cache[$season_id];
@@ -266,6 +437,20 @@ function badgeSeasonContext($pdo, $season_id) {
     $ms = getMikkoliigaStandings($pdo, $season_id);
     if (!empty($ms) && ($ms[0]['score'] ?? 0) > 0) $mikkoLeaderId = (int)$ms[0]['id'];
 
+    // — The rest of the Mikkoliiga honours, one pass, no per-racer queries. —
+    $mikko = mikkoliigaSeasonFacts($pdo, $season_id);
+
+    // Promoted: leads the sub-league AND finished in the top half of the main
+    // standings. seasonPlacements() is the qualifier-gated ranking, so this
+    // agrees with what the standings themselves say.
+    $mikkoPromoted = false;
+    if ($mikkoLeaderId !== null) {
+        $pl = seasonPlacements($pdo, $season_id);
+        $place = $pl['place'][$mikkoLeaderId] ?? null;
+        $field = (int)($pl['field'] ?? 0);
+        if ($place !== null && $field > 0 && $place <= (int)ceil($field / 2)) $mikkoPromoted = true;
+    }
+
     // ── Territory (cup ownership) — one chronological pass over the season ──
     //   held      : racer => cups held at season end (canonical territorySeason)
     //   takeovers : racer => times they took a cup off a DIFFERENT holder
@@ -331,7 +516,7 @@ function badgeSeasonContext($pdo, $season_id) {
     } catch (PDOException $e) { /* quests table absent */ }
 
     return $cache[$season_id] = $career + compact(
-        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'bingoFull', 'deadHeat', 'seasonGpTotal', 'questmaster'
+        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'mikko', 'mikkoPromoted', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'bingoFull', 'deadHeat', 'seasonGpTotal', 'questmaster'
     );
 }
 
@@ -405,6 +590,35 @@ function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
     // 15 · Mikkoligan — leads this season's Mikkoliiga.
     if (($ctx['mikkoLeaderId'] ?? null) === $racer_id)
         $badges[] = badgeDef('mikkoligan');
+
+    // ── The rest of the Mikkoliiga honours ──────────────────────────────────
+    // All from mikkoliigaSeasonFacts()/the career context: array lookups only.
+    // Each is a shape the main league cannot produce — members ranked among
+    // themselves, and a best-N cap that throws scores away.
+    $mk = $ctx['mikko'] ?? [];
+    foreach ([
+        'cleanSweep'   => 'mikko_clean_sweep',
+        'bestOfRest'   => 'mikko_best_of_rest',
+        'metronome'    => 'mikko_metronome',
+        'odile'        => 'mikko_odile',
+        'fullGrid'     => 'mikko_full_grid',
+        'perfectTen'   => 'mikko_perfect_ten',
+        'overflow'     => 'mikko_overflow',
+        'nestEgg'      => 'mikko_nest_egg',
+        'reeledIn'     => 'mikko_reeled_in',
+        'freeFall'     => 'mikko_free_fall',
+        'sundayDriver' => 'mikko_sunday_driver',
+    ] as $fact => $key) {
+        if (!empty($mk[$fact][$racer_id])) $badges[] = badgeDef($key);
+    }
+
+    // Career-scoped: the debut win, and long service to the sub-league.
+    if (!empty($ctx['mikkoColdStart'][$racer_id])) $badges[] = badgeDef('mikko_cold_start');
+    if ((int)($ctx['mikkoSeasons'][$racer_id] ?? 0) >= 3) $badges[] = badgeDef('mikko_long_game');
+
+    // Promoted needs both halves: the sub-league lead AND the main standings.
+    if (($ctx['mikkoLeaderId'] ?? null) === $racer_id && !empty($ctx['mikkoPromoted']))
+        $badges[] = badgeDef('mikko_promoted');
     // 16 · Ascended — crossed 2000 Elo.
     if (!empty($ctx['elo2000'][$racer_id]))
         $badges[] = badgeDef('ascended');
