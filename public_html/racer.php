@@ -5,6 +5,7 @@
  * URL: /racer?id=1 or /racer/1 (with .htaccess)
  */
 require_once __DIR__ . '/../private/includes/db.php';
+require_once __DIR__ . '/../private/includes/honours.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
 require_once __DIR__ . '/../private/includes/card_rendering.php';
@@ -154,6 +155,8 @@ $accolades = [1 => [], 2 => [], 3 => []];
 foreach (archivedSeasonPlacements($pdo)[$racerId] ?? [] as [$accSeason, $accPlace, $accField])
     if ($accPlace <= 3) $accolades[$accPlace][] = strtoupper($accSeason);
 $accoladeSeasons = count(archivedSeasonPlacements($pdo)[$racerId] ?? []);
+// The rest of the cabinet: tournaments, Mikkoliiga, fantasy, teams, awards.
+$honours = careerHonours($pdo, (int)$racerId, (string)$racer['name']);
 foreach ($seasons as $season) {
     $score = calculateGPScore($pdo, $racerId, $season);
     $breakdown = getScoringBreakdown($pdo, $racerId, $season);
@@ -764,6 +767,19 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <span class="career-medal-icon"><?= $medal ?></span>
                         <span class="career-medal-count"><?= count($list) ?></span>
                         <span class="career-medal-seasons"><?= $list ? htmlspecialchars(implode(' · ', $list)) : '—' ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php /* Everything else that can be won. Boxes show even at zero,
+                         so the case says what there is to win, the same way an
+                         unearned medal does. */ ?>
+                <div class="career-honours">
+                    <?php foreach ($honours as $h): ?>
+                    <div class="career-honour<?= $h['count'] ? '' : ' career-honour--none' ?>" title="<?= htmlspecialchars($h['title']) ?>">
+                        <span class="career-honour-icon"><?= $h['icon'] ?></span>
+                        <span class="career-honour-count"><?= (int)$h['count'] ?></span>
+                        <span class="career-honour-label"><?= htmlspecialchars($h['label']) ?></span>
+                        <span class="career-honour-detail"><?= htmlspecialchars($h['detail']) ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>

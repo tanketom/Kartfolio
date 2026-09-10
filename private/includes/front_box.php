@@ -30,6 +30,7 @@ require_once __DIR__ . '/gp_logic.php';
 require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/sim_cache.php';
 require_once __DIR__ . '/fantasy.php';
+require_once __DIR__ . '/dotw.php';
 
 /** Cheap signature of the results table: changes exactly when a GP is added. */
 function frontBoxSignature(PDO $pdo): string {
@@ -225,12 +226,48 @@ function frontBoxFantasy(PDO $pdo): ?array {
 }
 
 /**
+ * Driver of the Week — the league's only vote, so it gets its own card
+ * whether or not anyone has voted yet. Votes are cast on the fantasy form and
+ * cover the week that just ended (see dotw.php).
+ */
+function frontBoxDotw(PDO $pdo): ?array {
+    $week   = dotwVotingWeek();
+    $ballot = dotwBallot($pdo, $week['from'], $week['to']);
+    if (!$ballot) return null;                     // nobody raced: nothing to vote on
+
+    $span    = date('M j', strtotime($week['from'])) . '–' . date('M j', strtotime($week['to']));
+    $results = dotwResults($pdo, $week['week_key']);
+    if (!$results) {
+        return [
+            'key' => 'dotw', 'icon' => '🏅', 'kicker' => 'Driver of the Week',
+            'headline' => 'No votes yet',
+            'line' => 'Nobody has said who drove best over ' . $span . '. Voting is on the fantasy form.',
+            'href' => '/fantasy?submit',
+        ];
+    }
+
+    $total = array_sum(array_column($results, 'votes'));
+    $top   = $results[0]['votes'];
+    // Ties share it, the way the fantasy champion does.
+    $leaders = array_map(fn($r) => $r['name'], array_filter($results, fn($r) => $r['votes'] === $top));
+
+    return [
+        'key' => 'dotw', 'icon' => '🏅', 'kicker' => 'Driver of the Week',
+        'headline' => implode(' & ', $leaders),
+        'line' => $span . ' · ' . $top . ' of ' . $total . ' vote' . ($total === 1 ? '' : 's')
+                  . (count($leaders) > 1 ? ' each, level at the top.' : '.'),
+        'href' => '/fantasy?submit',
+    ];
+}
+
+/**
  * Every card worth showing, urgent ones first. Order is otherwise stable so
  * the rotation does not reshuffle between reloads.
  */
 function frontBoxCards(PDO $pdo): array {
     $cards = array_values(array_filter([
         frontBoxFantasy($pdo),
+        frontBoxDotw($pdo),
         frontBoxPredictions($pdo),
         frontBoxElo($pdo),
         frontBoxMultiverse($pdo),

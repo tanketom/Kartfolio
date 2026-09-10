@@ -327,6 +327,16 @@ CREATE INDEX IF NOT EXISTS idx_results_gpid       ON results(gpid);
 CREATE INDEX IF NOT EXISTS idx_results_racer_gpid ON results(racer_id, gpid);
 CREATE INDEX IF NOT EXISTS idx_results_cup_gpid   ON results(cup_name, gpid);
 CREATE INDEX IF NOT EXISTS idx_results_date       ON results(race_date, id);
+-- Driver of the Week votes: one per predictor per week.
+CREATE TABLE IF NOT EXISTS dotw_votes (
+    week_key     TEXT NOT NULL,
+    predictor_id INTEGER NOT NULL,
+    racer_id     INTEGER NOT NULL,
+    voted_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (week_key, predictor_id)
+);
+CREATE INDEX IF NOT EXISTS idx_dotw_week ON dotw_votes(week_key);
+
 -- A racer races once per GP: the backstop against a double-tapped submit.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_results_gp_racer ON results(gpid, racer_id);
 

@@ -970,3 +970,43 @@
 .career-medal-icon { font-size: 1.3rem; grid-row: 1 / span 2; align-self: center; }
 .career-medal-count { font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; line-height: 1; }
 .career-medal-seasons { grid-column: 2; font-size: .7rem; font-weight: 700; color: var(--gray-600, #4b5563); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The rest of the cabinet, under the podium row. Same grid shape as a medal,
+   with a label because a tournament count needs saying out loud. */
+.career-honours {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+.career-honour {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto auto;
+    column-gap: 8px;
+    align-items: baseline;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--gray-100, #f3f4f6);
+    min-width: 0;
+}
+.career-honour--none { opacity: .45; }
+.career-honour-icon { font-size: 1.3rem; grid-row: 1 / span 3; align-self: center; }
+.career-honour-count { font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; line-height: 1; }
+.career-honour-label {
+    grid-column: 2;
+    font-size: .68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--gray-500, #6b7280);
+}
+.career-honour-detail {
+    grid-column: 2;
+    font-size: .7rem;
+    font-weight: 700;
+    color: var(--gray-600, #4b5563);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

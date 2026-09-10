@@ -168,6 +168,19 @@ try {
     // or filter on race_date; without this they build a temp B-tree per call.
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_results_date       ON results(race_date, id)");
 
+    // Driver of the Week: one vote per predictor per week. The ballot is cast
+    // on the fantasy form, so it reuses fantasy_predictors as the voter — a
+    // racer or a named guest — and the primary key is what stops ballot
+    // stuffing without needing a throttle of its own.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS dotw_votes (
+        week_key     TEXT NOT NULL,
+        predictor_id INTEGER NOT NULL,
+        racer_id     INTEGER NOT NULL,
+        voted_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (week_key, predictor_id)
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dotw_week ON dotw_votes(week_key)");
+
     // A racer races once per GP. Without this, a double-tapped submit or a
     // back-then-resubmit silently doubles someone's points and GP count —
     // /admin/audit's "racer entered twice in one GP" check exists because it

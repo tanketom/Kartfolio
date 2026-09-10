@@ -6306,3 +6306,18 @@ th.rotate > div {
     color: #fff;
 }
 #sc-panel-race[hidden], #sc-panel-positions[hidden] { display: none !important; }
+
+
+/* ── Driver of the Week, on the fantasy form ──────────────────────────────
+   The only thing on that page that is a vote rather than a prediction, and
+   the only one that looks at the week just gone, so it does not wear the
+   points badge the bets do. */
+.fan-vote-section {
+    border-left: 4px solid #f5b400;
+    background: linear-gradient(90deg, rgba(255, 246, 220, .55), transparent 60%);
+}
+.fan-pts-badge--vote {
+    background: #f5b400;
+    color: #4a3600;
+    font-weight: 800;
+}

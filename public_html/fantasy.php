@@ -18,6 +18,7 @@ require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/elo_engine.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
 require_once __DIR__ . '/../private/includes/fantasy.php';
+require_once __DIR__ . '/../private/includes/dotw.php';
 
 // ============================================================
 // 1. Schema — the fantasy tables are created by db.php's versioned
@@ -34,6 +35,11 @@ $now = new DateTime();
 // (fantasyDeadline() in private/includes/fantasy.php). It used to live only
 // here, and the box needed the same answer.
 $fd                = fantasyDeadline($now);
+
+// Driver of the Week rides along with the picks — but it is a VOTE on the week
+// that just ended, not a prediction about the one ahead (see dotw.php).
+$dotwWeek   = dotwVotingWeek($now);
+$dotwBallot = dotwBallot($pdo, $dotwWeek['from'], $dotwWeek['to']);
 $deadline          = $fd['deadline'];
 $submissionsOpen   = $fd['open'];
 $deadlineFormatted = $deadline->format('l, M j \\a\\t g:i A');
@@ -309,6 +315,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'submit') {
             if ($mvpPick > 0) {
                 insertBet($pdo, $weekKey, $predictorId, 'mvp', 'weekly_mvp', $mvpPick, $mvpConf)
                     ? $betCount++ : $dupeCount++;
+            }
+
+            // Driver of the Week — a vote, not a bet, so it goes to its own
+            // table and earns no points. Silently ignored if the named racer
+            // was not on that week's ballot.
+            $dotwPick = intval($_POST['dotw_vote'] ?? 0);
+            if ($dotwPick > 0 && $dotwBallot) {
+                dotwCastVote($pdo, $dotwWeek['week_key'], $predictorId, $dotwPick, $dotwBallot);
             }
 
             // ELO climber pick
@@ -840,6 +854,29 @@ include __DIR__ . '/../private/templates/header.php';
                 </select>
                 <input type="text" name="predictor_guest_name" id="fan-guest-name" class="fan-input" placeholder="Enter your name" style="display:none; margin-top: 8px;">
             </div>
+
+            <?php if ($dotwBallot): ?>
+            <!-- Driver of the Week: a VOTE, and the only thing on this form
+                 that looks backwards. Everything below predicts the week
+                 ahead; this one judges the week just gone. -->
+            <div class="fan-bet-section fan-vote-section">
+                <div class="fan-bet-header">
+                    <h3 class="fan-bet-title">&#127894; Driver of the Week</h3>
+                    <span class="fan-pts-badge fan-pts-badge--vote">Optional · no points</span>
+                </div>
+                <p class="fan-bet-desc">
+                    Not a prediction &mdash; a vote on the week just gone
+                    (<?= htmlspecialchars(date('M j', strtotime($dotwWeek['from']))) ?>&ndash;<?= htmlspecialchars(date('M j', strtotime($dotwWeek['to']))) ?>).
+                    Who drove best? Only the <?= count($dotwBallot) ?> racers who actually turned up are on the ballot.
+                </p>
+                <select name="dotw_vote" class="fan-select">
+                    <option value="">Skip &mdash; no vote this week</option>
+                    <?php foreach ($dotwBallot as $dId => $dName): ?>
+                    <option value="<?= (int)$dId ?>"><?= htmlspecialchars($dName) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <?php endif; ?>
 
             <!-- Section 1: Weekly MVP -->
             <div class="fan-bet-section">
