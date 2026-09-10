@@ -339,6 +339,8 @@ CREATE INDEX IF NOT EXISTS idx_results_gpid       ON results(gpid);
 CREATE INDEX IF NOT EXISTS idx_results_racer_gpid ON results(racer_id, gpid);
 CREATE INDEX IF NOT EXISTS idx_results_cup_gpid   ON results(cup_name, gpid);
 CREATE INDEX IF NOT EXISTS idx_results_date       ON results(race_date, id);
+-- A racer races once per GP: the backstop against a double-tapped submit.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_results_gp_racer ON results(gpid, racer_id);
 
 -- Failed-attempt throttle for login and wall-code submissions.
 CREATE TABLE IF NOT EXISTS auth_throttle (

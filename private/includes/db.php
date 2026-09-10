@@ -155,6 +155,25 @@ try {
     // or filter on race_date; without this they build a temp B-tree per call.
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_results_date       ON results(race_date, id)");
 
+    // A racer races once per GP. Without this, a double-tapped submit or a
+    // back-then-resubmit silently doubles someone's points and GP count —
+    // /admin/audit's "racer entered twice in one GP" check exists because it
+    // happened. add_result.php refuses the duplicate with a readable message;
+    // this is the backstop underneath it.
+    //
+    // An install that ALREADY has duplicates cannot build the index, and the
+    // enclosing catch would swallow that silently and leave every later
+    // migration in this block unrun — so it is attempted on its own, and only
+    // when the data is actually clean.
+    try {
+        $dupes = (int)$pdo->query("SELECT COUNT(*) FROM (SELECT 1 FROM results GROUP BY gpid, racer_id HAVING COUNT(*) > 1)")->fetchColumn();
+        if ($dupes === 0) {
+            $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_results_gp_racer ON results(gpid, racer_id)");
+        } else {
+            error_log("kartfolio: $dupes duplicate (gpid, racer_id) pairs — see /admin/audit; unique index not created");
+        }
+    } catch (PDOException $e) {}
+
     // Failed-attempt throttle for login and wall-code submissions, keyed by
     // IP + action. Rows are pruned opportunistically by the consumers.
     $pdo->exec("CREATE TABLE IF NOT EXISTS auth_throttle (

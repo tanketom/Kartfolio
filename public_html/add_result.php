@@ -58,6 +58,15 @@ if ($lastGPID && preg_match('/gp(\d+)$/', $lastGPID, $matches)) {
 
 $message = "";
 
+// A rendered POST is always a FAILED POST — a good one redirects — so these
+// are the values to hand back. A wrong wall code used to blank the whole
+// form, and eight racers had to be typed in again. The wall code itself is
+// deliberately never repopulated.
+$isFailedPost = ($_SERVER['REQUEST_METHOD'] === 'POST');
+$old = function (string $key, $default = '') use ($isFailedPost) {
+    return $isFailedPost ? ($_POST[$key] ?? $default) : $default;
+};
+
 // 4. Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -82,6 +91,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($_POST["racer_$i"])) $filledRacers++;
     }
 
+    // GPIDs are lowercase by construction and every season filter is
+    // `gpid LIKE 's04%'` against a case-sensitive LIKE (db.php), so a typed
+    // or autocapitalised "S04gp23" saves fine and then appears on no page at
+    // all. Normalise, then insist on the shape the /timeline route accepts.
+    $gpid = strtolower(trim((string)($_POST['gpid'] ?? '')));
+
+    // The same racer in two rows, and a GP submitted twice (double-tap, or
+    // back-then-resubmit), both silently double someone's points and GP
+    // count. /admin/audit exists to find these after the fact; better not to
+    // make them. Only the racers on THIS form are checked, so adding a
+    // late-arriving racer to an existing GP still works.
+    $chosen = []; $dupRacer = false;
+    for ($i = 1; $i <= MK_MAX_HUMAN_PLAYERS; $i++) {
+        $rid = (int)($_POST["racer_$i"] ?? 0);
+        if ($rid <= 0) continue;
+        if (isset($chosen[$rid])) $dupRacer = true;
+        $chosen[$rid] = true;
+    }
+    $alreadyIn = [];
+    if ($chosen && $gpid !== '') {
+        $ph = implode(',', array_fill(0, count($chosen), '?'));
+        $dupStmt = $pdo->prepare("SELECT r.name FROM results res JOIN racers r ON r.id = res.racer_id WHERE res.gpid = ? AND res.racer_id IN ($ph) ORDER BY r.name");
+        $dupStmt->execute(array_merge([$gpid], array_keys($chosen)));
+        $alreadyIn = $dupStmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
     if ($expectedCode === '') {
         $message = "Result entry is locked until an admin sets the wall code (Admin → Settings).";
     } elseif ($wallCodeLocked) {
@@ -91,6 +126,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = "Wrong wall code. Check the Gameslab wall and try again.";
     } elseif ($filledRacers < 3) {
         $message = "A Grand Prix needs at least 3 racers. You filled in $filledRacers.";
+    } elseif (!preg_match('/^s[0-9]+gp[0-9]+$/', $gpid)) {
+        $message = "GPID must look like {$nextGPID} — season, then 'gp', then the GP number.";
+    } elseif ($dupRacer) {
+        $message = "The same racer is in two rows. Each racer races once per GP.";
+    } elseif ($alreadyIn) {
+        $message = "Already saved: " . implode(', ', $alreadyIn) . " " . (count($alreadyIn) === 1 ? "is" : "are")
+                 . " in {$gpid} already. Use a new GPID for a new GP, or Admin → Manage Results to correct this one.";
     } else {
     $pdo->beginTransaction();
     try {
@@ -99,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($_POST["racer_$i"])) {
                 $stmt = $pdo->prepare("INSERT INTO results (gpid, racer_id, gp_points, rank, character_used, kart_setup, cup_name, is_lol, is_monster, race_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([
-                    $_POST['gpid'],
+                    $gpid,
                     $_POST["racer_$i"],
                     $_POST["points_$i"],
                     $_POST["rank_$i"],
@@ -115,15 +157,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         // Sticker packs: one per racer per GP (no-op before the stickers epoch).
         require_once __DIR__ . '/../private/includes/stickers.php';
-        grantGpPacks($pdo, $_POST['gpid'], $packRacers);
+        grantGpPacks($pdo, $gpid, $packRacers);
         $pdo->commit();
         // Badge sightings for "new this week" on the homepage — never lets a
         // badge hiccup break result entry.
         try {
             require_once __DIR__ . '/../private/includes/badges.php';
-            recordBadgeSightings($pdo, preg_replace('/gp\d+$/', '', (string)$_POST['gpid']), (string)$_POST['gpid'], substr((string)$_POST['race_date'], 0, 10));
+            recordBadgeSightings($pdo, preg_replace('/gp\d+$/', '', $gpid), $gpid, substr((string)$_POST['race_date'], 0, 10));
         } catch (Throwable $e) { error_log('badge sightings: ' . $e->getMessage()); }
-        header("Location: index.php?success=1");
+        // Land on the GP's own page rather than the homepage with a
+        // ?success=1 that nothing has ever read: /timeline/<gpid> is already
+        // a full single-GP recap, so "did that save?" answers itself.
+        header("Location: /timeline/" . rawurlencode($gpid));
         exit;
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -140,14 +185,16 @@ include __DIR__ . '/../private/templates/header.php';
 <div class="stats-container">
     <h1 class="add-result-title">Log Grand Prix</h1>
 
-    <?php if($message): ?><div class="badge add-result-error"><?= $message ?></div><?php endif; ?>
+    <?php if($message): ?><div class="badge add-result-error"><?= htmlspecialchars($message) ?></div><?php endif; ?>
 
     <form method="POST" id="gp-form">
         <?= csrf_field() ?>
         <div class="gp-meta-grid">
             <div class="meta-item">
                 <label>GPID (Auto-filled)</label>
-                <input type="text" name="gpid" value="<?= $nextGPID ?>" required class="add-result-gpid-input">
+                <input type="text" name="gpid" value="<?= htmlspecialchars((string)$old('gpid', $nextGPID)) ?>"
+                       required pattern="[sS][0-9]+[gG][pP][0-9]+" title="Season and GP, e.g. <?= htmlspecialchars($nextGPID) ?>"
+                       class="add-result-gpid-input">
             </div>
             
             <div class="meta-item">
@@ -157,7 +204,7 @@ include __DIR__ . '/../private/templates/header.php';
                     <?php foreach($mk8Cups as $group => $cups): ?>
                         <optgroup label="<?= $group ?>">
                             <?php foreach($cups as $val => $label): ?>
-                                <option value="<?= $val ?>" <?= $prefillCup === $val ? 'selected' : '' ?>><?= $label ?> Cup</option>
+                                <option value="<?= $val ?>" <?= (string)$old('cup_name', $prefillCup) === (string)$val ? 'selected' : '' ?>><?= $label ?> Cup</option>
                             <?php endforeach; ?>
                         </optgroup>
                     <?php endforeach; ?>
@@ -166,12 +213,15 @@ include __DIR__ . '/../private/templates/header.php';
 
             <div class="meta-item">
                 <label>Race Date</label>
-                <input type="date" name="race_date" value="<?= date('Y-m-d') ?>" required>
+                <input type="date" name="race_date" value="<?= htmlspecialchars((string)$old('race_date', date('Y-m-d'))) ?>" required>
             </div>
         </div>
 
         <div class="add-result-table-wrap">
-            <table class="admin-table" style="min-width: 800px; margin-bottom: 0;">
+            <!-- The width lives in pages.css so the ≤768px card layout can
+                 drop it; as an inline style it beat the media query and every
+                 "card" stayed 800px wide inside a sideways-scrolling box. -->
+            <table class="admin-table add-result-table">
                 <thead>
                     <tr>
                         <th style="width: 25%;">Racer</th>
@@ -186,7 +236,8 @@ include __DIR__ . '/../private/templates/header.php';
                 <tbody>
                     <?php for($i=1;$i<=MK_MAX_HUMAN_PLAYERS;$i++):
                         $prefRid = $prefillRacers[$i] ?? null;
-                        $rowClass = $prefRid ? 'active-row' : 'inactive-row';
+                        $rowRid  = (string)$old("racer_$i", $prefRid === null ? '' : (string)$prefRid);
+                        $rowClass = $rowRid !== '' ? 'active-row' : 'inactive-row';
                     ?>
                     <tr id="row_<?= $i ?>" class="input-row <?= $rowClass ?>">
                         <td data-label="Racer">
@@ -198,17 +249,17 @@ include __DIR__ . '/../private/templates/header.php';
                                             data-nick="<?= htmlspecialchars((string)($r['nickname'] ?? '')) ?>"
                                             data-char="<?= htmlspecialchars((string)($r['fav_char'] ?? '')) ?>"
                                             data-kart="<?= htmlspecialchars((string)($r['fav_kart'] ?? '')) ?>"
-                                            <?= ($prefRid !== null && (int)$r['id'] === $prefRid) ? 'selected' : '' ?>>
+                                            <?= $rowRid !== '' && (string)$r['id'] === $rowRid ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($r['name']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
                         </td>
                         <td data-label="Points">
-                            <input type="number" name="points_<?= $i ?>" id="pts_<?= $i ?>" class="pts-input" min="0" max="60" placeholder="0">
+                            <input type="number" name="points_<?= $i ?>" id="pts_<?= $i ?>" class="pts-input" min="0" max="60" placeholder="0" value="<?= htmlspecialchars((string)$old("points_$i")) ?>">
                         </td>
                         <td data-label="Rank">
-                            <input type="number" name="rank_<?= $i ?>" id="rank_<?= $i ?>" min="1" max="12" placeholder="-" class="add-result-rank-input">
+                            <input type="number" name="rank_<?= $i ?>" id="rank_<?= $i ?>" min="1" max="12" placeholder="-" class="add-result-rank-input" value="<?= htmlspecialchars((string)$old("rank_$i")) ?>">
                         </td>
                         <td data-label="Character">
                             <div class="char-input-group">
@@ -218,14 +269,14 @@ include __DIR__ . '/../private/templates/header.php';
                                 <select name="char_<?= $i ?>" id="c_<?= $i ?>" onchange="updatePortrait(<?= $i ?>)" id="char_<?= $i ?>">
                                     <option value="">- Char -</option>
                                     <?php foreach($mk8Characters as $char): ?>
-                                        <option value="<?= $char ?>"><?= $char ?></option>
+                                        <option value="<?= $char ?>" <?= (string)$old("char_$i") === (string)$char ? 'selected' : '' ?>><?= $char ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
                         </td>
-                        <td data-label="Kart Setup"><input type="text" name="kart_<?= $i ?>" id="k_<?= $i ?>" placeholder="Kart Setup"></td>
-                        <td data-label="Ludwig Obstruction Law" class="add-result-lol-cell"><input type="checkbox" name="lol_<?= $i ?>" class="add-result-lol-checkbox"></td>
-                        <td data-label="Monster" class="add-result-lol-cell"><input type="checkbox" name="monster_<?= $i ?>" class="add-result-monster-checkbox" onchange="setMonster(<?= $i ?>)" <?= ($prefillMonsterId !== null && $prefRid === $prefillMonsterId) ? 'checked' : '' ?>></td>
+                        <td data-label="Kart Setup"><input type="text" name="kart_<?= $i ?>" id="k_<?= $i ?>" placeholder="Kart Setup" value="<?= htmlspecialchars((string)$old("kart_$i")) ?>"></td>
+                        <td data-label="Ludwig Obstruction Law" class="add-result-lol-cell"><input type="checkbox" name="lol_<?= $i ?>" class="add-result-lol-checkbox" <?= $old("lol_$i") ? 'checked' : '' ?>></td>
+                        <td data-label="Monster" class="add-result-lol-cell"><input type="checkbox" name="monster_<?= $i ?>" class="add-result-monster-checkbox" onchange="setMonster(<?= $i ?>)" <?= $old("monster_$i", ($prefillMonsterId !== null && $prefRid === $prefillMonsterId) ? '1' : '') ? 'checked' : '' ?>></td>
                     </tr>
                     <?php endfor; ?>
                 </tbody>

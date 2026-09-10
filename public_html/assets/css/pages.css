@@ -2580,6 +2580,16 @@ th.rotate > div {
 .spinner { display: inline-block; animation: spin 1s linear infinite; }
 .add-result-title { font-style: italic; font-weight: 900; text-transform: uppercase; }
 .add-result-error { background: var(--nintendo-red); color: white; padding: 15px; margin-bottom: 20px; }
+/* The GP entry table. The 800px floor keeps the eight columns usable on a
+   desktop; it used to be an inline style on the element, which outranked the
+   ≤768px card layout below, so on a phone every stacked "card" was still
+   800px wide inside a sideways-scrolling box — the worst possible shape for
+   the one page you use standing up at a console. */
+.add-result-table {
+    min-width: 800px;
+    margin-bottom: 0;
+}
+
 .add-result-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -2632,6 +2642,9 @@ th.rotate > div {
 }
 @media (max-width: 768px) {
     .gp-meta-grid { grid-template-columns: 1fr; }
+    /* Cards stack to the viewport; nothing scrolls sideways. */
+    .add-result-table { min-width: 0; }
+    .add-result-table-wrap { overflow-x: visible; }
     .admin-table thead { display: none; }
     .admin-table,
     .admin-table tbody,
