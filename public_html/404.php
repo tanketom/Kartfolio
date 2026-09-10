@@ -42,9 +42,12 @@ $pageTitle  = 'Page not found — ' . $leagueName;
  * the LOL flag, the perfect 60, the wall code, the OMK — so it reads the same
  * in any commissioner's league, with no league's name baked in.
  */
+// A third element marks the excuses that actually blame Ludwig — those are
+// the ones the tally belongs under. It used to print beneath all nine, so
+// "Finished 13th" sat above a Ludwig counter that had nothing to do with it.
 $excuses = [
     ['Ludwig got here first.',
-     'The page was blocking, item-spamming, or worse. Logged as a Ludwig Obstruction and filed with the stewards.'],
+     'The page was blocking, item-spamming, or worse. Logged as a Ludwig Obstruction and filed with the stewards.', true],
     ['It fell off Rainbow Road.',
      'No barriers on that stretch. Lakitu is out there somewhere, fishing.'],
     ['Blue shell.',
@@ -60,14 +63,17 @@ $excuses = [
     ['Shortcut not unlocked.',
      'You needed a mushroom for that one, and you are out of mushrooms.'],
     ['Item box was empty.',
-     'Somebody ahead of you had already taken it. It was probably Ludwig.'],
+     'Somebody ahead of you had already taken it. It was probably Ludwig.', true],
 ];
 $excuse = $excuses[random_int(0, count($excuses) - 1)];
 
-// A real number from the league's own record, when there is one to show.
+// A real number from the league's own record — only fetched when the excuse
+// on screen is one that blames Ludwig, and only shown when he has a record.
 $lols = 0;
-try { $lols = (int)$pdo->query("SELECT COALESCE(SUM(is_lol), 0) FROM results")->fetchColumn(); }
-catch (PDOException $e) {}
+if (!empty($excuse[2])) {
+    try { $lols = (int)$pdo->query("SELECT COALESCE(SUM(is_lol), 0) FROM results")->fetchColumn(); }
+    catch (PDOException $e) {}
+}
 
 include __DIR__ . '/../private/templates/header.php';
 ?>
