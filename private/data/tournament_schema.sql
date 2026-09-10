@@ -50,18 +50,6 @@ CREATE TABLE IF NOT EXISTS tournament_matches (
 );
 
 -- Individual races within a tournament match
-CREATE TABLE IF NOT EXISTS tournament_races (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    match_id INTEGER NOT NULL,
-    race_number INTEGER NOT NULL, -- 1, 2, 3 for best-of-3
-    gpid TEXT, -- Link to actual race result if recorded
-    winner_id INTEGER,
-    completed_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (match_id) REFERENCES tournament_matches(id) ON DELETE CASCADE,
-    FOREIGN KEY (winner_id) REFERENCES racers(id)
-);
-
 -- Tournament trophy records (for hall of fame)
 CREATE TABLE IF NOT EXISTS tournament_trophies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

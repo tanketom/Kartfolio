@@ -53,7 +53,6 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     $isAdminPage = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true && strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false;
     if ($isAdminPage):
     ?>
-    <link rel="stylesheet" href="<?= assetUrl('/assets/css/forms.css') ?>">
     <link rel="stylesheet" href="<?= assetUrl('/assets/css/admin.css') ?>">
     <?php endif; ?>
     <?php if (!empty($extraCss)) echo versionAssetTags($extraCss); ?>

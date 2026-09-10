@@ -8,7 +8,8 @@ require_once __DIR__ . '/../../private/includes/auth.php';
 require_tournament_host($pdo);   // admins always; players when tournament mode is on
 
 // Initialize tournament tables if they don't exist
-$pdo->exec(file_get_contents(__DIR__ . '/../../private/data/tournament_schema.sql'));
+// (tournament tables are created by db.php's migration block — this used
+// to re-read and re-exec the schema file on every single request.)
 
 $message = "";
 

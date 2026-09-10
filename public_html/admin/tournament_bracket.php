@@ -5,7 +5,7 @@
  */
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
-require_once __DIR__ . '/../../private/includes/mk8d_characters.php';
+require_once __DIR__ . '/../../private/includes/mk_data.php';
 require_tournament_host($pdo);
 
 $tournamentId = $_GET['id'] ?? null;

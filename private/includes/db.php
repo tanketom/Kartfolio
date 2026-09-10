@@ -51,7 +51,9 @@ try {
     // Nothing to bump by hand, so a forgotten constant can't strand a
     // migration on the live server. The deploy model in CLAUDE.md §1 holds:
     // deploy, hit any page, the DB catches up.
-    $schemaSig = crc32((string)@file_get_contents(__FILE__) . (string)@file_get_contents(__DIR__ . '/../data/settings_schema.sql'));
+    $schemaSig = crc32((string)@file_get_contents(__FILE__)
+        . (string)@file_get_contents(__DIR__ . '/../data/settings_schema.sql')
+        . (string)@file_get_contents(__DIR__ . '/../data/tournament_schema.sql'));
     if ($schemaSig > 0x7FFFFFFF) $schemaSig -= 0x100000000;   // user_version is a signed 32-bit int
     $dbSig = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
     if ($dbSig !== $schemaSig) {
@@ -74,6 +76,17 @@ try {
         if (is_readable($schemaFile)) {
             $pdo->exec(file_get_contents($schemaFile));
         }
+    }
+
+    // Tournament tables. schema.sql carries them for a fresh install, but an
+    // install that predates them had nothing to create them — so two admin
+    // pages ran this file on EVERY request, and the tables only existed once
+    // an admin had visited one of them. It belongs here, in the block that
+    // runs once per schema change (§1). tournament_schema.sql is part of the
+    // signature above, so editing it re-runs this on the next hit.
+    $tournamentSchema = __DIR__ . '/../data/tournament_schema.sql';
+    if (is_readable($tournamentSchema)) {
+        try { $pdo->exec(file_get_contents($tournamentSchema)); } catch (PDOException $e) {}
     }
 
     // Inline migrations (idempotent — fail silently if the column exists).

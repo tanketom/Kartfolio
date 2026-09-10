@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/gp_logic.php';
+require_once __DIR__ . '/../../private/includes/assets.php';   // assetUrl() for the admin stylesheet
 
 require_admin();
 
@@ -29,7 +30,7 @@ if (!$seasonId) {
     $activeSeasons = $activeStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $pageTitle = "Season Transition Wizard";
-    $extraCss  = '<link rel="stylesheet" href="/assets/css/forms.css"><link rel="stylesheet" href="/assets/css/admin.css">';
+    $extraCss  = '<link rel="stylesheet" href="' . assetUrl('/assets/css/admin.css') . '">';
     include __DIR__ . '/../../private/templates/header.php';
     ?>
     <div class="stats-container">
@@ -209,7 +210,7 @@ $championName = $season['champion_name'] ?: ($leader ? $leader['name'] : '');
 $championChar = $season['champion_char'] ?: 'Mii';
 
 $pageTitle = "Close Season: $seasonLabel";
-$extraCss  = '<link rel="stylesheet" href="/assets/css/forms.css"><link rel="stylesheet" href="/assets/css/admin.css">';
+$extraCss  = '<link rel="stylesheet" href="' . assetUrl('/assets/css/admin.css') . '">';
 include __DIR__ . '/../../private/templates/header.php';
 ?>
 

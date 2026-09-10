@@ -9,7 +9,8 @@ require_once __DIR__ . '/../../private/includes/survivor_tournament.php';
 require_tournament_host($pdo);
 
 // Initialize tournament tables
-$pdo->exec(file_get_contents(__DIR__ . '/../../private/data/tournament_schema.sql'));
+// (tournament tables are created by db.php's migration block — this used
+// to re-read and re-exec the schema file on every single request.)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();

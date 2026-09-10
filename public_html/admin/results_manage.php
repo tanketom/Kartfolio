@@ -75,11 +75,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $updates[] = "cup_name = ?";
             $params[] = $_POST['bulk_cup_name'];
         }
-        if ($_POST['bulk_character'] ?? '' !== '') {
+        // Parenthesised: ?? binds looser than !==, so `$_POST[x] ?? '' !== ''`
+        // was `$_POST[x] ?? false` — it happened to behave like !empty(), which
+        // silently skipped a deliberate "0".
+        if (($_POST['bulk_character'] ?? '') !== '') {
             $updates[] = "character_used = ?";
             $params[] = $_POST['bulk_character'];
         }
-        if ($_POST['bulk_kart'] ?? '' !== '') {
+        if (($_POST['bulk_kart'] ?? '') !== '') {
             $updates[] = "kart_setup = ?";
             $params[] = $_POST['bulk_kart'];
         }

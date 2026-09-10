@@ -193,12 +193,9 @@ try {
         $stmt->execute([$gpid, $cupName, $matchId]);
     }
 
-    // Insert into tournament_races table
-    $stmt = $pdo->prepare("
-        INSERT INTO tournament_races (match_id, race_number, gpid, winner_id, completed_at)
-        VALUES (?, 1, ?, ?, datetime('now'))
-    ");
-    $stmt->execute([$matchId, $gpid, $advancers[0]['racer_id']]);
+    // (tournament_races removed: nothing ever SELECTed from it, and its one
+    // row per match duplicated tournament_matches.gpid and .winner_id with a
+    // hardcoded race_number of 1 — no per-race detail was actually captured.)
 
     $pdo->commit();
 

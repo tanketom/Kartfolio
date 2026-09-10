@@ -243,18 +243,6 @@ CREATE TABLE IF NOT EXISTS tournament_matches (
     FOREIGN KEY (winner_id) REFERENCES racers(id)
 );
 
-CREATE TABLE IF NOT EXISTS tournament_races (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    match_id INTEGER NOT NULL,
-    race_number INTEGER NOT NULL,
-    gpid TEXT,
-    winner_id INTEGER,
-    completed_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (match_id) REFERENCES tournament_matches(id) ON DELETE CASCADE,
-    FOREIGN KEY (winner_id) REFERENCES racers(id)
-);
-
 CREATE TABLE IF NOT EXISTS tournament_trophies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tournament_id INTEGER NOT NULL,
