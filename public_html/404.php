@@ -39,31 +39,21 @@ $pageTitle  = 'Page not found — ' . $leagueName;
  * The league already has a culprit for a run that was going fine until it
  * wasn't: the Ludwig Obstruction, logged per result as is_lol. A missing page
  * is just one more of those. Everything here is Kartfolio's own vocabulary —
- * the LOL flag, the perfect 60, the wall code, the OMK — so it reads the same
+ * the LOL flag, the twelve-kart field, GPIDs, the OMK — so it reads the same
  * in any commissioner's league, with no league's name baked in.
  */
-// A third element marks the excuses that actually blame Ludwig — those are
-// the ones the tally belongs under. It used to print beneath all nine, so
+// The third element marks the excuse that actually blames Ludwig — the only
+// one the tally belongs under. It used to print beneath every excuse, so
 // "Finished 13th" sat above a Ludwig counter that had nothing to do with it.
 $excuses = [
     ['Ludwig got here first.',
      'The page was blocking, item-spamming, or worse. Logged as a Ludwig Obstruction and filed with the stewards.', true],
-    ['It fell off Rainbow Road.',
-     'No barriers on that stretch. Lakitu is out there somewhere, fishing.'],
     ['Blue shell.',
      'The page was leading comfortably right up until it wasn\'t. Nothing anyone could have done.'],
-    ['Did not qualify.',
-     'This URL raced too few Grand Prix to appear in the standings. It is not ranked, it is not eligible, and it is not here.'],
-    ['No GPID matches that.',
-     'The OMK has reviewed the request, found no corresponding Grand Prix, and considers the matter closed.'],
-    ['Not on the wall.',
-     'No wall code, no entry. That is rather the point of the wall code.'],
     ['Finished 13th.',
      'In a twelve-kart field. Take a moment with that.'],
-    ['Shortcut not unlocked.',
-     'You needed a mushroom for that one, and you are out of mushrooms.'],
-    ['Item box was empty.',
-     'Somebody ahead of you had already taken it. It was probably Ludwig.', true],
+    ['No GPID matches that.',
+     'The OMK has reviewed the request, found no corresponding Grand Prix, and considers the matter closed.'],
 ];
 $excuse = $excuses[random_int(0, count($excuses) - 1)];
 
