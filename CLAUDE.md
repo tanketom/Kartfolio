@@ -710,13 +710,23 @@ Cross-reference if you find half-implemented work:
   and the Fantasy Champion badge reads the same helper. A week runs AHEAD of
   its racing, so a week closing days before a season's first race belongs to
   the new season
-- **Season yearbook** — `/season-yearbook?season=sNN` (`yearbook.php`): four
-  A4 sheets (cover, final standings, records, honours plus the frozen map on
-  Territory seasons) that save as a PDF through the same jsPDF + html2canvas
-  pipeline as the trading cards, and print from the browser via the
-  `@media print` block in `yearbook.css`. A page is 794 × 1123 px, which is A4
-  at 96 dpi, so the capture and the printed sheet share one grid. Archived
-  seasons only
+- **Season yearbook** — `/season-yearbook?season=sNN` (`yearbook.php`): an
+  eight-page A4 zine (cover · the season in brief · standings · records ·
+  head to head · the story of the season · honours and the frozen map · back
+  cover). Two pages carry `season_meta.ecology_report`, split by
+  `yearbookStory()` into an opener, a two-column feature and a closing line;
+  memo furniture ("To:", "Date of Record:") is stripped and the report's own
+  bold section headings render as headings rather than orphan lines. Saves as
+  a straight PDF or, via the same jsPDF + html2canvas pipeline the trading
+  cards use, as a **booklet** imposed two-up on landscape A4 in saddle-stitch
+  order (8·1 / 2·7 / 6·3 / 4·5) — print double-sided on the SHORT edge, fold,
+  staple. A page is 794 × 1123 px, which is A4 at 96 dpi, so the capture, the
+  booklet and the browser's own print share one grid.
+  **Pages hide overflow, so content that grows silently clips.** The character
+  budgets in `yearbookStory()` and the row caps on the standings and awards
+  exist for that reason; after changing anything on a page, re-measure with
+  `[...document.querySelectorAll('.yb-page')].map(p => p.scrollHeight - p.clientHeight)`
+  across every archived season — it must be all zeroes. Archived seasons only
 - **Lexicon auto-linking** — `lexiconLinkify()` (`prose.php`) links the first
   mention of each lexicon term in broadcasts, season narratives and MONSTER
   HUNT chronicles. It walks tag/text segments, never links inside an existing
