@@ -87,6 +87,14 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     <div class="cup-wheel-container">
         <div class="cup-wheel-title">WHAT CUP?</div>
 
+        <!-- Kartificial hosts the World Cup already; the wheel gets the same
+             mascot rather than a second one. His line is built server-side
+             from the draw's own facts — no model call, so it cannot stall. -->
+        <div class="cup-host" id="cup-host" hidden>
+            <img src="/assets/img/kartificial.png" class="cup-host-img" alt="Kartificial" onerror="this.style.display='none'">
+            <div class="cup-host-bubble" id="cup-host-line"></div>
+        </div>
+
         <!-- Racer Selection Panel -->
         <div class="cup-racer-panel" id="cup-racer-panel">
             <div class="cup-racer-label">Who's playing?</div>
@@ -98,10 +106,12 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
             <div class="cup-wheel-result" id="cup-result">🎰</div>
         </div>
         <div class="cup-wheel-stats" id="cup-stats"></div>
+        <div class="cup-context" id="cup-context"></div>
         <div class="cup-mh-info" id="cup-mh-info"></div>
         <div class="cup-racer-details" id="cup-racer-details"></div>
         <div class="cup-buttons">
             <button class="cup-pick-btn" id="cup-pick-btn">PICK!</button>
+            <button class="cup-veto-btn" id="cup-veto-btn" hidden>🚫 Not that one</button>
             <button class="cup-log-btn" id="cup-log-btn" hidden>📝 Log this GP</button>
             <button class="cup-close-btn" id="cup-close-btn">Close</button>
         </div>
@@ -198,9 +208,53 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
 .cup-wheel-stats {
     font-size: 0.9rem;
     color: #666;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
     min-height: 24px;
 }
+
+/* "The number to beat", and on Territory seasons whose cup it is. */
+.cup-context {
+    font-size: 0.92rem;
+    color: #444;
+    margin-bottom: 18px;
+    line-height: 1.5;
+}
+.cup-context:empty { margin-bottom: 0; }
+.cup-context b { font-weight: 800; }
+.cup-context .cup-ctx-holder { color: #b8860b; }
+
+/* The host: portrait left, speech bubble right. */
+.cup-host {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    margin: 0 0 18px;
+}
+.cup-host[hidden] { display: none !important; }
+.cup-host-img { width: 56px; height: 56px; flex: 0 0 auto; object-fit: contain; }
+.cup-host-bubble {
+    position: relative;
+    flex: 1;
+    background: #f4f4f2;
+    border: 3px solid var(--ink, #111);
+    border-radius: 16px;
+    padding: 10px 14px;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    font-weight: 600;
+}
+.cup-host-bubble::before {          /* the tail, pointing at Kartificial */
+    content: '';
+    position: absolute;
+    left: -10px; top: 50%;
+    width: 0; height: 0;
+    transform: translateY(-50%);
+    border: 8px solid transparent;
+    border-right-color: var(--ink, #111);
+}
+.cup-host--grumpy .cup-host-bubble { background: #fdf0e8; }
+.cup-host--excited .cup-host-bubble { background: #fff6dc; }
 
 /* Racer Selection Panel */
 .cup-racer-panel {
@@ -381,6 +435,9 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
 /* Buttons Row */
 .cup-buttons {
     display: flex;
+    /* Four buttons no longer fit one row in a 500px modal — the veto's label
+       was wrapping to three lines — so they wrap as pairs instead. */
+    flex-wrap: wrap;
     gap: 10px;
     justify-content: center;
     position: sticky;
@@ -455,12 +512,30 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
 
 .cup-log-btn[hidden] { display: none !important; }
 
+.cup-veto-btn {
+    background: #fff;
+    color: #444;
+    border: 3px solid #ddd;
+    padding: 13px 22px;
+    border-radius: 30px;
+    white-space: nowrap;
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.cup-veto-btn:hover { border-color: var(--nintendo-red, #e60012); color: var(--nintendo-red, #e60012); }
+.cup-veto-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cup-veto-btn[hidden] { display: none !important; }
+
 @media (max-width: 480px) {
     .cup-wheel-container { padding: 30px 20px; }
     .cup-racer-chips { max-height: 100px; }
     .cup-racer-chip { padding: 5px 10px; font-size: 0.72rem; }
     .cup-buttons { flex-direction: column; }
-    .cup-pick-btn, .cup-close-btn, .cup-log-btn { width: 100%; }
+    .cup-pick-btn, .cup-close-btn, .cup-log-btn, .cup-veto-btn { width: 100%; }
+    .cup-host-img { width: 44px; height: 44px; }
 }
 
 </style>
@@ -563,12 +638,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const cupRacerChips = document.getElementById('cup-racer-chips');
     const cupRacerDetails = document.getElementById('cup-racer-details');
     const cupMhInfo = document.getElementById('cup-mh-info');
+    const cupVetoBtn = document.getElementById('cup-veto-btn');
+    const cupContext = document.getElementById('cup-context');
+    const cupHost = document.getElementById('cup-host');
+    const cupHostLine = document.getElementById('cup-host-line');
 
     // What got picked most recently — used by the "Log this GP" button.
     let cupLastPicked = null; // { cup, racerIds: [...], monsterId: number|null }
+    // The drawn cup itself, set on every draw — the veto needs it even when
+    // there are too few racers for cupLastPicked to be filled in.
+    let cupLastCup = null;
 
     let cupRacersLoaded = false;
     let cupSelectedRacers = new Set();
+    // Cups turned down this time the modal was opened. The server excludes
+    // them, so "Not that one" can never hand back the cup you just rejected.
+    let cupVetoed = new Set();
 
     if (cupPickerBtn) {
         cupPickerBtn.addEventListener('click', function(e) {
@@ -585,6 +670,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (cupPickBtn) {
         cupPickBtn.addEventListener('click', function() {
+            doCupPick();
+        });
+    }
+
+    if (cupVetoBtn) {
+        cupVetoBtn.addEventListener('click', function() {
+            if (cupLastCup) cupVetoed.add(cupLastCup);
             doCupPick();
         });
     }
@@ -615,12 +707,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Esc closes, Space/Enter spins. Skipped while a button or field has
+    // focus, so tabbing to a racer chip and pressing Space still toggles it
+    // rather than rolling the wheel.
+    document.addEventListener('keydown', function(e) {
+        if (!cupOverlay.classList.contains('active')) return;
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            cupOverlay.classList.remove('active');
+            return;
+        }
+        if (e.key !== ' ' && e.key !== 'Enter') return;
+        const t = e.target;
+        if (t && (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        if (cupPickBtn.disabled) return;
+        e.preventDefault();
+        doCupPick();
+    });
+
     function openCupPicker() {
         cupOverlay.classList.add('active');
         cupResult.textContent = '🎰';
         cupStats.textContent = '';
+        cupContext.innerHTML = '';
         cupRacerDetails.innerHTML = '';
         cupMhInfo.innerHTML = '';
+        cupHost.hidden = true;
+        cupVetoBtn.hidden = true;
+        cupVetoed.clear();          // a fresh modal is a fresh set of vetoes
+        cupLastCup = null;
         cupWheel.classList.remove('spinning');
         cupResult.classList.remove('revealed');
         cupPickBtn.disabled = false;
@@ -676,20 +791,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function doCupPick() {
         cupPickBtn.disabled = true;
+        cupVetoBtn.disabled = true;
         cupResult.textContent = '🎰';
         cupStats.textContent = '';
+        cupContext.innerHTML = '';
         cupRacerDetails.innerHTML = '';
         cupMhInfo.innerHTML = '';
+        cupHost.hidden = true;
         cupResult.classList.remove('revealed');
         // Reset the log button until the fresh pick settles.
         cupLogBtn.hidden = true;
         cupLastPicked = null;
 
-        // Build URL with optional racer params
-        let url = '/pick-cup';
-        if (cupSelectedRacers.size > 0) {
-            url += '?racers=' + Array.from(cupSelectedRacers).join(',');
-        }
+        // Build URL with the selected racers and anything vetoed so far
+        const cupParams = new URLSearchParams();
+        if (cupSelectedRacers.size > 0) cupParams.set('racers', Array.from(cupSelectedRacers).join(','));
+        if (cupVetoed.size > 0) cupParams.set('exclude', Array.from(cupVetoed).join(','));
+        const url = '/pick-cup' + (cupParams.toString() ? '?' + cupParams.toString() : '');
 
         // Start spinning
         cupWheel.classList.add('spinning');
@@ -704,6 +822,48 @@ document.addEventListener('DOMContentLoaded', function() {
                     cupResult.classList.add('revealed');
                     cupStats.textContent = 'Raced ' + data.seasonRaceCount + ' time' + (data.seasonRaceCount !== 1 ? 's' : '') + ' this season';
                     cupPickBtn.disabled = false;
+                    cupLastCup = data.cup;
+
+                    // Kartificial's take. textContent, not innerHTML — the
+                    // line carries racer names straight out of the database.
+                    if (data.host && data.host.line) {
+                        cupHostLine.textContent = data.host.line;
+                        cupHost.className = 'cup-host cup-host--' + (data.host.mood || 'neutral');
+                        cupHost.hidden = false;
+                    }
+
+                    // The number to beat, and on Territory seasons the holder.
+                    const ctx = [];
+                    // On a Territory season the holder IS the best score in
+                    // that cup, so printing both says the same number twice.
+                    const dupHolder = data.territory && data.bestThisSeason
+                                      && data.territory.points === data.bestThisSeason.score;
+                    if (data.bestThisSeason && !dupHolder) {
+                        ctx.push(document.createTextNode('🎯 Number to beat: '));
+                        const b = document.createElement('b');
+                        b.textContent = data.bestThisSeason.score + ' pts (' + data.bestThisSeason.name + ')';
+                        ctx.push(b);
+                    }
+                    if (data.territory) {
+                        if (ctx.length) ctx.push(document.createElement('br'));
+                        ctx.push(document.createTextNode('🚩 Held by '));
+                        const h = document.createElement('b');
+                        h.className = 'cup-ctx-holder';
+                        h.textContent = data.territory.holder + ' — ' + data.territory.points + ' pts';
+                        ctx.push(h);
+                    }
+                    if (data.excludedToday && data.excludedToday.length && !data.relaxed) {
+                        if (ctx.length) ctx.push(document.createElement('br'));
+                        ctx.push(document.createTextNode(
+                            '⏭️ Skipping ' + data.excludedToday.length + ' cup' +
+                            (data.excludedToday.length !== 1 ? 's' : '') + ' already raced today'));
+                    }
+                    cupContext.innerHTML = '';
+                    ctx.forEach(n => cupContext.appendChild(n));
+
+                    // Veto is only meaningful while something else can be drawn.
+                    cupVetoBtn.hidden = false;
+                    cupVetoBtn.disabled = (cupVetoed.size + 1) >= data.allCups.length;
 
                     // Show MONSTER HUNT roles if applicable
                     if (data.is_monster_hunt && data.monster) {
@@ -763,6 +923,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 cupWheel.classList.remove('spinning');
                 cupResult.textContent = 'Error!';
                 cupPickBtn.disabled = false;
+                cupVetoBtn.disabled = false;
             });
     }
 

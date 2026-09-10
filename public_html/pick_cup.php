@@ -1,9 +1,22 @@
 <?php
 /**
- * Random Cup Picker - Weighted by Season Race Count
- * Supports optional racer filtering: picks cups that selected racers haven't done yet
- * In MONSTER HUNT seasons, also returns Monster/Party role assignments.
- * Path: /cdnmk/public_html/pick_cup.php
+ * Random Cup Picker — the JSON behind the "What cup?" wheel in the nav.
+ *
+ * Weighted by season race count (a cup nobody has raced this season floats to
+ * the top), boosted hard for cups the selected racers have never done, and in
+ * MONSTER HUNT seasons it also assigns the Monster and the adventurers.
+ *
+ * Two things it will not hand you:
+ *   - a cup already raced TODAY, because on a five-GP night the season-wide
+ *     weighting cheerfully returned the cup from ten minutes ago;
+ *   - anything in ?exclude=, which is the modal's "Not that one" veto list.
+ * Both relax rather than fail if they would leave nothing to draw from —
+ * today's cups come back first, since that rule is automatic, and an explicit
+ * veto is only overridden when there is literally nothing else left.
+ *
+ * Everything reads from the ONE season-results query in gp_logic's cache
+ * (§9). This used to run a COUNT per cup — 24 of them — plus a cup list and a
+ * name lookup per selected racer, so a single dice roll cost ~32 queries.
  */
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
@@ -11,219 +24,286 @@ require_once __DIR__ . '/../private/includes/mk_data.php';
 
 header('Content-Type: application/json');
 
-$cups = getMKAllCups();
-
-// Get current season
+$cups          = getMKAllCups();
 $currentSeason = getCurrentSeasonNumber();
 
-// Check if this is a MONSTER HUNT season
-$mhStmt = $pdo->prepare("SELECT scoring_system FROM season_meta WHERE season_id = ?");
-$mhStmt->execute([$currentSeason]);
-$seasonMeta = $mhStmt->fetch(PDO::FETCH_ASSOC);
-$isMonsterHunt = ($seasonMeta && $seasonMeta['scoring_system'] === 'monster_hunt');
-
-// Check for racer IDs (comma-separated)
-$racerIds = [];
-if (!empty($_GET['racers'])) {
-    $racerIds = array_map('intval', explode(',', $_GET['racers']));
-    $racerIds = array_filter($racerIds, fn($id) => $id > 0);
-}
-
-// If "list-racers" mode, return the racer list for the UI
+// "list-racers" mode: the chip row in the modal. Ordered by name (§10).
 if (isset($_GET['list-racers'])) {
-    $stmt = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC");
-    $allRacers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $allRacers = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['racers' => $allRacers]);
     exit;
 }
 
-// Get race counts for each cup in the current season
-$raceCounts = [];
-foreach ($cups as $cup) {
-    $stmt = $pdo->prepare("
-        SELECT COUNT(DISTINCT gpid) as count
-        FROM results
-        WHERE cup_name = ? AND gpid LIKE ?
-    ");
-    $stmt->execute([$cup, $currentSeason . "%"]);
-    $raceCounts[$cup] = (int)$stmt->fetchColumn();
+$rules          = getSeasonRules($pdo, $currentSeason);
+$scoringSystem  = $rules['scoring_system'] ?? 'average_attendance';
+$isMonsterHunt  = ($scoringSystem === 'monster_hunt');
+
+$racerIds = [];
+if (!empty($_GET['racers'])) {
+    $racerIds = array_values(array_filter(array_map('intval', explode(',', (string)$_GET['racers'])), fn($id) => $id > 0));
 }
 
-// If racers are specified, calculate per-racer cup completion
-$racerCupData = [];
-$missingCounts = []; // cup => how many of the selected racers haven't done it
+// ── One pass over the season cache ────────────────────────────────────────
+$names = racerNamesMap($pdo);
+$today = date('Y-m-d');
 
-if (!empty($racerIds)) {
-    foreach ($racerIds as $rid) {
-        $stmt = $pdo->prepare("
-            SELECT DISTINCT cup_name
-            FROM results
-            WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%'
-        ");
-        $stmt->execute([$rid, $currentSeason . '%']);
-        $racerCupData[$rid] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$gpsPerCup    = [];   // cup => [gpid => true]   (the DISTINCT gpid count)
+$racerCups    = [];   // rid => [cup => best points that racer scored there]
+$cupBest      = [];   // cup => ['racer_id' =>, 'points' =>, 'row_id' =>]
+$racedToday   = [];   // cup => true
+
+foreach (getSeasonResultsByRacer($pdo, $currentSeason) as $rid => $rows) {
+    $rid = (int)$rid;
+    foreach ($rows as $r) {
+        $cup = (string)($r['cup_name'] ?? '');
+        if ($cup === '') continue;
+        $pts   = (int)($r['gp_points'] ?? 0);
+        $rowId = (int)($r['id'] ?? 0);
+
+        $gpsPerCup[$cup][(string)($r['gpid'] ?? '')] = true;
+        if (!isset($racerCups[$rid][$cup]) || $pts > $racerCups[$rid][$cup]) $racerCups[$rid][$cup] = $pts;
+        if ((string)($r['race_date'] ?? '') === $today) $racedToday[$cup] = true;
+
+        // Season best per cup; ties go to the earlier row so the name shown
+        // does not depend on the query plan (§10).
+        if (!isset($cupBest[$cup])
+            || $pts > $cupBest[$cup]['points']
+            || ($pts === $cupBest[$cup]['points'] && $rowId < $cupBest[$cup]['row_id'])) {
+            $cupBest[$cup] = ['racer_id' => $rid, 'points' => $pts, 'row_id' => $rowId];
+        }
     }
+}
 
-    // For each cup, count how many selected racers are missing it
+$raceCounts = [];
+foreach ($cups as $cup) $raceCounts[$cup] = count($gpsPerCup[$cup] ?? []);
+
+// How many of the selected racers have never raced each cup this season.
+$missingCounts = [];
+if ($racerIds) {
     foreach ($cups as $cup) {
         $missing = 0;
-        foreach ($racerIds as $rid) {
-            if (!in_array($cup, $racerCupData[$rid] ?? [])) {
-                $missing++;
-            }
-        }
+        foreach ($racerIds as $rid) if (!isset($racerCups[$rid][$cup])) $missing++;
         $missingCounts[$cup] = $missing;
     }
 }
 
-// Calculate weights
-$maxCount = max($raceCounts) ?: 0;
-$weights = [];
-$totalWeight = 0;
-$racerCount = count($racerIds);
+// ── What we refuse to draw ────────────────────────────────────────────────
+$vetoed = [];
+if (!empty($_GET['exclude'])) {
+    foreach (explode(',', (string)$_GET['exclude']) as $c) {
+        $c = trim($c);
+        if ($c !== '' && in_array($c, $cups, true)) $vetoed[$c] = true;
+    }
+}
 
-foreach ($cups as $cup) {
-    // Base weight: less raced in season = higher weight
+$relaxed  = null;
+$eligible = array_values(array_filter($cups, fn($c) => !isset($vetoed[$c]) && !isset($racedToday[$c])));
+if (!$eligible) {   // a very long night: let today's cups back in first
+    $eligible = array_values(array_filter($cups, fn($c) => !isset($vetoed[$c])));
+    $relaxed  = 'today';
+}
+if (!$eligible) {   // everything vetoed too — the veto list has to give
+    $eligible = $cups;
+    $relaxed  = 'all';
+}
+
+// ── Weights ───────────────────────────────────────────────────────────────
+$maxCount    = $raceCounts ? max($raceCounts) : 0;
+$racerCount  = count($racerIds);
+$weights     = [];
+$totalWeight = 0;
+
+foreach ($eligible as $cup) {
+    // Base weight: less raced this season = more likely.
     $baseWeight = ($maxCount - $raceCounts[$cup]) + 1;
 
     if ($racerCount > 0) {
         $missing = $missingCounts[$cup];
-        if ($missing === $racerCount) {
-            // Nobody has done it — strongest boost
-            $weight = $baseWeight * 20;
-        } elseif ($missing > 0) {
-            // Some haven't done it — moderate boost
-            $weight = $baseWeight * (5 + ($missing * 5));
-        } else {
-            // Everyone has done it — minimal weight (still possible but unlikely)
-            $weight = 1;
-        }
+        if ($missing === $racerCount)  $weight = $baseWeight * 20;              // nobody has done it
+        elseif ($missing > 0)          $weight = $baseWeight * (5 + $missing * 5);
+        else                           $weight = 1;                             // everyone has
     } else {
         $weight = $baseWeight;
     }
 
     $weights[$cup] = $weight;
-    $totalWeight += $weight;
+    $totalWeight  += $weight;
 }
 
-// Pick a random cup based on weights
-$rand = mt_rand(1, max(1, $totalWeight));
+$rand         = mt_rand(1, max(1, $totalWeight));
 $runningTotal = 0;
-$selectedCup = $cups[0];
-
-foreach ($cups as $cup) {
+$selectedCup  = $eligible[0];
+foreach ($eligible as $cup) {
     $runningTotal += $weights[$cup];
-    if ($rand <= $runningTotal) {
-        $selectedCup = $cup;
-        break;
-    }
+    if ($rand <= $runningTotal) { $selectedCup = $cup; break; }
 }
 
-// Build MONSTER HUNT role data if applicable
+// ── MONSTER HUNT roles ────────────────────────────────────────────────────
 $mhData = null;
 if ($isMonsterHunt) {
     require_once __DIR__ . '/../private/includes/elo_engine.php';
-    $eloResult = calculateAllELORatings($pdo);
-    $allRatings = $eloResult['ratings']; // ['Name' => float, ...]
+    $allRatings = calculateAllELORatings($pdo)['ratings'];   // ['Name' => float]
 
-    // If the user selected racers, the role assignment is for THAT subset
-    // (the modal otherwise dumps the entire league as adventurers and
-    // pushes the action buttons off the viewport). Fall back to the full
-    // roster only when no racers were picked.
-    if (!empty($racerIds)) {
-        $placeholders = implode(',', array_fill(0, count($racerIds), '?'));
-        $participantStmt = $pdo->prepare("SELECT id, name FROM racers WHERE id IN ($placeholders) ORDER BY name ASC");
-        $participantStmt->execute($racerIds);
+    // Roles cover the selected racers when there are any; the whole roster
+    // otherwise dumps every name into the modal and pushes the buttons off
+    // the viewport.
+    $participants = [];
+    foreach (($racerIds ?: array_keys($names)) as $rid) {
+        $rid = (int)$rid;
+        if (!isset($names[$rid])) continue;
+        $participants[] = ['id' => $rid, 'name' => $names[$rid], 'elo' => (int)round($allRatings[$names[$rid]] ?? 1000)];
+    }
+    // Elo first, then name, so equal ratings do not order themselves (§10).
+    usort($participants, fn($a, $b) => ($b['elo'] <=> $a['elo']) ?: strcmp($a['name'], $b['name']));
+
+    if ($participants) {
+        // Highest Elo is the Monster — same rule as pickMonster() in gp_logic.
+        $monster     = $participants[0];
+        $adventurers = array_slice($participants, 1);
+
+        $advElo    = array_column($adventurers, 'elo');
+        $avgAdvElo = $advElo ? array_sum($advElo) / count($advElo) : $monster['elo'];
+        $eloGap    = max(0, $monster['elo'] - $avgAdvElo);
+        if      ($eloGap < 50)  { $monster['cr_tier'] = 1; $monster['cr_epithet'] = 'the Rival'; }
+        elseif  ($eloGap < 150) { $monster['cr_tier'] = 2; $monster['cr_epithet'] = 'the Beast'; }
+        elseif  ($eloGap < 300) { $monster['cr_tier'] = 3; $monster['cr_epithet'] = 'the Fearsome One'; }
+        else                    { $monster['cr_tier'] = 4; $monster['cr_epithet'] = 'the Dragon'; }
+
+        $mhData = ['monster' => $monster, 'adventurers' => $adventurers];
+    }
+}
+
+/**
+ * Kartificial's line about the draw. He already hosts the World Cup
+ * (wc_pickem.php, the bracket, /scoring-systems), so the cup wheel gets the
+ * same mascot rather than a second one.
+ *
+ * Deliberately NOT a Gemini call: every fact here is already computed above,
+ * so the patter is instant, free, works offline and cannot stall a game night
+ * behind a model timeout. He leads with the most interesting true thing and
+ * adds one supporting fact.
+ *
+ * @return array{line: string, mood: string}
+ */
+function kartificialLine(string $cup, array $f): array {
+    $pick = fn(array $lines) => $lines[mt_rand(0, count($lines) - 1)];
+
+    // Vetoes first — he is reacting to the player, not the draw.
+    if ($f['relaxed'] === 'all') {
+        return ['line' => "You have vetoed the entire garage. $cup it is. I do not make the rules.", 'mood' => 'grumpy'];
+    }
+    if ($f['vetoed'] >= 3) {
+        return ['line' => $pick([
+            "$cup. That is veto number {$f['vetoed']}. I am a random number generator, not a waiter.",
+            "Fine. $cup. Shall I keep going until you like one?",
+            "$cup, after {$f['vetoed']} rejections. My confidence is not what it was.",
+        ]), 'mood' => 'grumpy'];
+    }
+
+    $lead = null; $support = null; $mood = 'neutral';
+
+    if ($f['holder'] !== null) {
+        $lead = "$cup belongs to {$f['holder']['holder']} — {$f['holder']['points']} points of it.";
+        $support = 'Go and take it.';
+        $mood = 'excited';
+    } elseif ($f['racerCount'] > 0 && $f['missing'] === $f['racerCount']) {
+        $lead = "$cup. Not one of you has raced it this season.";
+        $mood = 'excited';
+    } elseif ($f['racerCount'] > 0 && $f['missing'] === 1 && $f['firstTimer'] !== null) {
+        $lead = "$cup — and {$f['firstTimer']} has never seen it.";
+        $mood = 'excited';
+    } elseif ($f['seasonRaceCount'] === 0) {
+        $lead = "$cup. Untouched all season.";
+        $mood = 'excited';
     } else {
-        $participantStmt = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC");
+        $lead = $pick([
+            "$cup. Raced {$f['seasonRaceCount']} times this season.",
+            "The wheel says $cup.",
+            "$cup. I have consulted the numbers.",
+        ]);
     }
-    $participants = $participantStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Build list with current Elo, sorted descending
-    $eloStandings = [];
-    foreach ($participants as $p) {
-        $eloStandings[] = [
-            'id'   => $p['id'],
-            'name' => $p['name'],
-            'elo'  => (int)round($allRatings[$p['name']] ?? 1000),
-        ];
+    if ($support === null && $f['best'] !== null) {
+        $support = "{$f['best']['name']}'s {$f['best']['score']} is the number to beat.";
     }
-    usort($eloStandings, fn($a, $b) => $b['elo'] <=> $a['elo']);
+    if ($support === null && $f['vetoed'] > 0) {
+        $support = $f['vetoed'] === 1 ? 'One cup rejected so far.' : "{$f['vetoed']} cups rejected so far.";
+    }
+    if ($support === null && $f['excludedToday'] > 0) {
+        $support = $f['excludedToday'] === 1
+            ? 'Skipping the one you already raced tonight.'
+            : "Skipping the {$f['excludedToday']} you already raced tonight.";
+    }
 
-    if (!empty($eloStandings)) {
-        // The Monster is the highest-Elo participant. Matches the post-GP
-        // pickMonster() helper in gp_logic.php.
-        $monster     = $eloStandings[0];
-        $monsterName = $monster['name'];
+    return ['line' => trim($lead . ($support ? ' ' . $support : '')), 'mood' => $mood];
+}
 
-        $adventurers = array_values(array_filter($eloStandings, fn($r) => $r['name'] !== $monsterName));
+// ── Response ──────────────────────────────────────────────────────────────
+$response = [
+    'cup'             => $selectedCup,
+    'seasonRaceCount' => $raceCounts[$selectedCup],
+    'allCups'         => $cups,
+    'is_monster_hunt' => $isMonsterHunt,
+    'excludedToday'   => array_values(array_keys($racedToday)),
+    'vetoedCount'     => count($vetoed),
+    'relaxed'         => $relaxed,
+];
 
-        // CR tier — gap between monster Elo and avg adventurer Elo
-        $advEloVals = array_column($adventurers, 'elo');
-        $avgAdvElo  = count($advEloVals) > 0
-            ? array_sum($advEloVals) / count($advEloVals)
-            : $monster['elo'];
-        $eloGap = max(0, $monster['elo'] - $avgAdvElo);
-        if      ($eloGap < 50)  { $crTier = 1; $crEpithet = 'the Rival'; }
-        elseif  ($eloGap < 150) { $crTier = 2; $crEpithet = 'the Beast'; }
-        elseif  ($eloGap < 300) { $crTier = 3; $crEpithet = 'the Fearsome One'; }
-        else                    { $crTier = 4; $crEpithet = 'the Dragon'; }
-        $monster['cr_tier']    = $crTier;
-        $monster['cr_epithet'] = $crEpithet;
+// The number to beat: the season's best score in this cup, whoever set it.
+if (isset($cupBest[$selectedCup])) {
+    $best = $cupBest[$selectedCup];
+    $response['bestThisSeason'] = [
+        'name'  => $names[$best['racer_id']] ?? 'Unknown',
+        'score' => $best['points'],
+    ];
+}
 
-        $mhData = [
-            'is_monster_hunt' => true,
-            'monster'         => $monster,
-            'adventurers'     => $adventurers,
+// Territory seasons: the draw is a raid, so say whose cup it is.
+if ($scoringSystem === 'territory') {
+    $hold = territorySeason($pdo, $currentSeason, $rules)['hold'] ?? [];
+    if (isset($hold[$selectedCup])) {
+        $response['territory'] = [
+            'holder' => $names[(int)$hold[$selectedCup]['racer_id']] ?? 'Unknown',
+            'points' => (int)$hold[$selectedCup]['points'],
         ];
     }
 }
 
-// Build response
-$response = [
-    'cup' => $selectedCup,
-    'seasonRaceCount' => $raceCounts[$selectedCup],
-    'allCups' => $cups,
-    'is_monster_hunt' => $isMonsterHunt,
-];
-
-// If racers were specified, add per-racer info for the selected cup
 if ($racerCount > 0) {
     $racerDetails = [];
     foreach ($racerIds as $rid) {
-        // Get racer name
-        $nameStmt = $pdo->prepare("SELECT name FROM racers WHERE id = ?");
-        $nameStmt->execute([$rid]);
-        $name = $nameStmt->fetchColumn() ?: 'Unknown';
-
-        $hasDone = in_array($selectedCup, $racerCupData[$rid] ?? []);
-
-        $bestScore = null;
-        if ($hasDone) {
-            $scoreStmt = $pdo->prepare("
-                SELECT MAX(gp_points) FROM results
-                WHERE racer_id = ? AND cup_name = ? AND gpid LIKE ? AND gpid LIKE 's%'
-            ");
-            $scoreStmt->execute([$rid, $selectedCup, $currentSeason . '%']);
-            $bestScore = (int)$scoreStmt->fetchColumn();
-        }
-
+        $best = $racerCups[$rid][$selectedCup] ?? null;
         $racerDetails[] = [
-            'id' => $rid,
-            'name' => $name,
-            'hasDone' => $hasDone,
-            'bestScore' => $bestScore
+            'id'        => $rid,
+            'name'      => $names[$rid] ?? 'Unknown',
+            'hasDone'   => $best !== null,
+            'bestScore' => $best,
         ];
     }
-
     $response['racerDetails'] = $racerDetails;
     $response['missingCount'] = $missingCounts[$selectedCup];
 }
 
-// Attach MONSTER HUNT role data
 if ($mhData) {
     $response['monster']     = $mhData['monster'];
     $response['adventurers'] = $mhData['adventurers'];
 }
+
+// The host has the last word — after every fact above is settled.
+$firstTimer = null;
+if ($racerCount > 0 && ($response['missingCount'] ?? 0) === 1) {
+    foreach ($response['racerDetails'] as $rd) if (!$rd['hasDone']) { $firstTimer = $rd['name']; break; }
+}
+$response['host'] = kartificialLine($selectedCup, [
+    'seasonRaceCount' => $raceCounts[$selectedCup],
+    'racerCount'      => $racerCount,
+    'missing'         => $missingCounts[$selectedCup] ?? 0,
+    'firstTimer'      => $firstTimer,
+    'best'            => $response['bestThisSeason'] ?? null,
+    'holder'          => $response['territory'] ?? null,
+    'vetoed'          => count($vetoed),
+    'excludedToday'   => count($racedToday),
+    'relaxed'         => $relaxed,
+]);
 
 echo json_encode($response);
