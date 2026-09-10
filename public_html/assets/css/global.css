@@ -2105,6 +2105,98 @@ select, textarea {
 }
 @media (prefers-reduced-motion: reduce) { .badge-icon--new::after { animation: none; } }
 
+/* ── The rotating box ────────────────────────────────────────────────────
+   One card at a time from /lexicon, /vault, /elo-trends, /predictions,
+   /multiverse and /fantasy. Hidden until /api/front-box answers. */
+.frontbox {
+    margin: 30px 0 10px;
+}
+.frontbox[hidden] { display: none !important; }
+
+.frontbox-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 18px 22px;
+    border: 3px solid var(--ink, #111);
+    border-radius: 18px;
+    background: var(--gray-50, #fafaf8);
+    box-shadow: 5px 5px 0 var(--ink, #111);
+    text-decoration: none;
+    color: inherit;
+    transition: transform .15s ease, box-shadow .15s ease, background .25s ease;
+}
+.frontbox-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 var(--ink, #111);
+}
+/* The fantasy card in its last 24 hours: it stops rotating, so it says so. */
+.frontbox--urgent .frontbox-card {
+    background: #fff6dc;
+    border-color: var(--nintendo-red, #e60012);
+    box-shadow: 5px 5px 0 var(--nintendo-red, #e60012);
+}
+
+.frontbox-icon { font-size: 2rem; line-height: 1.1; flex: 0 0 auto; }
+.frontbox-text { display: block; min-width: 0; }
+
+.frontbox-kicker {
+    display: block;
+    font-family: var(--font-display);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gray-500, #6b7280);
+    margin-bottom: 2px;
+}
+.frontbox--urgent .frontbox-kicker { color: var(--nintendo-red, #e60012); }
+
+.frontbox-headline {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+.frontbox-line {
+    display: block;
+    font-size: .9rem;
+    line-height: 1.45;
+    color: var(--gray-600, #4b5563);
+}
+
+.frontbox-dots {
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+    margin-top: 12px;
+}
+.frontbox-dot {
+    width: 8px; height: 8px;
+    padding: 0;
+    border: 2px solid var(--gray-400, #9ca3af);
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+}
+.frontbox-dot[aria-current="true"] {
+    background: var(--nintendo-red, #e60012);
+    border-color: var(--nintendo-red, #e60012);
+}
+
+@media (max-width: 600px) {
+    .frontbox-card { padding: 14px 16px; gap: 12px; }
+    .frontbox-icon { font-size: 1.6rem; }
+    .frontbox-headline { font-size: 1.05rem; }
+    .frontbox-line { font-size: .85rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .frontbox-card { transition: none; }
+}
+
 /* ── Territory overworld map (index.php, Territory seasons only) ── */
 .tt-switch { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
 .tt-seg { border: 1px solid var(--gray-200, #e2e6ee); background: var(--gray-100, #f3f6fb); color: var(--gray-600, #5b6478); font: inherit; font-weight: 700; font-size: .86rem; padding: 7px 14px; border-radius: 999px; cursor: pointer; }

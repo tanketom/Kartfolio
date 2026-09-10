@@ -15,6 +15,42 @@
  */
 
 /**
+ * This week's fantasy deadline: Sunday 18:00, the boundary a fantasy week
+ * runs to. Lives here because the homepage's rotating box needs the same
+ * answer /fantasy shows, and a second copy of the arithmetic is how two
+ * surfaces start disagreeing about when picks close.
+ *
+ * @return array{deadline: DateTime, open: bool, week_key: string, seconds_left: int, human: string}
+ */
+function fantasyDeadline(?DateTime $now = null): array {
+    $now = $now ?? new DateTime();
+    $dayOfWeek   = (int)$now->format('N');
+    $currentHour = (int)$now->format('H');
+
+    $deadline = clone $now;
+    if ($dayOfWeek < 7 || ($dayOfWeek === 7 && $currentHour < 18)) {
+        $deadline->modify('Sunday this week');
+    } else {
+        $deadline->modify('next Sunday');
+    }
+    $deadline->setTime(18, 0, 0);
+
+    $secondsLeft = $deadline->getTimestamp() - $now->getTimestamp();
+    $diff = $now->diff($deadline);
+    if ($diff->days > 0)      $human = $diff->days . 'd ' . $diff->h . 'h remaining';
+    elseif ($diff->h > 0)     $human = $diff->h . 'h ' . $diff->i . 'm remaining';
+    else                      $human = $diff->i . 'm remaining';
+
+    return [
+        'deadline'     => $deadline,
+        'open'         => $now < $deadline,
+        'week_key'     => $deadline->format('Y-\WW'),
+        'seconds_left' => max(0, $secondsLeft),
+        'human'        => $human,
+    ];
+}
+
+/**
  * Aggregate board. $seasonId null = all time; otherwise that season only.
  * Rows: predictor_id, racer_id, guest_name, display_name, total_points,
  * weeks_played, hit counts, locks, accuracy_pct.

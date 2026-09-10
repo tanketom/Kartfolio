@@ -83,6 +83,7 @@ RewriteRule ^api/press-release$ api/publish_press_release.php [L,QSA]
 RewriteRule ^api/track-preference-vote$ api/vote_track_preference.php [L,QSA]
 RewriteRule ^api/generate-track-musings$ api/generate_track_musings.php [L,QSA]
 RewriteRule ^api/commish-digest$ api/generate_commish_digest.php [L,QSA]
+RewriteRule ^api/front-box$ api/front_box.php [L,QSA]
 # Read-only public JSON API (v1)
 RewriteRule ^api/v1/([a-z_]+)$ api/data.php?resource=$1 [L,QSA]
 

@@ -622,6 +622,88 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, { passive: false });
 
+    // ========================================================================
+    // THE ROTATING BOX
+    // ------------------------------------------------------------------------
+    // Cards come from /api/front-box, fetched after the page has rendered so
+    // the homepage's own render never waits on the Elo engine. Fantasy pins
+    // itself to the front and stops the rotation in the last 24 hours before
+    // the deadline — that is the one card that expires.
+    // ========================================================================
+    const fbBox = document.getElementById('frontbox');
+    if (fbBox) {
+        const fbCard     = document.getElementById('frontbox-card');
+        const fbIcon     = document.getElementById('frontbox-icon');
+        const fbKicker   = document.getElementById('frontbox-kicker');
+        const fbHeadline = document.getElementById('frontbox-headline');
+        const fbLine     = document.getElementById('frontbox-line');
+        const fbDots     = document.getElementById('frontbox-dots');
+
+        let fbCards = [], fbAt = 0, fbTimer = null, fbPinned = false;
+
+        function fbRender(i) {
+            const c = fbCards[i];
+            if (!c) return;
+            fbAt = i;
+            // textContent throughout: these lines carry racer names and
+            // hand-written lexicon definitions straight out of the database.
+            fbIcon.textContent     = c.icon || '';
+            fbKicker.textContent   = c.kicker || '';
+            fbHeadline.textContent = c.headline || '';
+            fbLine.textContent     = c.line || '';
+            fbCard.setAttribute('href', c.href || '#');
+            fbBox.classList.toggle('frontbox--urgent', !!c.urgent);
+            fbDots.querySelectorAll('.frontbox-dot').forEach((d, n) =>
+                d.setAttribute('aria-current', n === i ? 'true' : 'false'));
+        }
+
+        function fbAdvance() { fbRender((fbAt + 1) % fbCards.length); }
+
+        function fbStart() {
+            if (fbTimer) clearInterval(fbTimer);
+            if (fbPinned || fbCards.length < 2) return;
+            fbTimer = setInterval(fbAdvance, 9000);
+        }
+
+        fetch('/api/front-box')
+            .then(r => r.json())
+            .then(data => {
+                fbCards = Array.isArray(data.cards) ? data.cards : [];
+                if (!fbCards.length) return;          // nothing true to say: stay hidden
+
+                // A fantasy card inside its last 24 hours holds the box.
+                fbPinned = !!fbCards[0].urgent;
+                if (fbPinned) fbCards = [fbCards[0]];
+
+                fbCards.forEach((c, i) => {
+                    const dot = document.createElement('button');
+                    dot.type = 'button';
+                    dot.className = 'frontbox-dot';
+                    dot.setAttribute('aria-label', c.kicker || ('Card ' + (i + 1)));
+                    dot.addEventListener('click', e => {
+                        e.preventDefault();
+                        fbRender(i);
+                        fbStart();                     // a click restarts the clock
+                    });
+                    fbDots.appendChild(dot);
+                });
+                fbDots.hidden = fbCards.length < 2;
+
+                fbRender(0);
+                fbBox.hidden = false;
+                fbStart();
+
+                // Don't rotate under someone who is reading, or in a tab
+                // nobody is looking at.
+                fbBox.addEventListener('mouseenter', () => { if (fbTimer) clearInterval(fbTimer); });
+                fbBox.addEventListener('mouseleave', fbStart);
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) { if (fbTimer) clearInterval(fbTimer); } else fbStart();
+                });
+            })
+            .catch(() => { /* the box simply never appears */ });
+    }
+
     // Cup Picker Functionality
     const cupPickerBtn = document.getElementById('cup-picker-btn');
     const cupOverlay = document.getElementById('cup-picker-overlay');

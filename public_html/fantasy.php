@@ -29,31 +29,16 @@ require_once __DIR__ . '/../private/includes/fantasy.php';
 // ============================================================
 $currentSeason = getCurrentSeasonNumber();
 $now = new DateTime();
-$dayOfWeek = (int)$now->format('N');
-$currentHour = (int)$now->format('H');
 
-$deadline = clone $now;
-if ($dayOfWeek < 7 || ($dayOfWeek === 7 && $currentHour < 18)) {
-    $deadline->modify('Sunday this week');
-} else {
-    $deadline->modify('next Sunday');
-}
-$deadline->setTime(18, 0, 0);
-
-$submissionsOpen = $now < $deadline;
-$deadlineFormatted = $deadline->format('l, M j \a\t g:i A');
-$timeRemaining = $now->diff($deadline);
-
-if ($timeRemaining->days > 0) {
-    $timeRemainingStr = $timeRemaining->days . 'd ' . $timeRemaining->h . 'h remaining';
-} elseif ($timeRemaining->h > 0) {
-    $timeRemainingStr = $timeRemaining->h . 'h ' . $timeRemaining->i . 'm remaining';
-} else {
-    $timeRemainingStr = $timeRemaining->i . 'm remaining';
-}
-
-// Week key: e.g. "2025-W07" based on the deadline date
-$weekKey = $deadline->format('Y-\\WW');
+// One deadline calculation, shared with the homepage's rotating box
+// (fantasyDeadline() in private/includes/fantasy.php). It used to live only
+// here, and the box needed the same answer.
+$fd                = fantasyDeadline($now);
+$deadline          = $fd['deadline'];
+$submissionsOpen   = $fd['open'];
+$deadlineFormatted = $deadline->format('l, M j \\a\\t g:i A');
+$timeRemainingStr  = $fd['human'];
+$weekKey           = $fd['week_key'];
 
 /**
  * Make sure this week's row exists — called from the bet-submission POST,
