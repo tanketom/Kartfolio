@@ -36,4 +36,7 @@ $file = $root . '/' . str_replace('-', '_', trim($uri, '/')) . '.php';
 if (is_file($file)) { require $file; return true; }
 $sub = $root . trim($uri, '/') . '.php';                              // admin/seasons → admin/seasons.php
 if (is_file($root . '/' . trim($uri, '/') . '.php')) { require $root . '/' . trim($uri, '/') . '.php'; return true; }
-http_response_code(404); echo "404 — no route for " . htmlspecialchars($uri);
+// Same 404 the live site serves, so a missing asset looks the same in dev.
+$_SERVER['REDIRECT_URL'] = $uri;
+require $root . '/404.php';
+return true;

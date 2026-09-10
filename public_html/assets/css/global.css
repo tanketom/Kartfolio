@@ -2105,6 +2105,49 @@ select, textarea {
 }
 @media (prefers-reduced-motion: reduce) { .badge-icon--new::after { animation: none; } }
 
+/* ── 404 ─────────────────────────────────────────────────────────────── */
+.notfound {
+    text-align: center;
+    padding: 60px 20px 70px;
+}
+.notfound-code {
+    font-family: var(--font-mono);
+    font-size: 5rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--nintendo-red, #e60012);
+    letter-spacing: -.04em;
+}
+.notfound-title {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    margin: 10px 0 12px;
+}
+.notfound-line {
+    max-width: 46ch;
+    margin: 0 auto 26px;
+    color: var(--gray-600, #4b5563);
+    line-height: 1.6;
+}
+.notfound-line code {
+    background: var(--gray-100, #f3f4f6);
+    border-radius: 6px;
+    padding: 2px 6px;
+    word-break: break-all;
+}
+.notfound-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+@media (max-width: 600px) {
+    .notfound { padding: 40px 12px 50px; }
+    .notfound-code { font-size: 3.5rem; }
+    .notfound-title { font-size: 1.5rem; }
+}
+
 /* ── The rotating box ────────────────────────────────────────────────────
    One card at a time from /lexicon, /vault, /elo-trends, /predictions,
    /multiverse and /fantasy. Hidden until /api/front-box answers. */

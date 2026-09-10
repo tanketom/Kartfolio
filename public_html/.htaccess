@@ -206,8 +206,11 @@ RewriteRule ^ %1 [R=301,L]
 # 6. ERROR HANDLING
 # ----------------------------------------------------------------------
 
-# Redirect 404 errors to homepage
-ErrorDocument 404 /index.php
+# A real 404, with a real status. This used to be /index.php, so every miss
+# served the homepage — and a PHP ErrorDocument answers with its own status,
+# which meant a broken stylesheet, image or link came back 200 OK and stayed
+# invisible. 404.php sets the status and answers assets in plain text.
+ErrorDocument 404 /404.php
 
 # Optional: Custom error pages
 # ErrorDocument 403 /error/403.html
