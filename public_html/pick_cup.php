@@ -27,10 +27,33 @@ header('Content-Type: application/json');
 $cups          = getMKAllCups();
 $currentSeason = getCurrentSeasonNumber();
 
-// "list-racers" mode: the chip row in the modal. Ordered by name (§10).
+// "list-racers" mode: everything the modal needs before its first spin —
+// the chip row (ordered by name, §10), the cup list so the wheel can riffle
+// through names while it thinks, and who raced the most recent GP, which the
+// modal preselects so a game night does not retype its own line-up.
 if (isset($_GET['list-racers'])) {
     $allRacers = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['racers' => $allRacers]);
+
+    $lastGpid = null; $lastKey = ''; $byGp = [];
+    foreach (getSeasonResultsByRacer($pdo, $currentSeason) as $rid => $rows) {
+        foreach ($rows as $r) {
+            $gpid = (string)($r['gpid'] ?? '');
+            if ($gpid === '') continue;
+            $byGp[$gpid][(int)$rid] = true;
+            // Latest race date wins, then the highest gpid on that date (§10).
+            $key = (string)($r['race_date'] ?? '') . '|' . $gpid;
+            if ($key > $lastKey) { $lastKey = $key; $lastGpid = $gpid; }
+        }
+    }
+
+    echo json_encode([
+        'racers'  => $allRacers,
+        'allCups' => $cups,
+        'lastGp'  => $lastGpid === null ? null : [
+            'gpid'   => $lastGpid,
+            'racers' => array_slice(array_keys($byGp[$lastGpid]), 0, MK_MAX_HUMAN_PLAYERS),
+        ],
+    ]);
     exit;
 }
 

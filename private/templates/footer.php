@@ -87,14 +87,6 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     <div class="cup-wheel-container">
         <div class="cup-wheel-title">WHAT CUP?</div>
 
-        <!-- Kartificial hosts the World Cup already; the wheel gets the same
-             mascot rather than a second one. His line is built server-side
-             from the draw's own facts — no model call, so it cannot stall. -->
-        <div class="cup-host" id="cup-host" hidden>
-            <img src="/assets/img/kartificial.png" class="cup-host-img" alt="Kartificial" onerror="this.style.display='none'">
-            <div class="cup-host-bubble" id="cup-host-line"></div>
-        </div>
-
         <!-- Racer Selection Panel -->
         <div class="cup-racer-panel" id="cup-racer-panel">
             <div class="cup-racer-label">Who's playing?</div>
@@ -102,9 +94,17 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
             <div class="cup-racer-hint">Select 2-<?= MK_MAX_HUMAN_PLAYERS ?> racers to find a cup most haven't done</div>
         </div>
 
-        <div class="cup-wheel" id="cup-wheel">
-            <div class="cup-wheel-result" id="cup-result">🎰</div>
+        <!-- Kartificial IS the wheel. He hosts the World Cup already, so the
+             cup draw gets the same mascot rather than a red ring and a slot
+             emoji: he is on screen from the moment the modal opens, nagging
+             you to pick, riffling through cup names while he "thinks", and
+             announcing the draw. His lines are built server-side from the
+             draw's own facts — no model call, so nothing can stall. -->
+        <div class="cup-stage" id="cup-wheel">
+            <img src="/assets/img/kartificial.png" class="cup-stage-img" alt="Kartificial" onerror="this.style.visibility='hidden'">
+            <div class="cup-host-bubble" id="cup-host-line"></div>
         </div>
+        <div class="cup-wheel-result" id="cup-result"></div>
         <div class="cup-wheel-stats" id="cup-stats"></div>
         <div class="cup-context" id="cup-context"></div>
         <div class="cup-mh-info" id="cup-mh-info"></div>
@@ -158,42 +158,46 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     letter-spacing: 2px;
 }
 
-.cup-wheel {
-    width: 300px;
-    height: 300px;
-    margin: 0 auto 30px;
-    background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
-    border-radius: 50%;
+/* The stage replaces the old 300px red ring: portrait left, speech bubble
+   right, both present from the moment the modal opens. */
+.cup-stage {
     display: flex;
     align-items: center;
-    justify-content: center;
-    border: 8px solid var(--nintendo-red);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2), inset 0 0 30px rgba(0, 0, 0, 0.1);
-    position: relative;
-    transition: transform 0.3s ease;
+    gap: 14px;
+    text-align: left;
+    margin: 0 0 18px;
+}
+.cup-stage-img {
+    width: 104px;
+    height: 104px;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+.cup-stage.spinning .cup-stage-img {
+    animation: kartificialThink 0.55s ease-in-out infinite;
 }
 
-.cup-wheel.spinning {
-    animation: wheelSpin 3s cubic-bezier(0.17, 0.67, 0.12, 0.99);
-}
-
-@keyframes wheelSpin {
-    0% { transform: rotate(0deg) scale(1); }
-    20% { transform: rotate(720deg) scale(1.05); }
-    40% { transform: rotate(1440deg) scale(1); }
-    60% { transform: rotate(2160deg) scale(1.05); }
-    80% { transform: rotate(2880deg) scale(1); }
-    100% { transform: rotate(3600deg) scale(1); }
+/* He rocks while he thinks — the wheel's job, minus the wheel. */
+@keyframes kartificialThink {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50%      { transform: translateY(-9px) rotate(4deg); }
 }
 
 .cup-wheel-result {
-    font-size: 4rem;
+    /* No longer boxed inside a 300px circle, so it can run full width — but
+       "Golden Dash Cup" at the old 4rem overflowed the modal. */
+    font-size: 2.6rem;
     font-weight: 900;
     color: #333;
     text-transform: uppercase;
     letter-spacing: -1px;
-    line-height: 1;
+    line-height: 1.05;
+    min-height: 2.7rem;
+    margin-bottom: 10px;
 }
+.cup-wheel-result:empty { min-height: 0; }
+/* The names he riffles through before settling on one. */
+.cup-wheel-result.riffling { color: #bbb; }
 
 .cup-wheel-result.revealed {
     animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -224,15 +228,6 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
 .cup-context .cup-ctx-holder { color: #b8860b; }
 
 /* The host: portrait left, speech bubble right. */
-.cup-host {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    text-align: left;
-    margin: 0 0 18px;
-}
-.cup-host[hidden] { display: none !important; }
-.cup-host-img { width: 56px; height: 56px; flex: 0 0 auto; object-fit: contain; }
 .cup-host-bubble {
     position: relative;
     flex: 1;
@@ -253,8 +248,8 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     border: 8px solid transparent;
     border-right-color: var(--ink, #111);
 }
-.cup-host--grumpy .cup-host-bubble { background: #fdf0e8; }
-.cup-host--excited .cup-host-bubble { background: #fff6dc; }
+.cup-stage--grumpy .cup-host-bubble { background: #fdf0e8; }
+.cup-stage--excited .cup-host-bubble { background: #fff6dc; }
 
 /* Racer Selection Panel */
 .cup-racer-panel {
@@ -535,7 +530,8 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     .cup-racer-chip { padding: 5px 10px; font-size: 0.72rem; }
     .cup-buttons { flex-direction: column; }
     .cup-pick-btn, .cup-close-btn, .cup-log-btn, .cup-veto-btn { width: 100%; }
-    .cup-host-img { width: 44px; height: 44px; }
+    .cup-stage-img { width: 76px; height: 76px; }
+    .cup-wheel-result { font-size: 2rem; }
 }
 
 </style>
@@ -640,7 +636,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const cupMhInfo = document.getElementById('cup-mh-info');
     const cupVetoBtn = document.getElementById('cup-veto-btn');
     const cupContext = document.getElementById('cup-context');
-    const cupHost = document.getElementById('cup-host');
     const cupHostLine = document.getElementById('cup-host-line');
 
     // What got picked most recently — used by the "Log this GP" button.
@@ -654,6 +649,49 @@ document.addEventListener('DOMContentLoaded', function() {
     // Cups turned down this time the modal was opened. The server excludes
     // them, so "Not that one" can never hand back the cup you just rejected.
     let cupVetoed = new Set();
+    let cupAllCups = [];        // names to riffle through while he "thinks"
+    let cupLastGpRacers = [];   // who raced the most recent GP
+    let cupPreselected = false; // whether this open's chips came from that GP
+    let cupRiffle = null;       // the riffle interval handle
+
+    const CUP_MAX = <?= MK_MAX_HUMAN_PLAYERS ?>;
+
+    function cupSetMood(mood) {
+        cupWheel.classList.remove('cup-stage--neutral', 'cup-stage--grumpy', 'cup-stage--excited');
+        cupWheel.classList.add('cup-stage--' + (mood || 'neutral'));
+    }
+
+    // What Kartificial says before there is anything to say about a draw. He
+    // is on screen the whole time, so he may as well be useful about it.
+    function cupIdleLine() {
+        const n = cupSelectedRacers.size;
+        if (n === 0) return 'Right. Who is playing? Tap the names, then I will choose a cup.';
+        if (n === 1) return 'One racer is not a Grand Prix. Add at least one more.';
+        if (cupPreselected) return 'Same line-up as the last GP. Hit PICK and I will choose.';
+        return n + ' racers. Hit PICK and I will choose.';
+    }
+
+    function cupShowIdle() {
+        cupHostLine.textContent = cupIdleLine();
+        cupSetMood('neutral');
+    }
+
+    function cupStopRiffle() {
+        if (cupRiffle) { clearInterval(cupRiffle); cupRiffle = null; }
+        cupResult.classList.remove('riffling');
+    }
+
+    // Preselect the racers from the most recent GP — a game night should not
+    // have to retype its own line-up. Never clobbers a manual selection.
+    function cupPreselectLastGp() {
+        cupPreselected = false;
+        if (cupSelectedRacers.size > 0 || !cupLastGpRacers.length) return;
+        cupLastGpRacers.slice(0, CUP_MAX).forEach(function (id) {
+            const chip = cupRacerChips.querySelector('[data-id="' + id + '"]');
+            if (chip && !chip.classList.contains('selected')) toggleRacerChip(chip, Number(id));
+        });
+        cupPreselected = cupSelectedRacers.size > 0;
+    }
 
     if (cupPickerBtn) {
         cupPickerBtn.addEventListener('click', function(e) {
@@ -727,12 +765,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function openCupPicker() {
         cupOverlay.classList.add('active');
-        cupResult.textContent = '🎰';
+        cupStopRiffle();
+        cupResult.textContent = '';
         cupStats.textContent = '';
         cupContext.innerHTML = '';
         cupRacerDetails.innerHTML = '';
         cupMhInfo.innerHTML = '';
-        cupHost.hidden = true;
         cupVetoBtn.hidden = true;
         cupVetoed.clear();          // a fresh modal is a fresh set of vetoes
         cupLastCup = null;
@@ -743,8 +781,9 @@ document.addEventListener('DOMContentLoaded', function() {
         cupLogBtn.hidden = true;
         cupLastPicked = null;
 
-        // Load racer list once
+        // Load the roster, the cup list and the last GP's line-up once
         if (!cupRacersLoaded) {
+            cupHostLine.textContent = 'One moment, fetching the roster.';
             fetch('/pick-cup?list-racers')
                 .then(r => r.json())
                 .then(data => {
@@ -759,8 +798,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         });
                         cupRacerChips.appendChild(chip);
                     });
+                    cupAllCups = data.allCups || [];
+                    cupLastGpRacers = (data.lastGp && data.lastGp.racers) || [];
                     cupRacersLoaded = true;
-                });
+                    cupPreselectLastGp();
+                    cupShowIdle();
+                })
+                .catch(() => { cupHostLine.textContent = 'I cannot reach the roster. Try again?'; });
+        } else {
+            cupPreselectLastGp();
+            cupShowIdle();
         }
     }
 
@@ -773,6 +820,15 @@ document.addEventListener('DOMContentLoaded', function() {
             cupSelectedRacers.add(racerId);
             chip.classList.add('selected');
         }
+        // Any manual change means the line-up is no longer "last GP's".
+        if (cupPreselected) {
+            const same = cupSelectedRacers.size === Math.min(cupLastGpRacers.length, CUP_MAX)
+                         && cupLastGpRacers.slice(0, CUP_MAX).every(id => cupSelectedRacers.has(Number(id)));
+            if (!same) cupPreselected = false;
+        }
+        // Only re-nag while no draw is on screen, so a result is not wiped.
+        if (!cupLastCup) cupShowIdle();
+
         // Update hint text
         const hint = document.querySelector('.cup-racer-hint');
         if (hint) {
@@ -792,13 +848,23 @@ document.addEventListener('DOMContentLoaded', function() {
     function doCupPick() {
         cupPickBtn.disabled = true;
         cupVetoBtn.disabled = true;
-        cupResult.textContent = '🎰';
         cupStats.textContent = '';
         cupContext.innerHTML = '';
         cupRacerDetails.innerHTML = '';
         cupMhInfo.innerHTML = '';
-        cupHost.hidden = true;
         cupResult.classList.remove('revealed');
+        cupHostLine.textContent = cupVetoed.size ? 'Fine. Looking again…' : 'Let me have a look…';
+        cupSetMood('neutral');
+
+        // The slot-machine feel, without the slot machine: names flick past
+        // while he rocks, then one of them stays.
+        cupStopRiffle();
+        if (cupAllCups.length) {
+            cupResult.classList.add('riffling');
+            cupRiffle = setInterval(function () {
+                cupResult.textContent = cupAllCups[Math.floor(Math.random() * cupAllCups.length)] + ' Cup';
+            }, 90);
+        }
         // Reset the log button until the fresh pick settles.
         cupLogBtn.hidden = true;
         cupLastPicked = null;
@@ -818,6 +884,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Wait for spin animation
                 setTimeout(() => {
                     cupWheel.classList.remove('spinning');
+                    cupStopRiffle();
                     cupResult.textContent = data.cup + ' Cup';
                     cupResult.classList.add('revealed');
                     cupStats.textContent = 'Raced ' + data.seasonRaceCount + ' time' + (data.seasonRaceCount !== 1 ? 's' : '') + ' this season';
@@ -828,9 +895,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     // line carries racer names straight out of the database.
                     if (data.host && data.host.line) {
                         cupHostLine.textContent = data.host.line;
-                        cupHost.className = 'cup-host cup-host--' + (data.host.mood || 'neutral');
-                        cupHost.hidden = false;
+                        cupSetMood(data.host.mood);
                     }
+                    if (data.allCups) cupAllCups = data.allCups;
 
                     // The number to beat, and on Territory seasons the holder.
                     const ctx = [];
@@ -921,7 +988,10 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error picking cup:', error);
                 cupWheel.classList.remove('spinning');
-                cupResult.textContent = 'Error!';
+                cupStopRiffle();
+                cupResult.textContent = '';
+                cupHostLine.textContent = 'Something went wrong down here. Try again?';
+                cupSetMood('grumpy');
                 cupPickBtn.disabled = false;
                 cupVetoBtn.disabled = false;
             });
