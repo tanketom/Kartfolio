@@ -103,7 +103,9 @@ RewriteRule ^lexicon$ lexicon.php [L,QSA]
 RewriteRule ^season-yearbook$ yearbook.php [L,QSA]
 RewriteRule ^lexicon/([a-z0-9-]+)$ lexicon.php?term=$1 [L,QSA]
 # The Vault is the second half of the Record Book now.
-RewriteRule ^vault$ /records#vault [R=301,L]
+# NE (noescape) is load-bearing: without it Apache escapes the # and sends
+# the browser to /records%23vault, which is a path, not an anchor, and 404s.
+RewriteRule ^vault$ /records#vault [R=301,NE,L]
 RewriteRule ^season-chart$ season_chart.php [L,QSA]
 RewriteRule ^wrapped$ wrapped.php [L,QSA]
 RewriteRule ^wrapped/([0-9]+)$ wrapped.php?racer=$1 [L,QSA]
