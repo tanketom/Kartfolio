@@ -90,9 +90,22 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0): array
 
     sortStandingsByScoring($rows, $system, $pdo, $seasonId);
 
+    // Racers who have not raced enough to qualify drop below everyone who has,
+    // and take no rank number with them. They used to sit wherever their score
+    // put them and silently consume a place: on a season with the threshold at
+    // 20, Tegan was the 4th eligible racer and seasonPlacements() called her
+    // 4th, while the homepage showed #5 because an ineligible racer above her
+    // had eaten rank 4. Both halves of the sort are already score-ordered, and
+    // array_filter preserves order, so this is a stable partition.
+    $eligible   = array_values(array_filter($rows, fn($r) => $r['qualifies']));
+    $ineligible = array_values(array_filter($rows, fn($r) => !$r['qualifies']));
+    $rows = array_merge($eligible, $ineligible);
+
+    $place = 0;
     foreach ($rows as $i => &$row) {
-        $row['rank'] = $i + 1;
-        $prevRank = $previous[$row['id']] ?? null;
+        // null, not a number, for anyone who does not hold a place.
+        $row['rank'] = $row['qualifies'] ? ++$place : null;
+        $prevRank = $row['qualifies'] ? ($previous[$row['id']] ?? null) : null;
         $row['rank_change'] = $prevRank !== null ? $prevRank - $row['rank'] : null;
         // Level with the racer above? Say what separated them (registry tie_explain, §2a).
         $row['tie'] = ($i > 0 && $row['qualifies'] && $rows[$i - 1]['score'] == $row['score'])

@@ -73,6 +73,15 @@
     margin-top: 20px;
 }
 
+/* A roster racer who has not raced yet — the card stays, the numbers do not. */
+.career-empty {
+    text-align: center;
+    padding: 28px 20px 24px;
+}
+.career-empty-icon { font-size: 2.6rem; line-height: 1; margin-bottom: 10px; }
+.career-empty-line { font-size: 1.05rem; margin: 0 0 6px; }
+.career-empty-sub { color: var(--gray-500, #6b7280); font-size: .9rem; margin: 0 0 18px; }
+
 .racer-career-card {
     height: 100%;
 }

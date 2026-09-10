@@ -708,6 +708,19 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
         <!-- Right: Career Stats Overview -->
         <div class="card racer-career-card">
             <h2 class="card-header">Career Statistics</h2>
+            <?php if ((int)($careerStats['total_gps'] ?? 0) === 0): ?>
+                <?php /* A racer added to the roster but never raced: the aggregate
+                         query returns a row of NULLs, so every number_format()
+                         below was fed null — three deprecations per view into the
+                         error log, and a fatal TypeError once PHP drops the
+                         coercion. An empty state says the true thing instead. */ ?>
+                <div class="career-empty">
+                    <div class="career-empty-icon">🏁</div>
+                    <p class="career-empty-line"><strong><?= htmlspecialchars($racer['name']) ?></strong> has no recorded GPs yet.</p>
+                    <p class="career-empty-sub">They should race! Results show up here the moment their first Grand Prix is logged.</p>
+                    <a class="btn btn-primary" href="/add-result">Log a Grand Prix</a>
+                </div>
+            <?php else: ?>
             <div class="career-stats-grid">
                 <div class="stat-box">
                     <div class="stat-label">Total GPs</div>
@@ -742,6 +755,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="stat-value stat-value--lg"><?= number_format($careerStats['avg_finish'], 1) ?></div>
                 </div>
             </div>
+            <?php endif; ?>
             <div class="career-accolades" title="Final placements in archived seasons">
                 <div class="career-accolades-label">Season accolades<?= $accoladeSeasons ? ' <small>' . $accoladeSeasons . ' season' . ($accoladeSeasons === 1 ? '' : 's') . ' completed</small>' : '' ?></div>
                 <div class="career-accolades-medals">

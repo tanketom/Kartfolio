@@ -18,29 +18,8 @@ function mvName(array $def, array $rules): string { return is_callable($def['nam
 $names    = racerNamesMap($pdo);
 $seasons  = $pdo->query("SELECT season_id, scoring_system, champion_name FROM season_meta WHERE status = 'archived' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-/** Top three under one system for one season: [['id','name','score'], …] + field size. */
-function multiverseTop(PDO $pdo, string $season_id, string $system): array {
-    $def   = getScoringSystemDef($system);
-    $rules = getSeasonRules($pdo, $season_id) ?: ['min_races_threshold' => 3];
-    $rules['scoring_system'] = $system;
-    $names = racerNamesMap($pdo);
-    $rows  = [];
-    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rrows) {
-        if (!racerQualifies(count($rrows), $rules)) continue;
-        $rows[] = ['id' => (int)$rid, 'name' => (string)($names[$rid] ?? ''), 'score' => round((float)($def['calculate'])($pdo, (int)$rid, $season_id, $rules), 2)];
-    }
-    sortStandingsByScoring($rows, $system, $pdo, $season_id);
-    // A universe where nobody can be separated has no verdict: Random Cup Draw
-    // with no draw assigned scores everyone 0, and the alphabetical tie-break
-    // would otherwise crown whoever's name sorts first.
-    $scores = array_unique(array_map(fn($r) => (string)$r['score'], $rows));
-    if (count($rows) > 1 && count($scores) === 1) {
-        $why = $system === 'random_cup_draw' ? 'no cups were drawn' : 'everyone level on ' . scoreNum($rows[0]['score']);
-        return ['top' => [], 'field' => count($rows), 'void' => $why];
-    }
-    $top = array_map(fn($r) => ['id' => $r['id'], 'name' => $r['name'], 'score' => $r['score']], array_slice($rows, 0, 3));
-    return ['top' => $top, 'field' => count($rows)];
-}
+// multiverseTop() lives in gp_logic.php — the homepage's rotating box
+// re-scores the season the same way and must not keep a second copy.
 
 $universe = [];   // season => system => ['top'=>…, 'field'=>n]
 $wins     = [];   // name => [season => count]

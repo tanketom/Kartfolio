@@ -2370,10 +2370,15 @@ function calculatePreviousStandings($pdo, $season_id, $latestDate, $rules = []) 
     // The shared season cache holds every row with race_date; filter in PHP
     // to the rows that existed before the latest race night and score them
     // with the one formula (unrounded, for ranking).
+    // Only racers who qualified AS OF that night get a previous rank, matching
+    // leaderboardRows() — which numbers qualifiers only. Ranking everyone here
+    // while numbering qualifiers there made every arrow off by the number of
+    // ineligible racers above the racer.
     $temp = [];
     foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $allRows) {
         $rows = array_values(array_filter($allRows, fn($r) => $r['race_date'] <= $prevDate));
         if (empty($rows)) continue;
+        if (!racerQualifies(count($rows), (array)$rules)) continue;
         $aa = aaFromRows($rows, (array)$rules);
         $temp[] = ['id' => $rid, 'score' => $aa['avg'] + $aa['att']];
     }
@@ -2926,6 +2931,39 @@ function racerNamesMap(PDO $pdo): array {
     static $map = null;
     if ($map === null) $map = $pdo->query("SELECT id, name FROM racers")->fetchAll(PDO::FETCH_KEY_PAIR);
     return $map;
+}
+
+/**
+ * Re-score a season under ANY scoring system and return its top three.
+ *
+ * The registry's own `calculate` closure is invoked with the season's rules
+ * and the system swapped in — calling calculateGPScore() instead would look
+ * right and silently re-read the season's SAVED system, giving every
+ * "universe" the same answer.
+ *
+ * Powers /multiverse and the homepage's rotating box.
+ */
+function multiverseTop(PDO $pdo, string $season_id, string $system): array {
+    $def   = getScoringSystemDef($system);
+    $rules = getSeasonRules($pdo, $season_id) ?: ['min_races_threshold' => 3];
+    $rules['scoring_system'] = $system;
+    $names = racerNamesMap($pdo);
+    $rows  = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rrows) {
+        if (!racerQualifies(count($rrows), $rules)) continue;
+        $rows[] = ['id' => (int)$rid, 'name' => (string)($names[$rid] ?? ''), 'score' => round((float)($def['calculate'])($pdo, (int)$rid, $season_id, $rules), 2)];
+    }
+    sortStandingsByScoring($rows, $system, $pdo, $season_id);
+    // A universe where nobody can be separated has no verdict: Random Cup Draw
+    // with no draw assigned scores everyone 0, and the alphabetical tie-break
+    // would otherwise crown whoever's name sorts first.
+    $scores = array_unique(array_map(fn($r) => (string)$r['score'], $rows));
+    if (count($rows) > 1 && count($scores) === 1) {
+        $why = $system === 'random_cup_draw' ? 'no cups were drawn' : 'everyone level on ' . scoreNum($rows[0]['score']);
+        return ['top' => [], 'field' => count($rows), 'void' => $why];
+    }
+    $top = array_map(fn($r) => ['id' => $r['id'], 'name' => $r['name'], 'score' => $r['score']], array_slice($rows, 0, 3));
+    return ['top' => $top, 'field' => count($rows)];
 }
 
 /** ['place' => [racer_id => 1-based placement among qualifiers], 'field' => qualifier count] */

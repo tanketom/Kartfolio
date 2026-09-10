@@ -391,6 +391,23 @@ $liveFormatLabels = [
         <?php endif; ?>
     </div>
 
+    <?php /* The rotating box: one card at a time from the corners of the site
+             that nothing links to — the Lexicon, the Vault, Elo trends, the
+             Crystal Ball, the Multiverse, Fantasy. Filled by /api/front-box
+             AFTER this page has rendered, so it costs the homepage nothing,
+             and it stays hidden if the fetch returns no cards. */ ?>
+    <section class="frontbox" id="frontbox" hidden aria-live="polite">
+        <a class="frontbox-card" id="frontbox-card" href="#">
+            <span class="frontbox-icon" id="frontbox-icon"></span>
+            <span class="frontbox-text">
+                <span class="frontbox-kicker" id="frontbox-kicker"></span>
+                <span class="frontbox-headline" id="frontbox-headline"></span>
+                <span class="frontbox-line" id="frontbox-line"></span>
+            </span>
+        </a>
+        <div class="frontbox-dots" id="frontbox-dots"></div>
+    </section>
+
     <?php if (!empty($latestGPs)): ?>
     <section class="section-divider">
         <div class="section-header">
