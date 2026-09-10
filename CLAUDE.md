@@ -381,11 +381,22 @@ irrelevant. Steps, in order (each cost a round-trip the first time):
 3. **Trust the host key** (first connection only). A non-interactive `ssh` just
    fails with "Host key verification failed" instead of prompting. Fix from a
    real terminal: `ssh <user>@<host>` once, verify the fingerprint, accept.
-4. **Authorise the laptop's key.** `deploy.sh` pipes a script over `ssh`
-   non-interactively, so password auth can't be used — the machine's public key
-   must be on the server: `ssh-copy-id -i ~/.ssh/id_ed25519.pub <user>@<host>`
-   (prompts for the account password once). "works from my other machine but
-   not this one" is almost always this: only that machine's key is installed.
+4. **Authorise the laptop's key** — or just type the password. `deploy.sh`
+   passes its script to `ssh` as a command argument, not on stdin, so ssh's
+   password prompt still works: run it from a real terminal and the account
+   password is enough, which is how the live league is deployed today. Key auth
+   only becomes *required* when the caller has no TTY — which is exactly the
+   case for Claude, whose shell has no tty, no `SSH_ASKPASS` and no `DISPLAY`.
+   ssh cannot prompt there, so it exhausts publickey and reports
+   `Permission denied (publickey,password)` — that message means password auth
+   was *offered*, not that the account is locked out. **Do not read this as a
+   broken key and send the user to `ssh-add`:** `ssh-add` wants the passphrase
+   that encrypts the key file, which is a different secret from the account
+   password they type at deploy time, so they get "Bad passphrase" and nothing
+   is wrong. To make deploy work unattended, put the machine's public key on
+   the server: `ssh-copy-id -i ~/.ssh/id_ed25519.pub <user>@<host>` (prompts
+   for the account password once). "works from my other machine but not this
+   one" is almost always this: only that machine's key is installed.
 5. **Verify** with `bin/deploy.sh --dry-run` — it SSHes in and previews without
    changing anything; "server is already on <sha>" means the whole chain works.
 
