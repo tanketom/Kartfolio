@@ -384,16 +384,17 @@ irrelevant. Steps, in order (each cost a round-trip the first time):
 4. **Authorise the laptop's key** — or just type the password. `deploy.sh`
    passes its script to `ssh` as a command argument, not on stdin, so ssh's
    password prompt still works: run it from a real terminal and the account
-   password is enough, which is how the live league is deployed today. Key auth
-   only becomes *required* when the caller has no TTY — which is exactly the
-   case for Claude, whose shell has no tty, no `SSH_ASKPASS` and no `DISPLAY`.
-   ssh cannot prompt there, so it exhausts publickey and reports
-   `Permission denied (publickey,password)` — that message means password auth
-   was *offered*, not that the account is locked out. **Do not read this as a
-   broken key and send the user to `ssh-add`:** `ssh-add` wants the passphrase
-   that encrypts the key file, which is a different secret from the account
-   password they type at deploy time, so they get "Bad passphrase" and nothing
-   is wrong. To make deploy work unattended, put the machine's public key on
+   password is enough, which is how the live league is deployed today. **This
+   works when Claude runs `bin/deploy.sh` too** — the desktop app surfaces ssh's
+   password prompt as a dialog for the user to fill in, even though the tool
+   shell has no tty, no `SSH_ASKPASS` and no `DISPLAY`. So: just run it. A
+   `Permission denied (publickey,password)` means the prompt went unanswered,
+   not that the account is locked out — the word `password` in that list is ssh
+   saying password auth was *offered*. **Do not read it as a broken key and send
+   the user to `ssh-add`:** `ssh-add` wants the passphrase that encrypts the key
+   file, which is a different secret from the account password they type at
+   deploy time, so they get "Bad passphrase" while nothing is wrong. To skip the
+   prompt entirely and deploy unattended, put the machine's public key on
    the server: `ssh-copy-id -i ~/.ssh/id_ed25519.pub <user>@<host>` (prompts
    for the account password once). "works from my other machine but not this
    one" is almost always this: only that machine's key is installed.
