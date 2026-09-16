@@ -124,6 +124,13 @@ function badgeCatalog(): array {
         'questmaster' => ['icon' => '🧭', 'title' => 'Questmaster', 'desc' => 'Completed both side quests this season.', 'criteria' => 'Completed both side quests this season', 'category' => 'legacy'],
         'on_the_up' => ['icon' => '🪜', 'title' => 'On the Up', 'desc' => 'Improved their season placement three seasons running.', 'criteria' => 'Improved placement three seasons running', 'category' => 'legacy'],
         'from_the_back' => ['icon' => '🏹', 'title' => 'From the Back', 'desc' => 'Won a season after finishing in the bottom half of an earlier one.', 'criteria' => 'Won a season after a bottom-half finish in an earlier one', 'category' => 'legacy'],
+        'photo_finish' => ['icon' => '📸', 'title' => 'Photo Finish', 'desc' => 'Won a Grand Prix by a single point — or on the tie-break.', 'criteria' => 'Won a GP by ≤1 point (or the tie-break)', 'category' => 'performance'],
+        'duelist' => ['icon' => '🤺', 'title' => 'Duelist', 'desc' => 'Finished ahead of every rival at least once this season.', 'criteria' => 'Beat every opponent faced (3+) at least once', 'category' => 'performance'],
+        'wooden_spoon' => ['icon' => '🥄', 'title' => 'Wooden Spoon', 'desc' => 'Finished dead last in a Grand Prix. Someone has to.', 'criteria' => 'Finished last of the field in a GP', 'category' => 'special'],
+        'marathon' => ['icon' => '🏃', 'title' => 'Marathon', 'desc' => 'Raced eight or more Grand Prix in a single day.', 'criteria' => 'Raced 8+ GPs in a single day', 'category' => 'attendance'],
+        'centurion' => ['icon' => '💯', 'title' => 'Centurion', 'desc' => 'Won one hundred career Grand Prix.', 'criteria' => 'Won 100 career Grand Prix', 'category' => 'career'],
+        'dream_debut' => ['icon' => '🎬', 'title' => 'Dream Debut', 'desc' => 'Reached the podium in their very first career Grand Prix.', 'criteria' => 'Podium in first-ever career GP', 'category' => 'career'],
+        'locked_in' => ['icon' => '🔒', 'title' => 'Locked In', 'desc' => 'Landed a maximum-confidence "lock" fantasy bet.', 'criteria' => 'Hit a confidence-3 lock fantasy bet', 'category' => 'honours'],
     ];
 }
 

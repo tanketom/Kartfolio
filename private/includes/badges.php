@@ -206,8 +206,52 @@ function badgeCareerContext($pdo) {
         }
     } catch (Throwable $e) { /* no Mikkoliiga history */ }
 
+    // ── Centurion: career Grand Prix wins (rank 1), season GPs only ──
+    $careerWins = [];  // racer_id => wins
+    foreach ($pdo->query("SELECT racer_id, COUNT(*) AS c FROM results WHERE rank = 1 AND gpid LIKE 's%' GROUP BY racer_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $careerWins[(int)$r['racer_id']] = (int)$r['c'];
+    }
+
+    // ── Dream Debut: podium (top 3) in each racer's very first career GP. The
+    //   NOT EXISTS picks the single earliest row per racer (date, then id) —
+    //   window-function-free so it runs on any SQLite. ──
+    $debutPodium = [];  // racer_id => true
+    foreach ($pdo->query("
+        SELECT r.racer_id, r.rank FROM results r
+        WHERE r.gpid LIKE 's%' AND NOT EXISTS (
+            SELECT 1 FROM results r2
+            WHERE r2.racer_id = r.racer_id AND r2.gpid LIKE 's%'
+              AND (r2.race_date < r.race_date OR (r2.race_date = r.race_date AND r2.id < r.id))
+        )")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if ((int)$r['rank'] <= 3) $debutPodium[(int)$r['racer_id']] = true;
+    }
+
+    // ── Marathon: most Grand Prix a racer ran on any single day ──
+    $maxGpsInDay = [];  // racer_id => max distinct gpids in one race_date
+    foreach ($pdo->query("
+        SELECT racer_id, MAX(c) AS m FROM (
+            SELECT racer_id, race_date, COUNT(DISTINCT gpid) AS c
+            FROM results WHERE gpid LIKE 's%' GROUP BY racer_id, race_date
+        ) GROUP BY racer_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $maxGpsInDay[(int)$r['racer_id']] = (int)$r['m'];
+    }
+
+    // ── Locked In: landed a maximum-confidence (lock = 3) fantasy bet that
+    //   scored. Mapped predictor → racer, like Fantasy Champion above. ──
+    $lockedIn = [];  // racer_id => true
+    try {
+        foreach ($pdo->query("
+            SELECT DISTINCT fp.racer_id FROM fantasy_bets fb
+            JOIN fantasy_predictors fp ON fp.id = fb.predictor_id
+            WHERE fp.racer_id IS NOT NULL AND fb.confidence = 3 AND fb.points_earned > 0
+        ")->fetchAll(PDO::FETCH_COLUMN) as $rid) {
+            $lockedIn[(int)$rid] = true;
+        }
+    } catch (PDOException $e) { /* fantasy tables absent */ }
+
     return $cache = compact(
-        'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart'
+        'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart',
+        'careerWins', 'debutPodium', 'maxGpsInDay', 'lockedIn'
     );
 }
 
@@ -515,8 +559,38 @@ function badgeSeasonContext($pdo, $season_id) {
         }
     } catch (PDOException $e) { /* quests table absent */ }
 
+    // ── Per-GP head-to-head derivations (one query, grouped in PHP) ──
+    //   Photo Finish : GP winner finished within 1 point of second place.
+    //   Wooden Spoon : finished last of the field in a GP.
+    //   Duelist      : finished ahead of every opponent faced (3+) at least once.
+    $rowsByGp = [];
+    $stH = $pdo->prepare("SELECT gpid, racer_id, rank, gp_points FROM results WHERE gpid LIKE ?");
+    $stH->execute([$like]);
+    foreach ($stH->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $rowsByGp[$r['gpid']][] = ['rid' => (int)$r['racer_id'], 'rank' => (int)$r['rank'], 'pts' => (int)$r['gp_points']];
+    }
+    $photoFinish = []; $woodenSpoon = [];
+    $faced = []; $beaten = [];   // racer_id => [opponent_id => true]
+    foreach ($rowsByGp as $rows) {
+        if (count($rows) < 2) continue;
+        usort($rows, fn($a, $b) => $a['rank'] <=> $b['rank']);
+        if ($rows[0]['pts'] - $rows[1]['pts'] <= 1) $photoFinish[$rows[0]['rid']] = true;
+        $last = $rows[count($rows) - 1];
+        $woodenSpoon[$last['rid']] = true;
+        foreach ($rows as $a) foreach ($rows as $b) {
+            if ($a['rid'] === $b['rid']) continue;
+            $faced[$a['rid']][$b['rid']] = true;
+            if ($a['rank'] < $b['rank']) $beaten[$a['rid']][$b['rid']] = true;
+        }
+    }
+    $duelist = [];
+    foreach ($faced as $rid => $opps) {
+        if (count($opps) >= 3 && count(array_diff_key($opps, $beaten[$rid] ?? [])) === 0) $duelist[$rid] = true;
+    }
+
     return $cache[$season_id] = $career + compact(
-        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'mikko', 'mikkoPromoted', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'bingoFull', 'deadHeat', 'seasonGpTotal', 'questmaster'
+        'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'mikko', 'mikkoPromoted', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'bingoFull', 'deadHeat', 'seasonGpTotal', 'questmaster',
+        'photoFinish', 'woodenSpoon', 'duelist'
     );
 }
 
@@ -622,6 +696,18 @@ function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
     // 16 · Ascended — crossed 2000 Elo.
     if (!empty($ctx['elo2000'][$racer_id]))
         $badges[] = badgeDef('ascended');
+    // 💯 Centurion — 100 career Grand Prix wins.
+    if ((int)($ctx['careerWins'][$racer_id] ?? 0) >= 100)
+        $badges[] = badgeDef('centurion');
+    // 🎬 Dream Debut — podium in their very first career GP.
+    if (!empty($ctx['debutPodium'][$racer_id]))
+        $badges[] = badgeDef('dream_debut');
+    // 🏃 Marathon — 8+ GPs in a single day.
+    if ((int)($ctx['maxGpsInDay'][$racer_id] ?? 0) >= 8)
+        $badges[] = badgeDef('marathon');
+    // 🔒 Locked In — landed a max-confidence lock fantasy bet.
+    if (!empty($ctx['lockedIn'][$racer_id]))
+        $badges[] = badgeDef('locked_in');
 }
 
 /**
@@ -699,6 +785,17 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
         $badges[] = badgeDef('bracket_buster');
     if (!empty($ctx['snakeBitten'][$racer_id]))
         $badges[] = badgeDef('snake_bitten');
+
+    // ── Head-to-head event badges (from the per-GP season pass) ──
+    // 📸 Photo Finish — won a GP by ≤1 point or the tie-break.
+    if (!empty($ctx['photoFinish'][$racer_id]))
+        $badges[] = badgeDef('photo_finish');
+    // 🥄 Wooden Spoon — finished last of the field in a GP.
+    if (!empty($ctx['woodenSpoon'][$racer_id]))
+        $badges[] = badgeDef('wooden_spoon');
+    // 🤺 Duelist — beat every opponent faced (3+) at least once this season.
+    if (!empty($ctx['duelist'][$racer_id]))
+        $badges[] = badgeDef('duelist');
 }
 
 function getRacerBadges($pdo, $racer_id, $season_id) {
