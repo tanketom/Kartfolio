@@ -575,8 +575,9 @@ function badgeSeasonContext($pdo, $season_id) {
         if (count($rows) < 2) continue;
         usort($rows, fn($a, $b) => $a['rank'] <=> $b['rank']);
         if ($rows[0]['pts'] - $rows[1]['pts'] <= 1) $photoFinish[$rows[0]['rid']] = true;
-        $last = $rows[count($rows) - 1];
-        $woodenSpoon[$last['rid']] = true;
+        // 🥄 Wooden Spoon — finished 12th: dead last of the full 12-kart field
+        // (behind the CPUs too), not merely last of the human drivers.
+        foreach ($rows as $row) if ($row['rank'] >= 12) $woodenSpoon[$row['rid']] = true;
         foreach ($rows as $a) foreach ($rows as $b) {
             if ($a['rid'] === $b['rid']) continue;
             $faced[$a['rid']][$b['rid']] = true;
