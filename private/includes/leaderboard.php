@@ -19,25 +19,34 @@ require_once __DIR__ . '/badges.php';
 require_once __DIR__ . '/settings.php';
 
 /**
- * @param int $badgeLimit Keep at most this many badges per racer (rarest
- *                        first). 0 = all of them. The signs cap; the web
- *                        page does not.
+ * @param int  $badgeLimit  Keep at most this many badges per racer (rarest
+ *                          first). 0 = all of them. The signs cap; the web
+ *                          page does not.
+ *  @param bool $withBadges Compute badges at all. Badges are by far the
+ *                          expensive part of a row — they pull in the Elo
+ *                          engine, stickers, tournaments and the whole badge
+ *                          context — so a consumer that does not display them
+ *                          (the JSON API) passes false and pays 1 query
+ *                          instead of 83. Everything else about the row, the
+ *                          ranking included, is unchanged either way.
  *
  * Each row: id, name, score, char, raceCount, qualifies, rank, rank_change,
  * tie, badges (each with icon/title/desc/held/is_new), badge_overflow,
  * breakdown, tooltip, cupsCounted, mikko.
  */
-function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0): array {
+function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $withBadges = true): array {
     static $cache = [];
-    $key = $seasonId . '|' . $badgeLimit;
+    // $withBadges is part of the key: without it a badge-free call would poison
+    // the cache for the homepage, which renders the badges on the same request.
+    $key = $seasonId . '|' . $badgeLimit . '|' . ($withBadges ? 'b' : 'n');
     if (isset($cache[$key])) return $cache[$key];
 
     $rules       = getSeasonRules($pdo, $seasonId);
     $system      = $rules['scoring_system'] ?? 'average_attendance';
     $latestDate  = getLatestRaceDate($pdo, $seasonId);
     $previous    = calculatePreviousStandings($pdo, $seasonId, $latestDate, $rules);
-    $holderCount = badgeHolderCounts($pdo, $seasonId);
-    $newTonight  = badgeNewThisNight($pdo, $seasonId);
+    $holderCount = $withBadges ? badgeHolderCounts($pdo, $seasonId) : [];
+    $newTonight  = $withBadges ? badgeNewThisNight($pdo, $seasonId) : [];
 
     // Mikkoliiga rank per racer, when the module is on.
     $mikkoByRacer = []; $mikkoTotal = 0;
@@ -57,7 +66,9 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0): array
 
         // Badges: rarest first, so the most interesting one leads — and on a
         // sign, so the cap keeps the ones worth showing.
-        $badges = $raceCount >= 3 ? sortBadgesByRarity(getRacerBadges($pdo, $rid, $seasonId), $holderCount) : [];
+        $badges = ($withBadges && $raceCount >= 3)
+            ? sortBadgesByRarity(getRacerBadges($pdo, $rid, $seasonId), $holderCount)
+            : [];
         foreach ($badges as &$b) {
             $b['held']   = $holderCount[$b['title']] ?? 1;
             $b['is_new'] = isset($newTonight[$rid . '|' . $b['title']]);

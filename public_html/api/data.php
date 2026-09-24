@@ -16,6 +16,7 @@
 
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/gp_logic.php';
+require_once __DIR__ . '/../../private/includes/leaderboard.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -42,22 +43,41 @@ $season   = preg_match('/^s\d{2}$/', $_GET['season'] ?? '') ? $_GET['season'] : 
 switch ($resource) {
 
     case 'standings': {
+        // leaderboardRows() is THE standings builder (§ "One leaderboard
+        // builder"): the homepage and all three signs read it. This endpoint
+        // used to loop the roster itself and never called racerQualifies(),
+        // so a racer below the season's threshold came back with a numbered
+        // rank here while the site printed "--" for them — and because ranks
+        // were assigned by array index, that racer also consumed the number
+        // belonging to the qualifier below. A feed that disagrees with the
+        // page it mirrors is worse than no feed.
+        //
+        // rank is null for a racer who has not raced enough to hold a place;
+        // `qualifies` says so explicitly, so a consumer can filter without
+        // having to know the season's rules.
         $scoringInfo = getScoringSystemInfo($pdo, $season);
         $rows = [];
-        foreach (getActiveRacers($pdo, $season) as $r) {
-            $rc = getRaceCount($pdo, (int)$r['id'], $season);
-            if ($rc < 1) continue;
+        // No badges: the feed does not carry them, and computing them costs
+        // 83 queries against 1.
+        foreach (leaderboardRows($pdo, $season, 0, false) as $row) {
             $rows[] = [
-                'id'     => (int)$r['id'],
-                'name'   => $r['name'],
-                'score'  => calculateGPScore($pdo, (int)$r['id'], $season),
-                'gps'    => $rc,
+                'rank'         => $row['rank'],              // null = unranked
+                'id'           => (int)$row['id'],
+                'name'         => $row['name'],
+                'score'        => $row['score'],
+                'gps'          => (int)$row['raceCount'],
+                'qualifies'    => (bool)$row['qualifies'],
+                'rank_change'  => $row['rank_change'],       // vs the previous race night
+                'tie'          => $row['tie'],               // what separated two level racers
+                'cups_counted' => (int)$row['cupsCounted'],
             ];
         }
-        sortStandingsByScoring($rows, $scoringInfo['system'], $pdo, $season);
-        foreach ($rows as $i => &$row) { $row = ['rank' => $i + 1] + $row; }
-        unset($row);
-        api_out($rows, ['season' => $season, 'scoring_system' => $scoringInfo['system'], 'scoring_name' => $scoringInfo['name']]);
+        api_out($rows, [
+            'season'         => $season,
+            'scoring_system' => $scoringInfo['system'],
+            'scoring_name'   => $scoringInfo['name'],
+            'qualified'      => count(array_filter($rows, fn($r) => $r['qualifies'])),
+        ]);
     }
 
     case 'racers': {
