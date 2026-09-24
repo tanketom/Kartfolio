@@ -198,10 +198,111 @@ foreach ($groupedRaces as $gpid => $results) {
     $dataContext .= "--- GP $gpid ($cupName Cup) - " . date('M j', strtotime($raceDate)) . " ---\n";
     foreach ($results as $row) {
         $lol = $row['is_lol'] ? "[LUDWIG OBSTRUCTION]" : "";
-        $dataContext .= "Rank {$row['rank']}: {$row['name']} ({$row['gp_points']}pts) - {$row['character_used']}. $lol\n";
+        // The nickname was SELECTed and then dropped on the floor; the
+        // personas are the whole point of having them.
+        $nick = trim((string)($row['nickname'] ?? '')) !== '' ? " \"{$row['nickname']}\"" : '';
+        $dataContext .= "Rank {$row['rank']}: {$row['name']}{$nick} ({$row['gp_points']}pts) - {$row['character_used']}. $lol\n";
     }
     $dataContext .= "\n";
 }
+
+// 4b. THE ACTUAL STANDINGS
+// The prompt tells the writer to frame everything around the scoring system —
+// and used to hand over raw per-GP ranks and expect them to DERIVE the table.
+// Under Head-to-Head (win rate across every matchup, CPU karts weighted) no
+// writer could. leaderboardRows() is the same builder the homepage and the
+// signs read, so the broadcast cannot contradict the site.
+require_once __DIR__ . '/../../private/includes/leaderboard.php';
+try {
+    $standingsRows = leaderboardRows($pdo, $sourceSeason, 0, false);   // no badges: not needed here
+    if ($standingsRows) {
+        $dataContext .= "*** THE STANDINGS — THIS IS THE TABLE, DO NOT RECALCULATE IT ***\n";
+        $dataContext .= "Scored under {$scoringInfo['name']}. \"Move\" is since the previous race night.\n";
+        foreach ($standingsRows as $row) {
+            if (!$row['qualifies']) {
+                $dataContext .= "--  {$row['name']} — {$row['score']} — NOT YET ELIGIBLE "
+                             . "({$row['raceCount']} GPs, below the season's minimum, so holds no position)\n";
+                continue;
+            }
+            $mv = $row['rank_change'];
+            $move = $mv === null ? 'new' : ($mv > 0 ? "up $mv" : ($mv < 0 ? 'down ' . abs($mv) : 'no change'));
+            $dataContext .= "#{$row['rank']} {$row['name']} — {$row['score']} — {$row['raceCount']} GPs — $move";
+            if (!empty($row['tie'])) $dataContext .= " — TIE-BREAK: {$row['tie']}";
+            $dataContext .= "\n";
+        }
+        $dataContext .= "\n";
+    }
+} catch (Throwable $e) { error_log('recap standings: ' . $e->getMessage()); }
+
+// 4c. MIKKOLIIGA — the parallel casual sub-league, invisible to the newsroom
+// until now. Only worth a mention when it has actually been contested.
+try {
+    if (moduleEnabled($pdo, 'mikkoliiga')) {
+        $mikko = getMikkoliigaStandings($pdo, $sourceSeason);
+        $mikkoPlayed = array_values(array_filter($mikko, fn($m) => (int)($m['total_gps'] ?? 0) > 0));
+        if (count($mikkoPlayed) >= 2) {
+            $dataContext .= "*** MIKKOLIIGA (the casual sub-league running alongside the main season) ***\n";
+            $dataContext .= "Members race the same GPs but score only against EACH OTHER on the Mario Kart "
+                         . "points scale (15/12/10/9/…), best " . MIKKOLIIGA_BEST_X . " GPs counting. "
+                         . "It is a separate table — never merge it with the main standings.\n";
+            foreach (array_slice($mikkoPlayed, 0, 6) as $i => $m) {
+                $dataContext .= ($i + 1) . ". {$m['name']} — {$m['score']} pts from {$m['gps_counted']} counting GPs "
+                             . "(raced {$m['total_gps']})\n";
+            }
+            $dataContext .= "\n";
+        }
+    }
+} catch (Throwable $e) { error_log('recap mikkoliiga: ' . $e->getMessage()); }
+
+// 4d. TITLE ODDS AND WHAT STILL HAS TO HAPPEN
+// From season_outlook.php — the same Monte Carlo /predictions shows, so the
+// broadcast and the Crystal Ball quote the same numbers.
+try {
+    require_once __DIR__ . '/../../private/includes/season_outlook.php';
+    $outlook = seasonOutlook($pdo);
+    if (empty($outlook['insufficientData']) && !empty($outlook['probabilities'])) {
+        $odds = $outlook['probabilities'];
+        arsort($odds);
+        $dataContext .= "*** TITLE ODDS ***\n";
+        $dataContext .= "From a " . number_format((int)$outlook['simulations']) . "-run simulation of the {$outlook['estimatedRemainingGPs']} GPs "
+                     . "still to come. These are probabilities, not predictions — report them as odds.\n";
+        foreach (array_slice($odds, 0, 5, true) as $name => $pct) {
+            $dataContext .= "{$name}: " . round($pct) . "% chance of taking the title\n";
+        }
+        if (!empty($outlook['seasonComplete'])) $dataContext .= "NOTE: the season is already decided.\n";
+        $dataContext .= "\n";
+    }
+    if (!empty($outlook['scenarios'])) {
+        $dataContext .= "*** WHAT STILL HAS TO HAPPEN ***\n";
+        foreach ($outlook['scenarios'] as $sc) {
+            $line = is_array($sc) ? ($sc['text'] ?? '') : (string)$sc;
+            if ($line !== '') $dataContext .= "- " . strip_tags($line) . "\n";
+        }
+        $dataContext .= "\n";
+    }
+} catch (Throwable $e) { error_log('recap outlook: ' . $e->getMessage()); }
+
+// 4e. FORM SIGNALS
+// The power-ranking blend (Elo, recent form, consistency, streaks). The
+// broadcast is deliberately NOT told this is called "Power Rankings" — these
+// are just the numbers behind "who is actually in form right now".
+try {
+    require_once __DIR__ . '/../../private/includes/power_ranking_engine.php';
+    $form = powerRankings($pdo);
+    if ($form) {
+        $dataContext .= "*** FORM AND MOMENTUM (background — describe this in your own words; never present it as a ranking or name it as a chart) ***\n";
+        foreach (array_slice($form, 0, 6) as $r) {
+            $mv = (int)($r['movement'] ?? 0);
+            $moving = $mv > 0 ? "climbing $mv" : ($mv < 0 ? 'sliding ' . abs($mv) : 'holding station');
+            $dataContext .= "{$r['name']}: Elo {$r['elo_norm']}/100, recent form {$r['form_norm']}/100, "
+                         . "consistency {$r['cons_norm']}/100, $moving";
+            if (!empty($r['win_streak']))    $dataContext .= ", {$r['win_streak']}-GP winning streak";
+            if (!empty($r['podium_streak'])) $dataContext .= ", {$r['podium_streak']}-GP podium streak";
+            $dataContext .= "\n";
+        }
+        $dataContext .= "\n";
+    }
+} catch (Throwable $e) { error_log('recap form: ' . $e->getMessage()); }
 
 // 5. FETCH NEMESIS OF THE WEEK
 $topNemesis = null;
