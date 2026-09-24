@@ -22,6 +22,7 @@ INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, catego
     ('footer_about', 'The premier competitive Mario Kart 8 Deluxe league, governed by the Organisation Mondial du Karting. Racing excellence since 2024.', 'textarea', 'league_identity', 'Short about text in footer'),
     ('enable_tournaments', '1', 'boolean', 'features', 'Enable tournament system'),
     ('enable_broadcasts', '1', 'boolean', 'features', 'Enable AI broadcast generation'),
+    ('ghost_racer_focus', '', 'text', 'features', 'Racer name (or id) that The Ghost Racer''s Ascent follows every week. Blank = one of the founding four is drawn once at random and kept.'),
     ('enable_rivalries', '1', 'boolean', 'features', 'Enable rivalry tracking'),
     ('enable_fantasy', '1', 'boolean', 'features', 'Fantasy predictions module'),
     ('enable_stickers', '1', 'boolean', 'features', 'Sticker album module'),

@@ -129,6 +129,28 @@ try {
     // Fail silently if season_meta doesn't exist
 }
 
+// 3b. WHICH SHOW IS THIS?
+// Resolved BEFORE the briefing is built, because the show decides which parts
+// of it get written at all (broadcast_diet.php).
+$pKey = $_POST['program'] ?? 'random';
+
+// Reject non-AI programs (e.g. press_office) — those have their own
+// publishing path that bypasses Gemini entirely. Falling through here
+// would produce AI text tagged with a non-AI program key.
+if ($pKey === 'press_office') {
+    die("Error: 'press_office' is a hand-written program. Use /api/press-release instead.");
+}
+
+if ($pKey === 'random') {
+    $availableKeys = array_diff(array_keys($ecology_personas), ['random']);
+    $pKey = $availableKeys[array_rand($availableKeys)];
+}
+$persona = $ecology_personas[$pKey] ?? $ecology_personas['core_team'];
+
+require_once __DIR__ . '/../../private/includes/broadcast_diet.php';
+$diet     = broadcastDiet($pKey);
+$sections = [];
+
 // 4. BUILD CONTEXT & CAPTURE GPIDs
 $cups = [];
 $racers = [];
@@ -156,22 +178,22 @@ if ($newsScope === 'season') {
 // Scoring-system overview — pulled live from the registry so the broadcast
 // always describes the ACTUAL system in play, not a hardcoded GPScore™ blurb.
 $scoringInfo = getScoringSystemInfo($pdo, $sourceSeason);
-$dataContext .= "\n*** SCORING SYSTEM IN PLAY — READ THIS FIRST ***\n";
-$dataContext .= "This season runs on: {$scoringInfo['name']} {$scoringInfo['icon']}\n";
-$dataContext .= "How it works: {$scoringInfo['long_description']}\n";
-$dataContext .= "Frame the standings, the leader, and any \"who's winning / by how much\" narrative around "
+$sections['system'] = ($sections['system'] ?? '') . "\n*** SCORING SYSTEM IN PLAY — READ THIS FIRST ***\n";
+$sections['system'] = ($sections['system'] ?? '') . "This season runs on: {$scoringInfo['name']} {$scoringInfo['icon']}\n";
+$sections['system'] = ($sections['system'] ?? '') . "How it works: {$scoringInfo['long_description']}\n";
+$sections['system'] = ($sections['system'] ?? '') . "Frame the standings, the leader, and any \"who's winning / by how much\" narrative around "
              . "THIS system. Do NOT assume it's Average + Attendance / GPScore™ unless the name above says so.\n";
 
 // Only surface the Average+Attendance tuning knobs when that system is actually
 // active — they're meaningless (and misleading) under MONSTER HUNT, Bounty
 // Hunter, Pari-Mutuel, and the rest.
 if (($scoringInfo['system'] ?? '') === 'average_attendance' && $seasonRules) {
-    $dataContext .= "Tuning: attendance weight {$seasonRules['attendance_weight']}x · "
+    $sections['system'] = ($sections['system'] ?? '') . "Tuning: attendance weight {$seasonRules['attendance_weight']}x · "
                  . "weekly bonus cap {$seasonRules['weekly_bonus_cap']} · "
                  . "min races {$seasonRules['min_races_threshold']} · "
                  . "drop bottom {$seasonRules['drop_rate']}%.\n";
 }
-$dataContext .= "\n";
+$sections['system'] = ($sections['system'] ?? '') . "\n";
 
 // Organize data by GPID to make it clearer for the AI
 $groupedRaces = [];
@@ -188,22 +210,22 @@ $racers = array_unique($racers);
 $gpidList = array_unique($gpidList);
 
 // Format Text for AI
-$dataContext .= "RECENT CUPS: " . implode(', ', $cups) . ".\n";
-$dataContext .= "ACTIVE RACERS: " . implode(', ', $racers) . ".\n\n";
-$dataContext .= "RACE RESULTS (Newest first):\n";
+$sections['results'] = ($sections['results'] ?? '') . "RECENT CUPS: " . implode(', ', $cups) . ".\n";
+$sections['results'] = ($sections['results'] ?? '') . "ACTIVE RACERS: " . implode(', ', $racers) . ".\n\n";
+$sections['results'] = ($sections['results'] ?? '') . "RACE RESULTS (Newest first):\n";
 
 foreach ($groupedRaces as $gpid => $results) {
     $cupName = $results[0]['cup_name'];
     $raceDate = $results[0]['race_date'];
-    $dataContext .= "--- GP $gpid ($cupName Cup) - " . date('M j', strtotime($raceDate)) . " ---\n";
+    $sections['results'] = ($sections['results'] ?? '') . "--- GP $gpid ($cupName Cup) - " . date('M j', strtotime($raceDate)) . " ---\n";
     foreach ($results as $row) {
         $lol = $row['is_lol'] ? "[LUDWIG OBSTRUCTION]" : "";
         // The nickname was SELECTed and then dropped on the floor; the
         // personas are the whole point of having them.
         $nick = trim((string)($row['nickname'] ?? '')) !== '' ? " \"{$row['nickname']}\"" : '';
-        $dataContext .= "Rank {$row['rank']}: {$row['name']}{$nick} ({$row['gp_points']}pts) - {$row['character_used']}. $lol\n";
+        $sections['results'] = ($sections['results'] ?? '') . "Rank {$row['rank']}: {$row['name']}{$nick} ({$row['gp_points']}pts) - {$row['character_used']}. $lol\n";
     }
-    $dataContext .= "\n";
+    $sections['results'] = ($sections['results'] ?? '') . "\n";
 }
 
 // 4b. THE ACTUAL STANDINGS
@@ -216,26 +238,26 @@ require_once __DIR__ . '/../../private/includes/leaderboard.php';
 try {
     $standingsRows = leaderboardRows($pdo, $sourceSeason, 0, false);   // no badges: not needed here
     if ($standingsRows) {
-        $dataContext .= "*** THE STANDINGS — THIS IS THE TABLE, DO NOT RECALCULATE IT ***\n";
-        $dataContext .= "Scored under {$scoringInfo['name']}. \"Move\" is since the previous race night.\n";
+        $sections['standings'] = ($sections['standings'] ?? '') . "*** THE STANDINGS — THIS IS THE TABLE, DO NOT RECALCULATE IT ***\n";
+        $sections['standings'] = ($sections['standings'] ?? '') . "Scored under {$scoringInfo['name']}. \"Move\" is since the previous race night.\n";
         // Observed in a test broadcast: 90% was reported as 91%, and an 88.7
         // score was called "a perfect win rate". Every number here is exact.
-        $dataContext .= "NUMBERS ARE FACTS: quote every figure in this briefing EXACTLY as written — "
+        $sections['standings'] = ($sections['standings'] ?? '') . "NUMBERS ARE FACTS: quote every figure in this briefing EXACTLY as written — "
                      . "do not round it, adjust it, or upgrade it into a superlative. A score is only "
                      . "\"perfect\" if the briefing says so.\n";
         foreach ($standingsRows as $row) {
             if (!$row['qualifies']) {
-                $dataContext .= "--  {$row['name']} — {$row['score']} — NOT YET ELIGIBLE "
+                $sections['standings'] = ($sections['standings'] ?? '') . "--  {$row['name']} — {$row['score']} — NOT YET ELIGIBLE "
                              . "({$row['raceCount']} GPs, below the season's minimum, so holds no position)\n";
                 continue;
             }
             $mv = $row['rank_change'];
             $move = $mv === null ? 'new' : ($mv > 0 ? "up $mv" : ($mv < 0 ? 'down ' . abs($mv) : 'no change'));
-            $dataContext .= "#{$row['rank']} {$row['name']} — {$row['score']} — {$row['raceCount']} GPs — $move";
-            if (!empty($row['tie'])) $dataContext .= " — TIE-BREAK: {$row['tie']}";
-            $dataContext .= "\n";
+            $sections['standings'] = ($sections['standings'] ?? '') . "#{$row['rank']} {$row['name']} — {$row['score']} — {$row['raceCount']} GPs — $move";
+            if (!empty($row['tie'])) $sections['standings'] = ($sections['standings'] ?? '') . " — TIE-BREAK: {$row['tie']}";
+            $sections['standings'] = ($sections['standings'] ?? '') . "\n";
         }
-        $dataContext .= "\n";
+        $sections['standings'] = ($sections['standings'] ?? '') . "\n";
     }
 } catch (Throwable $e) { error_log('recap standings: ' . $e->getMessage()); }
 
@@ -246,15 +268,15 @@ try {
         $mikko = getMikkoliigaStandings($pdo, $sourceSeason);
         $mikkoPlayed = array_values(array_filter($mikko, fn($m) => (int)($m['total_gps'] ?? 0) > 0));
         if (count($mikkoPlayed) >= 2) {
-            $dataContext .= "*** MIKKOLIIGA (the casual sub-league running alongside the main season) ***\n";
-            $dataContext .= "Members race the same GPs but score only against EACH OTHER on the Mario Kart "
+            $sections['mikkoliiga'] = ($sections['mikkoliiga'] ?? '') . "*** MIKKOLIIGA (the casual sub-league running alongside the main season) ***\n";
+            $sections['mikkoliiga'] = ($sections['mikkoliiga'] ?? '') . "Members race the same GPs but score only against EACH OTHER on the Mario Kart "
                          . "points scale (15/12/10/9/…), best " . MIKKOLIIGA_BEST_X . " GPs counting. "
                          . "It is a separate table — never merge it with the main standings.\n";
             foreach (array_slice($mikkoPlayed, 0, 6) as $i => $m) {
-                $dataContext .= ($i + 1) . ". {$m['name']} — {$m['score']} pts from {$m['gps_counted']} counting GPs "
+                $sections['mikkoliiga'] = ($sections['mikkoliiga'] ?? '') . ($i + 1) . ". {$m['name']} — {$m['score']} pts from {$m['gps_counted']} counting GPs "
                              . "(raced {$m['total_gps']})\n";
             }
-            $dataContext .= "\n";
+            $sections['mikkoliiga'] = ($sections['mikkoliiga'] ?? '') . "\n";
         }
     }
 } catch (Throwable $e) { error_log('recap mikkoliiga: ' . $e->getMessage()); }
@@ -268,22 +290,22 @@ try {
     if (empty($outlook['insufficientData']) && !empty($outlook['probabilities'])) {
         $odds = $outlook['probabilities'];
         arsort($odds);
-        $dataContext .= "*** TITLE ODDS ***\n";
-        $dataContext .= "From a " . number_format((int)$outlook['simulations']) . "-run simulation of the {$outlook['estimatedRemainingGPs']} GPs "
+        $sections['odds'] = ($sections['odds'] ?? '') . "*** TITLE ODDS ***\n";
+        $sections['odds'] = ($sections['odds'] ?? '') . "From a " . number_format((int)$outlook['simulations']) . "-run simulation of the {$outlook['estimatedRemainingGPs']} GPs "
                      . "still to come. These are probabilities, not predictions — report them as odds.\n";
         foreach (array_slice($odds, 0, 5, true) as $name => $pct) {
-            $dataContext .= "{$name}: " . round($pct) . "% chance of taking the title\n";
+            $sections['odds'] = ($sections['odds'] ?? '') . "{$name}: " . round($pct) . "% chance of taking the title\n";
         }
-        if (!empty($outlook['seasonComplete'])) $dataContext .= "NOTE: the season is already decided.\n";
-        $dataContext .= "\n";
+        if (!empty($outlook['seasonComplete'])) $sections['odds'] = ($sections['odds'] ?? '') . "NOTE: the season is already decided.\n";
+        $sections['odds'] = ($sections['odds'] ?? '') . "\n";
     }
     if (!empty($outlook['scenarios'])) {
-        $dataContext .= "*** WHAT STILL HAS TO HAPPEN ***\n";
+        $sections['scenarios'] = ($sections['scenarios'] ?? '') . "*** WHAT STILL HAS TO HAPPEN ***\n";
         foreach ($outlook['scenarios'] as $sc) {
             $line = is_array($sc) ? ($sc['text'] ?? '') : (string)$sc;
-            if ($line !== '') $dataContext .= "- " . strip_tags($line) . "\n";
+            if ($line !== '') $sections['scenarios'] = ($sections['scenarios'] ?? '') . "- " . strip_tags($line) . "\n";
         }
-        $dataContext .= "\n";
+        $sections['scenarios'] = ($sections['scenarios'] ?? '') . "\n";
     }
 } catch (Throwable $e) { error_log('recap outlook: ' . $e->getMessage()); }
 
@@ -295,19 +317,64 @@ try {
     require_once __DIR__ . '/../../private/includes/power_ranking_engine.php';
     $form = powerRankings($pdo);
     if ($form) {
-        $dataContext .= "*** FORM AND MOMENTUM (background — describe this in your own words; never present it as a ranking or name it as a chart) ***\n";
+        $sections['form'] = ($sections['form'] ?? '') . "*** FORM AND MOMENTUM (background — describe this in your own words; never present it as a ranking or name it as a chart) ***\n";
         foreach (array_slice($form, 0, 6) as $r) {
             $mv = (int)($r['movement'] ?? 0);
             $moving = $mv > 0 ? "climbing $mv" : ($mv < 0 ? 'sliding ' . abs($mv) : 'holding station');
-            $dataContext .= "{$r['name']}: Elo {$r['elo_norm']}/100, recent form {$r['form_norm']}/100, "
+            $sections['form'] = ($sections['form'] ?? '') . "{$r['name']}: Elo {$r['elo_norm']}/100, recent form {$r['form_norm']}/100, "
                          . "consistency {$r['cons_norm']}/100, $moving";
-            if (!empty($r['win_streak']))    $dataContext .= ", {$r['win_streak']}-GP winning streak";
-            if (!empty($r['podium_streak'])) $dataContext .= ", {$r['podium_streak']}-GP podium streak";
-            $dataContext .= "\n";
+            if (!empty($r['win_streak']))    $sections['form'] = ($sections['form'] ?? '') . ", {$r['win_streak']}-GP winning streak";
+            if (!empty($r['podium_streak'])) $sections['form'] = ($sections['form'] ?? '') . ", {$r['podium_streak']}-GP podium streak";
+            $sections['form'] = ($sections['form'] ?? '') . "\n";
         }
-        $dataContext .= "\n";
+        $sections['form'] = ($sections['form'] ?? '') . "\n";
     }
 } catch (Throwable $e) { error_log('recap form: ' . $e->getMessage()); }
+
+// 4f. THE FOCUS RACER — The Ghost Racer's Ascent follows one person, week
+// after week, because it is a serialised documentary. Everything about them,
+// and the leader for contrast; no league-wide table.
+if (in_array('focus', $diet, true)) {
+    try {
+        $subject = ghostRacerFocus($pdo);
+        if ($subject) {
+            $all = leaderboardRows($pdo, $sourceSeason, 0, false);
+            $me = null; $leader = null;
+            foreach ($all as $row) {
+                if ((int)$row['id'] === $subject['id']) $me = $row;
+                if ($leader === null && $row['qualifies']) $leader = $row;
+            }
+            $sections['focus'] = "*** YOUR SUBJECT: {$subject['name']} ***\n"
+                . "This programme follows {$subject['name']} and only {$subject['name']}. Everyone else is "
+                . "background. Do not read out the league table.\n";
+            if ($me) {
+                $place = $me['qualifies'] ? "currently #{$me['rank']}" : "not yet eligible for a placing";
+                $mv = $me['rank_change'];
+                $moved = $mv === null ? '' : ($mv > 0 ? ", up $mv since the last race night"
+                        : ($mv < 0 ? ", down " . abs($mv) . " since the last race night" : ", holding position"));
+                $sections['focus'] .= "{$subject['name']}: {$place}{$moved}, {$me['score']} under {$scoringInfo['name']}, "
+                                    . "{$me['raceCount']} GPs raced.\n";
+                if ($leader && (int)$leader['id'] !== $subject['id']) {
+                    $sections['focus'] .= "For contrast, the leader is {$leader['name']} on {$leader['score']}. "
+                                        . "The gap is the story; do not turn this into a report on {$leader['name']}.\n";
+                }
+            } else {
+                $sections['focus'] .= "{$subject['name']} has not raced this season — that absence IS the story.\n";
+            }
+            // Their own GPs, so the show has something to narrate.
+            $theirs = [];
+            foreach ($raceData as $row) if ((int)$row['racer_id'] === $subject['id']) $theirs[] = $row;
+            if ($theirs) {
+                $sections['focus'] .= "Their races in this window:\n";
+                foreach (array_slice($theirs, 0, 10) as $row) {
+                    $sections['focus'] .= "  {$row['gpid']} ({$row['cup_name']} Cup): finished {$row['rank']} with {$row['gp_points']}pts"
+                                        . ($row['is_lol'] ? " — Ludwig Obstruction" : "") . "\n";
+                }
+            }
+            $sections['focus'] .= "\n";
+        }
+    } catch (Throwable $e) { error_log('recap focus: ' . $e->getMessage()); }
+}
 
 // 5. FETCH NEMESIS OF THE WEEK
 $topNemesis = null;
@@ -333,10 +400,10 @@ try {
     if ($topNemesis) {
         $p1WinRate = round(($topNemesis['p1_wins'] / $topNemesis['meetings']) * 100, 1);
         $p2WinRate = round(100 - $p1WinRate, 1);
-        $dataContext .= "\n*** NEMESIS OF THE WEEK ***\n";
-        $dataContext .= "{$topNemesis['p1']} vs {$topNemesis['p2']}\n";
-        $dataContext .= "Meetings: {$topNemesis['meetings']} | {$topNemesis['p1']}: {$p1WinRate}% | {$topNemesis['p2']}: {$p2WinRate}%\n";
-        $dataContext .= "Status: Locked in a tight struggle with very close win rates.\n\n";
+        $sections['nemesis'] = ($sections['nemesis'] ?? '') . "\n*** NEMESIS OF THE WEEK ***\n";
+        $sections['nemesis'] = ($sections['nemesis'] ?? '') . "{$topNemesis['p1']} vs {$topNemesis['p2']}\n";
+        $sections['nemesis'] = ($sections['nemesis'] ?? '') . "Meetings: {$topNemesis['meetings']} | {$topNemesis['p1']}: {$p1WinRate}% | {$topNemesis['p2']}: {$p2WinRate}%\n";
+        $sections['nemesis'] = ($sections['nemesis'] ?? '') . "Status: Locked in a tight struggle with very close win rates.\n\n";
     }
 } catch (Exception $e) {
     // Fail silently
@@ -372,32 +439,29 @@ try {
     usort($formData, fn($a, $b) => $b['form'] <=> $a['form']);
 
     if (!empty($formData)) {
-        $dataContext .= "*** CURRENT FORM RANKINGS (Last 5 GPs Average) ***\n";
+        $sections['form'] = ($sections['form'] ?? '') . "*** CURRENT FORM RANKINGS (Last 5 GPs Average) ***\n";
         foreach (array_slice($formData, 0, 5) as $idx => $racer) {
             $rank = $idx + 1;
-            $dataContext .= "{$rank}. {$racer['name']}: {$racer['form']} pts\n";
+            $sections['form'] = ($sections['form'] ?? '') . "{$rank}. {$racer['name']}: {$racer['form']} pts\n";
         }
-        $dataContext .= "\n";
+        $sections['form'] = ($sections['form'] ?? '') . "\n";
     }
 } catch (Exception $e) {
     // Fail silently
 }
 
-// 8. PERSONA LOGIC
-$pKey = $_POST['program'] ?? 'random';
+// 8. PERSONA — resolved further up, before the briefing is assembled.
 
-// Reject non-AI programs (e.g. press_office) — those have their own
-// publishing path that bypasses Gemini entirely. Falling through here
-// would produce AI text tagged with a non-AI program key.
-if ($pKey === 'press_office') {
-    die("Error: 'press_office' is a hand-written program. Use /api/press-release instead.");
+// 7b. ASSEMBLE THE BRIEFING
+// Only the sections this show is on a diet for, in a fixed order so the same
+// programme always reads its briefing the same way. A section it does not get
+// is never built into the prompt at all — telling a show to "ignore the
+// numbers" does not work when the numbers are sitting in its context.
+$order = ['system', 'focus', 'standings', 'odds', 'scenarios', 'mikkoliiga', 'results', 'nemesis', 'form'];
+foreach ($order as $name) {
+    if (!in_array($name, $diet, true)) continue;
+    if (!empty($sections[$name])) $dataContext .= $sections[$name];
 }
-
-if ($pKey === 'random') {
-    $availableKeys = array_diff(array_keys($ecology_personas), ['random']);
-    $pKey = $availableKeys[array_rand($availableKeys)];
-}
-$persona = $ecology_personas[$pKey] ?? $ecology_personas['core_team'];
 
 // 8b. FETCH LAST 2 BROADCASTS FOR THIS SHOW (For Continuity)
 $previousBroadcasts = "";
