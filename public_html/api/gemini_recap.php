@@ -218,6 +218,11 @@ try {
     if ($standingsRows) {
         $dataContext .= "*** THE STANDINGS — THIS IS THE TABLE, DO NOT RECALCULATE IT ***\n";
         $dataContext .= "Scored under {$scoringInfo['name']}. \"Move\" is since the previous race night.\n";
+        // Observed in a test broadcast: 90% was reported as 91%, and an 88.7
+        // score was called "a perfect win rate". Every number here is exact.
+        $dataContext .= "NUMBERS ARE FACTS: quote every figure in this briefing EXACTLY as written — "
+                     . "do not round it, adjust it, or upgrade it into a superlative. A score is only "
+                     . "\"perfect\" if the briefing says so.\n";
         foreach ($standingsRows as $row) {
             if (!$row['qualifies']) {
                 $dataContext .= "--  {$row['name']} — {$row['score']} — NOT YET ELIGIBLE "
