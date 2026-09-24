@@ -242,6 +242,16 @@ try {
         $sections['standings'] = ($sections['standings'] ?? '') . "Scored under {$scoringInfo['name']}. \"Move\" is since the previous race night.\n";
         // Observed in a test broadcast: 90% was reported as 91%, and an 88.7
         // score was called "a perfect win rate". Every number here is exact.
+        // State the qualification rule outright. A test broadcast invented
+        // "understood as 10 GPs" and declared nobody eligible, on a season
+        // whose threshold is 2 — the briefing marked non-qualifiers but never
+        // said the number.
+        $qualDef = getScoringSystemDef($scoringInfo['system'] ?? 'average_attendance');
+        $sections['standings'] = ($sections['standings'] ?? '') .
+            (!empty($qualDef['qualifies_by_threshold'])
+                ? "QUALIFICATION: a racer must have raced at least " . (int)($seasonRules['min_races_threshold'] ?? 0)
+                  . " GPs this season to hold a position. Anyone below that is marked above; do not invent a different number.\n"
+                : "QUALIFICATION: under this system anyone who has raced at least one GP holds a position.\n");
         $sections['standings'] = ($sections['standings'] ?? '') . "NUMBERS ARE FACTS: quote every figure in this briefing EXACTLY as written — "
                      . "do not round it, adjust it, or upgrade it into a superlative. A score is only "
                      . "\"perfect\" if the briefing says so.\n";
