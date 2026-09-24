@@ -6200,6 +6200,8 @@ th.rotate > div {
 .mv-intro { max-width: 760px; line-height: 1.6; }
 .mv-section { margin: 28px 0; }
 .mv-bars { display: grid; gap: 6px; max-width: 900px; }
+/* Every universe void: nothing to rank, but the page still has to render. */
+.mv-void-all { margin: 0; padding: 14px 16px; background: var(--gray-100, #f0f2f6); border-radius: 8px; color: var(--gray-600, #4b5563); }
 .mv-bar-row { display: grid; grid-template-columns: 110px 1fr 36px auto; gap: 10px; align-items: center; font-size: .9rem; }
 .mv-bar-name { font-weight: 700; }
 .mv-bar-track { height: 14px; background: var(--gray-100, #f0f2f6); border-radius: 7px; overflow: hidden; }

@@ -80,6 +80,19 @@ include __DIR__ . '/../private/templates/header.php';
         <h2 class="section-title">🏆 Universes won</h2>
         <p class="section-subtitle"><?= $totalUniverses ?> decided universes across <?= count($seasonIds) ?> season<?= count($seasonIds) === 1 ? '' : 's' ?></p>
         <div class="mv-bars">
+            <?php /* $wins only gains a name when a universe reaches a VERDICT,
+                     while this whole section renders whenever any season has
+                     results — so an all-void set would reach max([]) here, and
+                     max() of an empty array is a ValueError, not a warning:
+                     the page 500s rather than degrading.
+                     Three of the systems (MONSTER HUNT, Blue Shell, Territory)
+                     break a tie structurally, so I could not construct a season
+                     where every universe is void; this guards the invariant
+                     rather than a bug anyone has hit. A future system that can
+                     tie all the way down is all it would take. */ ?>
+            <?php if (!$wins): ?>
+                <p class="mv-void-all">No universe reached a verdict — every rulebook left this season's qualifiers level, so there is nothing to count.</p>
+            <?php else: ?>
             <?php $max = max(array_map('array_sum', $wins)); foreach ($wins as $n => $bySeason): $tot = array_sum($bySeason); ?>
                 <div class="mv-bar-row">
                     <span class="mv-bar-name"><?= htmlspecialchars($n) ?></span>
@@ -88,6 +101,7 @@ include __DIR__ . '/../private/templates/header.php';
                     <span class="mv-bar-seasons"><?php foreach ($seasonIds as $sid): ?><span class="mv-chip<?= empty($bySeason[$sid]) ? ' mv-chip--none' : '' ?>" title="<?= strtoupper($sid) ?>: <?= (int)($bySeason[$sid] ?? 0) ?> universe(s)"><?= strtoupper($sid) ?> <?= (int)($bySeason[$sid] ?? 0) ?></span><?php endforeach; ?></span>
                 </div>
             <?php endforeach; ?>
+            <?php endif; ?>
         </div>
         <div class="mv-facts">
             <?php if ($mostContested !== null): ?><div class="mv-fact"><strong>Most contested:</strong> <?= strtoupper($mostContested) ?> — <?= $perSeason[$mostContested]['distinct'] ?> different champions across <?= $perSeason[$mostContested]['decided'] ?> universes.</div><?php endif; ?>
