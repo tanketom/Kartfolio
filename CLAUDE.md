@@ -567,6 +567,13 @@ features:
 - Achievement gallery with progress bars
 - Rivalry vault page
 - The Cursed Crown scoring system (hot-potato penalty; see the done-list note)
+- Recording race conditions (engine class / mirror / items). Every GP in this
+  league is 150cc, no exceptions, so the column would only ever hold one value
+- Stewards, sanctions and penalty points. The OMK hands out sanctions in
+  fiction and that is where they stay
+- Per-GP player ratings out of ten (a pundit marking every racer each night)
+- Mechanical promotion and relegation between Mikkoliiga and the main league.
+  The 🛗 Promoted badge is the honour; nothing moves automatically
 
 If they ask "what could we add" again, propose new ideas — don't recycle
 this list.
@@ -780,6 +787,106 @@ Cross-reference if you find half-implemented work:
   `preference_ranking.php` keeps the engine config-driven ('track' only now).
   fantasy.php no longer CREATEs tables or INSERTs the week row on GET — the
   DDL is in `db.php`, the week row is born with the first bet (POST)
+- **Standings rank belongs to qualifiers only** — `leaderboardRows()` sank
+  non-qualifiers below everyone eligible and stopped giving them a rank
+  NUMBER. They used to sit wherever their score put them and silently eat a
+  place: with the threshold raised, Tegan was the 4th eligible racer and
+  `seasonPlacements()` called her 4th while the homepage showed #5, because an
+  ineligible racer above her held rank 4. `calculatePreviousStandings()` gained
+  the same qualifier gate or every rank-change arrow would be off by the count
+  of ineligible racers above. index.php was computing `$index + 1` for itself
+  instead of reading the builder — exactly the drift the shared builder exists
+  to remove
+- **Result entry hardened** (`add_result.php`) — a failed submit repopulates
+  every field (it used to blank the form, so a wrong wall code meant retyping
+  eight racers); GPIDs normalise to lowercase, because LIKE is case-sensitive
+  here (§9) and `S04gp23` saved fine then appeared on NO page; duplicate entry
+  is refused by name with a `UNIQUE (gpid, racer_id)` index underneath (created
+  only when the data is already clean, on its own try/catch — an install with
+  existing duplicates cannot build it and letting that throw would strand every
+  later migration); a save lands on `/timeline/<gpid>` instead of
+  `index.php?success=1`, a parameter nothing had ever read. The entry table's
+  `min-width: 800px` moved from an inline style into pages.css, where the
+  ≤768px card layout can actually drop it
+- **`/admin/results` SAVE was deleting the row** — the delete control was a
+  `<form>` nested inside the row's update form. Browsers drop a nested form and
+  KEEP its inputs, so the row submitted `action=update` AND `action=delete_one`
+  and PHP takes the last one. One form per row now; the delete button retargets
+  it. Note `btn.form` / `form.elements` rather than `closest()`/`querySelector()`:
+  a `<form>` written directly inside a `<tr>` parses as an empty element with
+  its controls as siblings, associated without being contained
+- **A 404 that says 404** — `ErrorDocument` pointed at `/index.php`, and a PHP
+  ErrorDocument answers with its own status, so every miss returned **200 OK**
+  with the homepage attached and a broken asset link could hide forever.
+  `404.php` sets the status, answers asset-shaped requests in plain text (no
+  session, no DB, no page render) and everything else with the site's chrome
+  and a rotating Ludwig excuse. **A `#` in a RewriteRule substitution needs the
+  `NE` flag** or Apache escapes it to `%23` and the redirect 404s — the dev
+  router does the same redirect with a PHP `Location:` header, which does not
+  escape, so dev passed while production was broken
+- **Two merges, four pages into two** — `/vault` is the second half of
+  `/records` (they overlapped: "Highest Single-GP Score" was a card on both),
+  and `/animate-season` is a view on `/season-chart` behind a Positions / The
+  Race toggle. That page also served its own JSON from a `?data=1` branch, so
+  the data half became `/api/season-race`; D3 loads only when the race is first
+  opened. Both old URLs 301, and `bin/dev_router.php` mirrors the redirects and
+  the parameterised routes (`/timeline/<gpid>`, `/cup/<slug>`, …) it had been
+  missing entirely
+- **The homepage's rotating box** — `/api/front-box` (`front_box.php`), fetched
+  AFTER the page renders so none of it is on the hot path. One true line each
+  from the Lexicon, the Vault, Elo trends, the Crystal Ball, the Multiverse,
+  Fantasy and Driver of the Week — pages that had no inbound link from
+  anywhere. Cheap cards are plain queries; the Elo engine and re-scoring the
+  season under every system are parked in `sim_cache` on the results signature
+  (cold 17ms, warm 1ms). The Crystal Ball's Monte Carlo is deliberately NOT
+  re-run: its cached run is read when `/predictions` has been opened that day
+  and the card is omitted otherwise, because a second cheaper simulation would
+  give the front page different odds from the page it links to.
+  `multiverseTop()` moved from the page into `gp_logic.php` for this — it calls
+  the registry's own `calculate` with the system swapped in, where
+  `calculateGPScore()` looks right and silently re-reads the season's SAVED
+  system, giving every universe the same answer
+- **What cup? rebuilt** — Kartificial hosts it (he already hosts the World Cup),
+  he IS the wheel now rather than a red ring and a 🎰, and his lines are built
+  server-side from the draw's own facts: deliberately not a Gemini call, so
+  nothing can stall a game night behind a model timeout. Cups raced TODAY are
+  excluded (the weighting counted the whole season, so mid-night it returned
+  the cup from ten minutes ago), "Not that one" vetoes stick for as long as the
+  modal is open, and both exclusions relax rather than fail. The modal opens
+  with the last GP's racers preselected. `pick_cup.php` went from ~32 queries
+  per dice roll to 2, proven with a CountingPDO harness
+- **Fourteen Mikkoliiga badges** — built out of the sub-league's own shapes
+  (members ranked among THEMSELVES, a GP that only counts with two or more of
+  them, a best-`MIKKOLIIGA_BEST_X` cap). `mikkoliigaSeasonFacts()` in
+  `badges.php` computes all of them in one pass over the cached per-GP points;
+  Free Fall and Reeled In recompute best-N at every GP checkpoint, which is the
+  only way "led at some point" is answerable. Thresholds are low on purpose:
+  the busiest Mikkoliiga season ran 47 contested GPs between four members, the
+  most recent ran four
+- **Honours on the profile** — `careerHonours()` (`honours.php`): tournaments,
+  Mikkoliiga crowns, fantasy crowns, team titles and season awards as boxes
+  under the podium medals, shown at zero too because an empty case says what
+  there is to win. Team titles read `getTeamStandings()` and Mikkoliiga
+  `getMikkoliigaStandings()` — the same helpers the Constructor and Mikkoligan
+  badges use, so a box and a badge cannot disagree
+- **Driver of the Week** — the league's only opinion poll; everything else here
+  is computed. `dotw_votes` keyed `(week_key, predictor_id)`, cast as an
+  optional field on the fantasy form, shown in the rotating box. **It votes on
+  the week that just ENDED**: fantasy picks are predictions for the week ahead,
+  so a vote on that form has to look backwards or it is just another prediction
+  (which the MVP pick already is). The ballot is only racers who raced that
+  week
+- **Dead code swept** — `forms.css` (130 lines, every class unused; the one
+  "live" rule was `flex: 1` inside a `display: grid` parent), the
+  `mk8d_characters.php` forwarder, `season_meta_enhanced_schema.sql`, and the
+  write-only `tournament_races` table (written every match, read nowhere, and
+  duplicating `tournament_matches.gpid`/`winner_id` with `race_number` hardcoded
+  to 1 — the write and DDL are gone, the table is NOT dropped so no install
+  loses rows). Tournament DDL moved out of two admin pages that re-exec'd the
+  schema file on EVERY request and into db.php's versioned block
+- **Fantasy deadline is one function** — `fantasyDeadline()` in `fantasy.php`;
+  `/fantasy` and the rotating box both call it rather than keeping two copies
+  of the same Sunday-18:00 arithmetic
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),
