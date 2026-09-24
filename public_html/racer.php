@@ -705,6 +705,10 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                 <button onclick="downloadCard()" class="btn btn-primary">
                     📸 Download Card
                 </button>
+                <?php /* /cards is the whole printable set and nothing linked
+                         to it. The one place someone is already looking at a
+                         trading card is the place to mention there are more. */ ?>
+                <a href="/cards" class="racer-card-set-link">See the whole set →</a>
             </div>
         </div>
 
@@ -1653,7 +1657,12 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 
     <!-- Season Breakdown -->
     <div class="card">
-        <h2 class="card-header">Season Performance</h2>
+        <h2 class="card-header card-header--with-link">
+            Season Performance
+            <?php /* The badge catalogue — all of them, with what each takes —
+                     had no way in from anywhere but the site map. */ ?>
+            <a href="/badges-overview" class="card-header-link">All badges →</a>
+        </h2>
         <?php
         // Career arc — placement per season, chronological. Needs 2+ ranked seasons.
         $arc = [];

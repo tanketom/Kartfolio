@@ -386,8 +386,11 @@ $liveFormatLabels = [
                 <div class="scoring-description"><?= htmlspecialchars($scoringInfo['description']) ?></div>
             </div>
         </div>
-        <?php if ($scoringInfo['system'] === 'cup_based' || $scoringInfo['system'] === 'drop_worst' || $scoringInfo['system'] === 'perfect_hunt'): ?>
-            <a href="#cup-progress" class="view-cup-progress">View Cup Progress →</a>
+        <?php /* The link comes from the registry, not from a list of system
+                 keys kept here — that chain named three systems and would have
+                 gone stale the moment a fourth wanted a page (§2a). */ ?>
+        <?php if (!empty($scoringInfo['page'])): ?>
+            <a href="<?= htmlspecialchars($scoringInfo['page']) ?>" class="view-cup-progress"><?= htmlspecialchars($scoringInfo['page_label'] ?? 'Read more') ?> →</a>
         <?php endif; ?>
     </div>
 
@@ -452,7 +455,13 @@ $liveFormatLabels = [
 
     <?php if (!empty($latestNews)): ?>
     <section class="news-section">
-        <h3 class="news-section-title">Latest Broadcasts</h3>
+        <div class="news-section-head">
+            <h3 class="news-section-title">Latest Broadcasts</h3>
+            <?php /* Power Rankings is punditry about these same standings and
+                     had no inbound link from anywhere. This is where the rest
+                     of the league's commentary lives, so it belongs here. */ ?>
+            <a href="/power-rankings" class="news-section-link">🎙️ Power Rankings →</a>
+        </div>
         <div class="news-grid">
             <?php foreach ($latestNews as $news):
                 $pKey = $news['program_key'] ?? 'core_team';

@@ -227,6 +227,10 @@ include __DIR__ . '/../private/templates/header.php';
         <h2 class="gp-section-h">⚔️ MONSTER HUNT Chronicles</h2>
         <p class="gp-section-sub">Generated <?= date('M j, Y', strtotime($mhStory['generated_at'])) ?></p>
         <div class="gp-story-body"><?= lexiconLinkify($pdo, nl2br(htmlspecialchars($mhStory['story_text']))) ?></div>
+        <?php /* /stories collects every Chronicle the league has written, and
+                 nothing linked to it — this is the page where the subject
+                 already is, so it is where the way in belongs. */ ?>
+        <p class="gp-story-more"><a href="/stories?season=<?= rawurlencode($seasonId) ?>">Every Chronicle from <?= strtoupper(htmlspecialchars($seasonId)) ?> →</a></p>
     </section>
     <?php endif; ?>
 

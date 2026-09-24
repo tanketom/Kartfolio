@@ -2105,6 +2105,27 @@ select, textarea {
 }
 @media (prefers-reduced-motion: reduce) { .badge-icon--new::after { animation: none; } }
 
+/* ── Ways in to pages that had none ───────────────────────────────────── */
+.news-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.news-section-link,
+.card-header-link,
+.racer-card-set-link {
+    font-family: var(--font-display);
+    font-size: .78rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: var(--nintendo-red, #e60012);
+    white-space: nowrap;
+}
+.news-section-link:hover,
+.card-header-link:hover,
+.racer-card-set-link:hover { text-decoration: underline; }
+.card-header--with-link { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.racer-card-set-link { display: inline-block; margin-top: 8px; }
+.gp-story-more { margin: 14px 0 0; font-size: .9rem; }
+.gp-story-more a { color: var(--nintendo-red, #e60012); font-weight: 700; text-decoration: none; }
+.gp-story-more a:hover { text-decoration: underline; }
+
 /* ── 404 ─────────────────────────────────────────────────────────────── */
 .notfound {
     text-align: center;

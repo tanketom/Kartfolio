@@ -31,6 +31,7 @@ require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/sim_cache.php';
 require_once __DIR__ . '/fantasy.php';
 require_once __DIR__ . '/dotw.php';
+require_once __DIR__ . '/leaderboard.php';   // the Power Rankings card reads the standings
 
 /** Cheap signature of the results table: changes exactly when a GP is added. */
 function frontBoxSignature(PDO $pdo): string {
@@ -261,6 +262,51 @@ function frontBoxDotw(PDO $pdo): ?array {
 }
 
 /**
+ * Power Rankings — a composite of Elo, recent form and consistency, on a page
+ * nothing linked to. The card names the mover rather than the leader: who is
+ * top is already the whole front page.
+ */
+function frontBoxPowerRankings(PDO $pdo): ?array {
+    $key = 'frontbox:power:' . frontBoxSignature($pdo);
+    $hit = simCacheGet($pdo, $key);
+    if ($hit !== null) return $hit['card'] ?? null;
+
+    $card = null;
+    try {
+        $season = getCurrentSeasonNumber();
+        $rows = leaderboardRows($pdo, $season, 0, false);
+        $ranked = array_values(array_filter($rows, fn($r) => $r['qualifies']));
+        // The biggest climber since the last race night is the story; ties go
+        // to the better-placed racer so the card is stable between reloads.
+        $best = null;
+        foreach ($ranked as $r) {
+            $mv = $r['rank_change'];
+            if ($mv === null || $mv <= 0) continue;
+            if ($best === null || $mv > $best['rank_change']) $best = $r;
+        }
+        if ($best) {
+            $card = [
+                'key' => 'power', 'icon' => '🎙️', 'kicker' => 'Power Rankings',
+                'headline' => $best['name'] . ' up ' . (int)$best['rank_change']
+                              . ' to #' . (int)$best['rank'],
+                'line' => 'Elo, recent form and consistency blended into one number.',
+                'href' => '/power-rankings',
+            ];
+        } elseif ($ranked) {
+            $card = [
+                'key' => 'power', 'icon' => '🎙️', 'kicker' => 'Power Rankings',
+                'headline' => 'Nobody moved',
+                'line' => 'The order held on the last race night. Elo, form and consistency, blended.',
+                'href' => '/power-rankings',
+            ];
+        }
+    } catch (Throwable $e) { $card = null; }
+
+    simCachePut($pdo, $key, ['card' => $card]);
+    return $card;
+}
+
+/**
  * Every card worth showing, urgent ones first. Order is otherwise stable so
  * the rotation does not reshuffle between reloads.
  */
@@ -268,6 +314,7 @@ function frontBoxCards(PDO $pdo): array {
     $cards = array_values(array_filter([
         frontBoxFantasy($pdo),
         frontBoxDotw($pdo),
+        frontBoxPowerRankings($pdo),
         frontBoxPredictions($pdo),
         frontBoxElo($pdo),
         frontBoxMultiverse($pdo),

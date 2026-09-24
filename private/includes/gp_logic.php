@@ -69,6 +69,8 @@ function getScoringSystemRegistry(): array {
             'sort'                   => null,
         ],
         'cup_based' => [
+            'page'                   => '#cup-progress',
+            'page_label'             => 'View Cup Progress',
             'name'                   => 'Cup-Based',
             'icon'                   => '🏆',
             'description'            => fn($rules) => ($rules['cups_required'] ?? 12) . ' cups required',
@@ -91,6 +93,8 @@ function getScoringSystemRegistry(): array {
             'sort'                   => null,
         ],
         'drop_worst' => [
+            'page'                   => '#cup-progress',
+            'page_label'             => 'View Cup Progress',
             'name'                   => 'Drop Worst',
             'icon'                   => '🗑️',
             'description'            => fn($rules) => 'Drop ' . ($rules['drop_worst_count'] ?? 2) . ' worst cups',
@@ -102,6 +106,8 @@ function getScoringSystemRegistry(): array {
             'sort'                   => null,
         ],
         'perfect_hunt' => [
+            'page'                   => '#cup-progress',
+            'page_label'             => 'View Cup Progress',
             'name'                   => 'Perfect Hunt',
             'icon'                   => '💎',
             'description'            => fn($rules) => 'Perfect 60s × ' . ($rules['perfect_multiplier'] ?? 2.0),
@@ -154,6 +160,8 @@ function getScoringSystemRegistry(): array {
         'monster_hunt' => [
             'name'                   => 'MONSTER HUNT',
             'icon'                   => '👹',
+            'page'                   => '/mh-dashboard',
+            'page_label'             => 'Open the MONSTER HUNT dashboard',
             'description'            => 'Hunt XP — the highest-Elo racer becomes the Monster; adventurers slay them for XP',
             'long_description'       => 'The Monster is the highest-Elo racer at race time (ties broken alphabetically; admins can override by flagging is_monster on result entry). CR multiplier (×1.0–×2.0) scales slay XP by the Elo gap. Ranking = the sum of your best-N XP hauls, so extra nights can only help; your title is a separate skill track based on average XP across every GP played.',
             'calculate'              => 'calculateMonsterHuntScore',
@@ -1632,6 +1640,12 @@ function getScoringSystemInfo($pdo, $season_id) {
         'description'      => $desc,
         'long_description' => $def['long_description'] ?? '',
         'icon'             => $def['icon'],
+        // A system may own a page of its own (MONSTER HUNT's dashboard) or a
+        // section further down the homepage (cup progress). The standings
+        // banner links to it from the registry, so a new system's page is one
+        // entry here and nothing dispatches on the system key (§2a).
+        'page'             => $def['page'] ?? null,
+        'page_label'       => $def['page_label'] ?? null,
         'rules'            => $rules,
     ];
 }
