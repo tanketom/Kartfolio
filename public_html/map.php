@@ -91,7 +91,7 @@ $sections = [
     'About this site' => [
         ['/about',             'ℹ️', 'About',                    'What the league is and how the system works. The user-facing intro.'],
         ['/map',               '🗺️', 'Site map',                 'You\'re here.'],
-        ['/uml',               '🗂️', 'System UML',               'Class diagram of every DB table + a data-flow view of which code modules read or write what.'],
+        ['/admin/uml',         '🗂️', 'System UML (admin)',       'Class diagram of every DB table + a data-flow view of which code modules read or write what. Admin only — it documents the code, not the league.'],
         ['/lexicon',           '📖', 'Lexicon',                 'Every term, in-joke, and piece of jargon the league uses — GPScore™, Ludwig Obstruction, Mikkoligan, the lot.'],
     ],
 ];

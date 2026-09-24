@@ -119,6 +119,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                             <a href="/admin/news">📰 News desk</a>
                             <a href="/admin/audit">🔎 Data audit</a>
                             <a href="/admin/modules">🧩 Modules</a>
+                            <a href="/admin/uml">🗂️ System UML</a>
                             <a href="/admin/settings">⚙️ Settings</a>
                         </div>
                     </div>

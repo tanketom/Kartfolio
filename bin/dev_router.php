@@ -13,7 +13,7 @@ if ($uri !== '/' && (is_file($root . $uri) || is_file($root . $decoded))) return
 if ($uri === '/') { require $root . '/index.php'; return true; }
 if (preg_match('#^/season/([a-z0-9]+)$#', $uri, $m)) { $_GET['season'] = $m[1]; require $root . '/index.php'; return true; }
 // Pages that merged into another; the live .htaccess 301s these too.
-$gone = ['/vault' => '/records#vault', '/animate-season' => '/season-chart'];
+$gone = ['/vault' => '/records#vault', '/animate-season' => '/season-chart', '/uml' => '/admin/uml'];
 if (isset($gone[$uri])) { header('Location: ' . $gone[$uri], true, 301); return true; }
 if ($uri === '/season-yearbook') { require $root . '/yearbook.php'; return true; }   // .htaccess names it differently from the file
 

@@ -2,20 +2,24 @@
 /**
  * System architecture — UML class diagram + data flow.
  *
- * Hidden URL (/uml). Renders two Mermaid diagrams: an entity-relationship
- * class diagram of the database schema, and a higher-level data-flow
+ * An admin tool, not a league page: it describes the CODE, so it belongs with
+ * the other developer-facing tooling rather than sitting on a public URL its
+ * readers would never guess. Renders two Mermaid diagrams — an
+ * entity-relationship class diagram of the database schema, and a data-flow
  * diagram showing which code modules read or write which tables.
  *
- * Path: /cdnmk/public_html/uml.php
+ * Path: /cdnmk/public_html/admin/uml.php   (/uml 301s here)
  */
-require_once __DIR__ . '/../private/includes/db.php';
-require_once __DIR__ . '/../private/includes/settings.php';
+require_once __DIR__ . '/../../private/includes/db.php';
+require_once __DIR__ . '/../../private/includes/auth.php';
+require_once __DIR__ . '/../../private/includes/settings.php';
+require_admin();
 
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
 
 $pageTitle = 'System UML - Kartfolio';
 $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
-include __DIR__ . '/../private/templates/header.php';
+include __DIR__ . '/../../private/templates/header.php';
 ?>
 
 <div class="stats-container">
@@ -483,4 +487,4 @@ async function rerender(targetId) {
 }
 </script>
 
-<?php include __DIR__ . '/../private/templates/footer.php'; ?>
+<?php include __DIR__ . '/../../private/templates/footer.php'; ?>
