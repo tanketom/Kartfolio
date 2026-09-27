@@ -915,6 +915,22 @@ Cross-reference if you find half-implemented work:
   would pose as a new instruction. `/admin/racers`' save handler runs on EVERY
   POST not explicitly excluded — a new action posted there must be added to its
   exclusions or it will run an UPDATE with an empty name
+- **Awards night** — `/display/ceremony[?season=sNN]` (`ceremony.php`,
+  `ceremony.js`, `ceremony.css`): a clicker-driven presenter screen. Kartificial
+  hosts; the season's `season_awards` (status `final`, Champion category
+  skipped) plus the Mikkoliiga and fantasy champions are opened one envelope at
+  a time (ask → reveal), then the standings count down from the bottom (the
+  tail beyond nine arrives in one click, the board shows the newest eight) and
+  the podium goes third, second, drumroll, first, finale. Standings are
+  `leaderboardRows()`, so it can never disagree with the homepage; host lines
+  are built from facts, not a model. The step is kept in the URL hash so a
+  reload returns to the same envelope. The 1920×1080 stage is scaled by JS to
+  any screen. `bin/dev_router.php` now serves every `/display/*` sign
+- **On this day** — a rotating-box card (`frontBoxOnThisDay()`): a race night
+  from the same date in an earlier year, else the same day of an earlier month,
+  longest gap first. Months exist because the league's history starts
+  2025-11-19; with them every day of the coming year has a card (measured).
+  Debuts beat top scores; the founding night has its own wording
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),

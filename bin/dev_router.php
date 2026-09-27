@@ -16,6 +16,8 @@ if (preg_match('#^/season/([a-z0-9]+)$#', $uri, $m)) { $_GET['season'] = $m[1]; 
 $gone = ['/vault' => '/records#vault', '/animate-season' => '/season-chart', '/uml' => '/admin/uml'];
 if (isset($gone[$uri])) { header('Location: ' . $gone[$uri], true, 301); return true; }
 if ($uri === '/season-yearbook') { require $root . '/yearbook.php'; return true; }   // .htaccess names it differently from the file
+// The signs live under /display/ in .htaccess; the files sit in the web root.
+if (preg_match('#^/display/(vertical|horizontal|auto-vertical|overlay|ceremony)$#', $uri, $m)) { require $root . '/' . $m[1] . '.php'; return true; }
 
 // The parameterised clean URLs, mirroring the RewriteRules in .htaccess. These
 // were missing, so /timeline/s05gp08 — which add_result redirects to after a

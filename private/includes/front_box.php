@@ -80,6 +80,107 @@ function frontBoxVault(PDO $pdo): ?array {
     ];
 }
 
+/**
+ * On this day — a race night from the same date in an earlier year, or failing
+ * that the same day of an earlier month ("Seven months ago today").
+ *
+ * Years first, then the longest month gap, so the card reaches as far back as
+ * the league's history allows and is the same card all day. Months exist
+ * because the league is young: with results only from late 2025, a strict
+ * "a year ago today" would be empty most of the year. Measured on the live
+ * data, the month fallback gives every day of the coming year a card.
+ *
+ * The night's fact is a debut if anyone raced their first ever GP that night,
+ * otherwise the top single-GP score. Two queries: the dates, then one night.
+ */
+function frontBoxOnThisDay(PDO $pdo, ?DateTimeImmutable $today = null): ?array {
+    $today = $today ?? new DateTimeImmutable('today');
+    try {
+        $nights = array_flip($pdo->query("SELECT DISTINCT date(race_date) FROM results
+                                          WHERE gpid LIKE 's%' AND race_date IS NOT NULL")
+                                 ->fetchAll(PDO::FETCH_COLUMN));
+    } catch (PDOException $e) { return null; }
+    if (!$nights) return null;
+
+    $words = [1 => 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+              'Ten', 'Eleven', 'Twelve'];
+    $when = null; $date = null;
+    // A year back is always the better story; a month gap only fills in for it.
+    foreach ([['year', 10], ['month', 36]] as [$unit, $max]) {
+        for ($k = $max; $k >= 1; $k--) {
+            $d = $today->modify("-$k $unit");
+            // "-1 month" from 31 March lands on 3 March; that is not "a month ago today".
+            if ($d->format('d') !== $today->format('d')) continue;
+            if (isset($nights[$d->format('Y-m-d')])) {
+                $n = $words[$k] ?? (string)$k;
+                $when = ($k === 1 ? "One $unit" : "$n {$unit}s") . ' ago today';
+                $date = $d->format('Y-m-d');
+                break 2;
+            }
+        }
+    }
+    if ($date === null) return null;
+
+    try {
+        $st = $pdo->prepare("
+            SELECT res.racer_id, res.gpid, res.gp_points, res.cup_name, r.name,
+                   (SELECT MIN(date(p.race_date)) FROM results p
+                    WHERE p.racer_id = res.racer_id AND p.gpid LIKE 's%') AS first_night
+            FROM results res JOIN racers r ON r.id = res.racer_id
+            WHERE date(res.race_date) = ? AND res.gpid LIKE 's%'
+            ORDER BY res.gp_points DESC, res.gpid ASC, res.id ASC
+        ");
+        $st->execute([$date]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { return null; }
+    if (!$rows) return null;
+
+    $gpids = array_values(array_unique(array_column($rows, 'gpid')));
+    sort($gpids, SORT_NATURAL);                      // s02gp99 before s02gp100
+    $gpCount = count($gpids);
+    $span = $gpCount === 1 ? $gpids[0] : $gpids[0] . '–' . end($gpids);
+    $night = $gpCount === 1 ? 'a one-GP night' : "a $gpCount-GP night";
+
+    $debuts = [];
+    foreach ($rows as $r) {
+        if ($r['first_night'] === $date) $debuts[$r['name']] = true;
+    }
+    $top = $rows[0];
+    $cup = trim((string)($top['cup_name'] ?? ''));
+    $onCup = $cup !== '' ? ' on the ' . $cup . ' Cup' : '';
+    $pts = (int)$top['gp_points'];
+    // 15 points × 4 races: nobody can score more.
+    $score = $pts === 60 ? 'a perfect 60' : $pts . ' points';
+    $topLine = 'Top score: ' . $top['name'] . ', ' . $score . $onCup . '.';
+
+    $debuts = [];
+    foreach ($rows as $r) {
+        if ($r['first_night'] === $date) $debuts[$r['name']] = true;
+    }
+    $names = array_keys($debuts);
+    $firstNight = $date === min(array_keys($nights));
+
+    if ($firstNight) {
+        $headline = "The league's first race night";
+        $line = count($names) . ' racers, ' . $gpCount . " GPs ($span). " . $topLine;
+    } elseif (count($names) > 2) {
+        $headline = count($names) . ' debuts in one night';
+        $line = implode(', ', $names) . " — $night ($span). " . $topLine;
+    } elseif ($names) {
+        $headline = implode(' and ', $names) . "'s first Grand Prix";
+        $line = (count($names) === 1 ? 'The debut' : 'The debuts') . " came on $night ($span). " . $topLine;
+    } else {
+        $headline = $top['name'] . ' · ' . $score . $onCup;
+        $line = 'The top score of ' . $night . " ($span).";
+    }
+
+    return [
+        'key' => 'onthisday', 'icon' => '🗓️', 'kicker' => 'On this day · ' . $when,
+        'headline' => $headline, 'line' => $line,
+        'href' => '/timeline/' . rawurlencode((string)$top['gpid']),
+    ];
+}
+
 /** Biggest Elo mover on the most recent race night. */
 function frontBoxElo(PDO $pdo): ?array {
     $key = 'frontbox:elo:' . frontBoxSignature($pdo);
@@ -318,6 +419,7 @@ function frontBoxCards(PDO $pdo): array {
         frontBoxPredictions($pdo),
         frontBoxElo($pdo),
         frontBoxMultiverse($pdo),
+        frontBoxOnThisDay($pdo),
         frontBoxVault($pdo),
         frontBoxLexicon($pdo),
     ]));

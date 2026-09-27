@@ -147,6 +147,7 @@ RewriteRule ^display/vertical$ vertical.php [L]
 RewriteRule ^display/horizontal$ horizontal.php [L]
 RewriteRule ^display/auto-vertical$ auto-vertical.php [L]
 RewriteRule ^display/overlay$ overlay.php [L,QSA]
+RewriteRule ^display/ceremony$ ceremony.php [L,QSA]
 RewriteRule ^overlay$ overlay.php [L,QSA]
 
 # API routes - RESTful style
