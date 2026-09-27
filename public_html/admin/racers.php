@@ -12,15 +12,22 @@ $message = "";
 $status = "success";
 
 // 1. Handle Deletion (With Safety Check)
-if (isset($_GET['delete'])) {
+// POST + CSRF. This used to run on a GET link (?delete=ID), and verify_csrf()
+// is a no-op on GET, so any page an admin happened to visit could embed
+// <img src="…/admin/racers?delete=12"> and delete a racer. The results guard
+// below narrowed it to racers with no GPs — which is exactly a roster member
+// who has just been added.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_racer'])) {
+    verify_csrf();
+    $delId = (int)$_POST['delete_racer'];
     $check = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ?");
-    $check->execute([$_GET['delete']]);
+    $check->execute([$delId]);
     if ($check->fetchColumn() > 0) {
         $message = "Cannot delete: Racer has existing GP results. Retire them instead?";
         $status = "error";
     } else {
         $stmt = $pdo->prepare("DELETE FROM racers WHERE id = ?");
-        $stmt->execute([$_GET['delete']]);
+        $stmt->execute([$delId]);
         $message = "Racer removed from the roster.";
     }
 }
@@ -39,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_roster'])) {
 }
 
 // 2. Handle Save/Update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['bulk_roster'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['bulk_roster']) && !isset($_POST['delete_racer'])) {
     verify_csrf();
     $id        = $_POST['racer_id'] ?? '';
     $name      = trim($_POST['name']);
@@ -224,13 +231,16 @@ include __DIR__ . '/../../private/templates/header.php';
                     </svg>
                     Edit
                 </button>
-                <a href="?delete=<?= $r['id'] ?>" class="btn-card btn-delete" onclick="event.preventDefault(); showConfirm({icon: '🗑️', title: 'Delete Racer?', message: 'Are you sure you want to delete <?= htmlspecialchars($r['name']) ?>? All their stats and race history will be permanently lost.'}).then(ok => { if(ok) window.location.href = this.href; });" title="Delete Racer">
+                <form method="POST" class="racer-delete-form" onsubmit="event.preventDefault(); const f = this; showConfirm({icon: '🗑️', title: 'Delete Racer?', message: <?= htmlspecialchars(json_encode('Are you sure you want to delete ' . $r['name'] . '? All their stats and race history will be permanently lost.'), ENT_QUOTES) ?>}).then(ok => { if (ok) f.submit(); });">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="delete_racer" value="<?= (int)$r['id'] ?>">
+                    <button type="submit" class="btn-card btn-delete" title="Delete Racer">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"></polyline>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                     </svg>
-                    Delete
-                </a>
+                    </button>
+                </form>
             </div>
         </div>
         <?php endforeach; ?>
