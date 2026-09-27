@@ -440,6 +440,11 @@ try {
     $pdo->exec('PRAGMA user_version = ' . (int)$schemaSig);
     }   // end of the versioned migration block
 
+    // Once-a-day snapshot of the league (backup.php). One is_file() per
+    // request in the steady state; it never throws.
+    require_once __DIR__ . '/backup.php';
+    dailyBackup($pdo, $dbPath);
+
 } catch (PDOException $e) {
     // If the connection fails, stop the script and show the error
     // In a production environment, you might want to log this instead of echoing it

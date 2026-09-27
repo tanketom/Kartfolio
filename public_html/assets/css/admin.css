@@ -3278,3 +3278,12 @@
    hides a whole GP from every season query, and used to be unfixable here. */
 .admin-input-gpid { width: 110px; font-family: var(--font-mono, monospace); font-size: .8rem; }
 .admin-input-date { width: 130px; font-size: .8rem; margin-top: 4px; }
+
+
+/* Automatic daily backups, listed under Backup & Restore on /admin/settings. */
+.auto-backups { margin-top: 22px; }
+.auto-backups-title { margin: 0 0 6px; font-size: 1rem; }
+.auto-backups-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
+.auto-backups-list li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; background: var(--gray-100, #f3f4f6); border-radius: 8px; font-size: .88rem; }
+.auto-backups-list a { font-weight: 700; text-decoration: none; }
+.auto-backups-size { color: var(--gray-500, #6b7280); font-variant-numeric: tabular-nums; }

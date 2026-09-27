@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/settings.php';
+require_once __DIR__ . '/../../private/includes/backup.php';
 require_admin();
 
 // Initialize settings table
@@ -111,7 +112,7 @@ include __DIR__ . '/../../private/templates/header.php';
             <div class="backup-card">
                 <div class="backup-icon">📤</div>
                 <h3>Export Database</h3>
-                <p>Download a complete backup of your database as a SQL file.</p>
+                <p>Download a complete, consistent snapshot of the league as it stands right now.</p>
                 <a href="/admin/export-database" class="btn btn-export" download>
                     📥 Download Backup
                 </a>
@@ -135,6 +136,29 @@ include __DIR__ . '/../../private/templates/header.php';
                 </form>
                 <p class="backup-note backup-warning">⚠️ Warning: This will replace all current data!</p>
             </div>
+        </div>
+
+        <?php /* The automatic dailies (backup.php). They live outside the web
+                 root, so this list is the only way to reach them. */
+        $autoBackups = listBackups(backupDirFor($dbPath), backupPrefixFor($dbPath)); ?>
+        <div class="auto-backups">
+            <h3 class="auto-backups-title">🗓️ Automatic daily backups</h3>
+            <p class="backup-note">
+                A snapshot is taken on the first visit of each day. The newest <?= BACKUP_KEEP_DAILY ?> are kept,
+                then one per month for <?= BACKUP_KEEP_MONTHLY ?> months. To roll back, download one and restore it above.
+            </p>
+            <?php if (!$autoBackups): ?>
+                <p class="backup-note">None yet — the first one is taken on the next visit to any page.</p>
+            <?php else: ?>
+            <ul class="auto-backups-list">
+                <?php foreach ($autoBackups as $b): ?>
+                <li>
+                    <a href="/admin/export-database?file=<?= rawurlencode($b['file']) ?>"><?= htmlspecialchars(date('D j M Y', strtotime($b['date']))) ?></a>
+                    <span class="auto-backups-size"><?= number_format($b['bytes'] / 1048576, 1) ?> MB</span>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php endif; ?>
         </div>
     </div>
 
