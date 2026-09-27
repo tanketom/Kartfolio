@@ -49,7 +49,8 @@ function callGeminiWithRetry(array $modelChain, string $apiKey, array $payload):
             $httpCode  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlError = curl_error($ch);
             $curlErrno = curl_errno($ch);
-            curl_close($ch);
+            // No curl_close(): it has done nothing since PHP 8.0 and is
+            // deprecated in 8.5. The handle is freed when $ch is reassigned.
 
             if ($curlError) {
                 $perModelErrors[$model] = "cURL ({$curlErrno}): {$curlError}";

@@ -55,3 +55,6 @@ bin/deploy.conf
 # Automatic daily database snapshots (private/includes/backup.php). Per-install
 # state: never committed, and outside the web root.
 private/data/backups/
+
+# Photos of the results screen used by bin/scan_eval.php (league-specific, never committed)
+private/data/scan_fixtures/
