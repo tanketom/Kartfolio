@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/roster.php';
+require_once __DIR__ . '/../../private/includes/profile_codes.php';
 require_admin();
 
 $message = "";
@@ -32,6 +33,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_racer'])) {
     }
 }
 
+// 1b. Issue a racer's self-service profile code. Shown ONCE — only the hash
+// is kept — so the message is the one chance to copy it down. Issuing a new
+// code revokes the old one, which is also how a leaked code is cancelled.
+$issuedCode = null; $issuedFor = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['profile_code_for'])) {
+    verify_csrf();
+    $codeRid = (int)$_POST['profile_code_for'];
+    $nameSt = $pdo->prepare("SELECT name FROM racers WHERE id = ?");
+    $nameSt->execute([$codeRid]);
+    $codeName = $nameSt->fetchColumn();
+    if ($codeName !== false) {
+        $issuedCode = profileCodeIssue($pdo, $codeRid);
+        $issuedFor  = (string)$codeName;
+        $message = "New profile code for " . htmlspecialchars($issuedFor) . " — see below. Any previous code no longer works.";
+    }
+}
+
 // 2a. Handle bulk roster paste (same parser the first-run setup page uses).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_roster'])) {
     verify_csrf();
@@ -46,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_roster'])) {
 }
 
 // 2. Handle Save/Update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['bulk_roster']) && !isset($_POST['delete_racer'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['bulk_roster']) && !isset($_POST['delete_racer']) && !isset($_POST['profile_code_for'])) {
     verify_csrf();
     $id        = $_POST['racer_id'] ?? '';
     $name      = trim($_POST['name']);
@@ -62,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['bulk_roster']) && !i
     } else {
         $stmt = $pdo->prepare("INSERT INTO racers (name, nickname, catchphrase, in_mikkoliiga, is_retired) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$name, $nick, $phrase, $mikko, $retired]);
-        $message = "Welcome to the league, $name!";
+        $message = "Welcome to the league, " . htmlspecialchars($name) . "!";
     }
 }
 
@@ -99,6 +117,19 @@ include __DIR__ . '/../../private/templates/header.php';
     <?php if($message): ?>
         <div class="alert <?= $status === 'success' ? 'alert-success' : 'alert-error' ?>">
             <?= $message ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($issuedCode !== null): ?>
+        <?php /* The only time this code is ever visible: only its hash is stored. */ ?>
+        <div class="profile-code-reveal">
+            <div class="profile-code-label">Profile code for <strong><?= htmlspecialchars($issuedFor) ?></strong></div>
+            <div class="profile-code-value"><?= htmlspecialchars($issuedCode) ?></div>
+            <p class="profile-code-note">
+                Hand this over in person. They enter it on their own profile, under
+                <em>Edit my profile</em>, to change their nickname and catchphrase.
+                It will not be shown again — issue a new one if it is lost, which also cancels this one.
+            </p>
         </div>
     <?php endif; ?>
 
@@ -231,6 +262,13 @@ include __DIR__ . '/../../private/templates/header.php';
                     </svg>
                     Edit
                 </button>
+                <form method="POST" class="racer-code-form" onsubmit="event.preventDefault(); const f = this; showConfirm({icon: '🔑', title: 'Issue a profile code?', message: <?= htmlspecialchars(json_encode('A new code lets ' . $r['name'] . ' edit their own nickname and catchphrase. Any code they already have will stop working.'), ENT_QUOTES) ?>}).then(ok => { if (ok) f.submit(); });">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="profile_code_for" value="<?= (int)$r['id'] ?>">
+                    <button type="submit" class="btn-card btn-code" title="<?= !empty($r['profile_code_hash']) ? 'Reissue profile code (revokes the current one)' : 'Issue a profile code' ?>">
+                        🔑 <?= !empty($r['profile_code_hash']) ? 'New code' : 'Code' ?>
+                    </button>
+                </form>
                 <form method="POST" class="racer-delete-form" onsubmit="event.preventDefault(); const f = this; showConfirm({icon: '🗑️', title: 'Delete Racer?', message: <?= htmlspecialchars(json_encode('Are you sure you want to delete ' . $r['name'] . '? All their stats and race history will be permanently lost.'), ENT_QUOTES) ?>}).then(ok => { if (ok) f.submit(); });">
                     <?= csrf_field() ?>
                     <input type="hidden" name="delete_racer" value="<?= (int)$r['id'] ?>">

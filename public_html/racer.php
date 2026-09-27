@@ -649,6 +649,9 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                     "<?= htmlspecialchars($racer['catchphrase']) ?>"
                 </p>
             <?php endif; ?>
+            <?php /* Racers set these two themselves now, with a code from the
+                     commissioner (edit_profile.php). */ ?>
+            <a href="/edit-profile/<?= (int)$racer['id'] ?>" class="racer-edit-profile-link">✏️ Edit my profile</a>
             <?php
             // Sticker album chip — public from the stickers epoch; admins see
             // it early as an art-preview link.

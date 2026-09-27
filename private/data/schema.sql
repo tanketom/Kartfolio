@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS racers (
     name TEXT NOT NULL UNIQUE,
     nickname TEXT,
     catchphrase TEXT,
-    in_mikkoliiga BOOLEAN DEFAULT 0
+    in_mikkoliiga BOOLEAN DEFAULT 0,
+    is_retired BOOLEAN DEFAULT 0,
+    profile_code_hash TEXT             -- bcrypt of the racer's self-service profile code
 );
 
 -- Final placements per archived season, snapshotted at archive time. Immutable.

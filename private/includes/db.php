@@ -168,6 +168,11 @@ try {
     // or filter on race_date; without this they build a temp B-tree per call.
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_results_date       ON results(race_date, id)");
 
+    // Self-service profiles: a racer's own code for editing their nickname and
+    // catchphrase. Only the bcrypt hash is stored; the admin sees the plain
+    // code once, when it is generated (/admin/racers).
+    try { $pdo->exec("ALTER TABLE racers ADD COLUMN profile_code_hash TEXT"); } catch (PDOException $e) {}
+
     // Driver of the Week: one vote per predictor per week. The ballot is cast
     // on the fantasy form, so it reuses fantasy_predictors as the voter — a
     // racer or a named guest — and the primary key is what stops ballot

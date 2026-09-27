@@ -2126,6 +2126,18 @@ select, textarea {
 .gp-story-more a { color: var(--nintendo-red, #e60012); font-weight: 700; text-decoration: none; }
 .gp-story-more a:hover { text-decoration: underline; }
 
+/* ── Self-service profiles ─────────────────────────────────────────────── */
+.racer-edit-profile-link { display: inline-block; margin-top: 6px; font-size: .78rem; font-weight: 700; color: var(--gray-500, #6b7280); text-decoration: none; }
+.racer-edit-profile-link:hover { color: var(--nintendo-red, #e60012); text-decoration: underline; }
+.profile-edit { max-width: 560px; margin: 0 auto; }
+.profile-edit-form { display: grid; gap: 16px; }
+.profile-edit-field { display: grid; gap: 6px; font-weight: 700; }
+.profile-edit-field small { font-weight: 400; color: var(--gray-500, #6b7280); }
+.profile-edit-field input { padding: 11px 12px; border: 2px solid var(--gray-200, #e5e7eb); border-radius: 10px; font-size: 16px; }
+.profile-edit-field input:focus { outline: none; border-color: var(--nintendo-red, #e60012); }
+.profile-edit-field--code input { font-family: var(--font-mono, monospace); letter-spacing: .12em; text-transform: uppercase; }
+.profile-edit-note { margin: 0; font-size: .88rem; color: var(--gray-600, #4b5563); }
+
 /* ── 404 ─────────────────────────────────────────────────────────────── */
 .notfound {
     text-align: center;

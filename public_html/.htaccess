@@ -137,6 +137,7 @@ RewriteRule ^compare$ /rivalries [R=301,L]
 
 # Racer profile pages (e.g., /racer/1)
 RewriteRule ^racer/([0-9]+)$ racer.php?id=$1 [L,QSA]
+RewriteRule ^edit-profile/([0-9]+)$ edit_profile.php?id=$1 [L,QSA]
 
 # Season-specific routes (e.g., /season/s4)
 RewriteRule ^season/([a-zA-Z0-9]+)$ index.php?season=$1 [L,QSA]

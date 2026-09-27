@@ -22,6 +22,7 @@ if ($uri === '/season-yearbook') { require $root . '/yearbook.php'; return true;
 // save — 404'd on the dev server while working fine under Apache.
 $paramRoutes = [
     '#^/racer/([0-9]+)$#'                   => ['racer.php',                  'id'],
+    '#^/edit-profile/([0-9]+)$#'            => ['edit_profile.php',           'id'],
     '#^/wrapped/([0-9]+)$#'                 => ['wrapped.php',                'racer'],
     '#^/stickers/([0-9]+)$#'                => ['stickers.php',               'racer'],
     '#^/view-recap/([0-9]+)$#'              => ['view_recap.php',             'id'],

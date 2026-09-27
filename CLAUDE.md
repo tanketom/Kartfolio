@@ -574,6 +574,12 @@ features:
 - Per-GP player ratings out of ten (a pundit marking every racer each night)
 - Mechanical promotion and relegation between Mikkoliiga and the main league.
   The 🛗 Promoted badge is the honour; nothing moves automatically
+- Rendering admin pages in check.sh / a nested-form lint
+- A per-race-night winner ("winner of the night") table, badge or honour
+- A season preview page (the yearbook's opposite number)
+- Sealed personal season targets revealed at season end
+- A Norwegian-language (or any second-language) broadcast programme
+- "Record watch" cards or broadcast sections (distance to an existing record)
 
 If they ask "what could we add" again, propose new ideas — don't recycle
 this list.
@@ -595,7 +601,9 @@ Cross-reference if you find half-implemented work:
 - Saga/Chronicles AI fallbacks (now uses shared client)
 - Scoring registry refactor
 - All 5 Gemini callers retrofitted through `gemini_client.php`
-- CSRF audit (no gaps remaining as of last sweep)
+- CSRF audit — one gap survived it: `/admin/racers` deleted a racer on a GET
+  `?delete=ID` link. Fixed (POST + `verify_csrf()`); grep for `$_GET[` next to
+  a DELETE/UPDATE before trusting the audit
 - Constants pass — MK data in `mk_data.php`, programs in `programs.php`
 - Inline-style audit (Mikkoliiga and admin styles moved to `admin.css` /
   `pages.css`)
@@ -887,6 +895,26 @@ Cross-reference if you find half-implemented work:
 - **Fantasy deadline is one function** — `fantasyDeadline()` in `fantasy.php`;
   `/fantasy` and the rotating box both call it rather than keeping two copies
   of the same Sunday-18:00 arithmetic
+- **Automatic daily backups** — `backup.php`: the first web request each day
+  writes a `VACUUM INTO` snapshot to `private/data/backups/` (outside the web
+  root, gitignored), keeping 30 dailies then one per month for 12 months, named
+  after the database so the demo copy never mixes with the league. Skipped under
+  CLI, never throws, one `is_file()` per request in steady state. Listed with
+  download links on Admin → Settings. **The manual export used to be wrong**:
+  the DB is in WAL mode and `export-database.php` did `readfile()` on the main
+  file, so anything committed since the last checkpoint (it lives in the -wal)
+  was missing from the download. It streams a `VACUUM INTO` snapshot now. Never
+  copy a WAL-mode SQLite file with a plain file copy
+- **Self-service profiles** — `/edit-profile/<id>` (`edit_profile.php`,
+  `profile_codes.php`): a racer sets their own nickname and catchphrase with a
+  personal code issued on `/admin/racers` (shown once; only the bcrypt hash is
+  stored in `racers.profile_code_hash`; reissuing revokes). POST + CSRF +
+  `throttleAllow('profile_edit', 10, 10)`. Input has control characters —
+  newlines above all — collapsed before storage, because these strings are
+  pasted into the broadcast briefing and a line break is how text in a nickname
+  would pose as a new instruction. `/admin/racers`' save handler runs on EVERY
+  POST not explicitly excluded — a new action posted there must be added to its
+  exclusions or it will run an UPDATE with an empty name
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),
