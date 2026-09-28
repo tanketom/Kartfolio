@@ -51,7 +51,10 @@
             li.appendChild(el('span', 'cer-board-rank', r.rank));
             li.appendChild(portrait(r.char, 'cer-board-char'));
             li.appendChild(el('span', 'cer-board-name', r.name));
-            if (r.tie) li.appendChild(el('span', 'cer-board-tie', 'tie'));
+            // Always fill the tie slot (empty when level on nothing) so every
+            // score lands in the same grid column — a tied row used to push its
+            // score one column right of the rest.
+            li.appendChild(r.tie ? el('span', 'cer-board-tie', 'tie') : el('span'));
             li.appendChild(el('span', 'cer-board-score', r.score));
             list.appendChild(li);
         }
