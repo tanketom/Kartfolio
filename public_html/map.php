@@ -37,6 +37,7 @@ $sections = [
         ['/cup-stats',         '📊', 'Cup analysis',            'Difficulty index, Fan Favourite cups (from /track-favourites), per-cup podiums. Click any cup to drill in.'],
         ['/cup/mushroom',      '🍄', 'Cup detail page',         'Per-track encyclopedia for one cup — fan-fave Elo, Mac\'s Mushroom Musings strategy notes, champions wall, recent GPs. URL ends in the cup slug.'],
         ['/cup-mastery',       '🏆', 'Cup mastery grid',        'Visual 24-cup × all-racers completion matrix with best scores.'],
+        ['/territory',         '🏰', 'Territory',               'Who holds each cup — best score holds, an equal score takes it. Official on Territory seasons, "what if" on the rest.'],
         ['/track-favourites',  '🏁', 'Track Favourites',        'Head-to-head track voting. Builds an Elo ranking of all 96 tracks.'],
         ['/rivalries',         '⚔️', 'Nemesis Index',           'Pairwise head-to-head records — the tightest 50/50 matchups across the league.'],
         ['/rivalry_web.php',   '🕸️', 'Rivalry web',             'Force-directed graph of every rivalry — visualises the social structure of the league.'],

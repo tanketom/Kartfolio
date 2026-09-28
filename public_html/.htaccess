@@ -108,6 +108,7 @@ RewriteRule ^lexicon/([a-z0-9-]+)$ lexicon.php?term=$1 [L,QSA]
 # the browser to /records%23vault, which is a path, not an anchor, and 404s.
 RewriteRule ^vault$ /records#vault [R=301,NE,L]
 RewriteRule ^season-chart$ season_chart.php [L,QSA]
+RewriteRule ^territory$ territory.php [L,QSA]
 RewriteRule ^wrapped$ wrapped.php [L,QSA]
 RewriteRule ^wrapped/([0-9]+)$ wrapped.php?racer=$1 [L,QSA]
 RewriteRule ^teams$ teams.php [L,QSA]

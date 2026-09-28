@@ -786,6 +786,14 @@ Cross-reference if you find half-implemented work:
   `season_maps` freezes a Territory season's map payload at archive time
   (`snapshotSeasonMap()`, next to the other two snapshots); the season report
   draws it with the same renderer and offers a PNG download
+- **/territory** — who holds each cup, for ANY season (`?season=`): the
+  homepage map only appears on Territory-scored seasons, but `territorySeason()`
+  runs for every season (the Landlord/Usurper/Fortress badges read it), so this
+  page shows it, labelled "unofficial" when the season is scored on something
+  else. Map = `territoryMapPayload()` + the homepage's `overworld.js` /
+  `territory_map.js`; table = cup, holder, score to beat, times changed hands,
+  undefended n/decay; plus the latest takeovers from the event log. Linked
+  from /map. A holder line on each `/cup/<slug>` page is the planned follow-up
 - **Crystal Ball cached** — `sim_cache` table + `private/includes/sim_cache.php`:
   predictions.php's 5000-run Monte Carlo runs once per (season, results
   signature, day, GPs remaining) instead of per view (423 → 10 ms; odds no
