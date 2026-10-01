@@ -946,6 +946,69 @@ Cross-reference if you find half-implemented work:
   (`snlReplay()` now returns `snakeHits`). The last four are empty until
   teams/fantasy/tournaments have data
 
+## Parked work — pick up from here
+
+### Results-screen scanner (photo → add-result form)
+
+Approved by the user, waiting on the go/no-go test. The earlier attempt
+(`api/ocr_gemini.php`, deleted in d20447a) was never trusted enough to use.
+
+**What exists** (commit 93ed568, not wired into any page):
+`private/includes/result_scan.php` — `resultScanRead()` (one structured-output
+Gemini call: per visible row the character name as printed, the bar colour
+`none|red|blue|green|yellow`, the total, a `readable` flag, plus `cut_off`) and
+`resultScanCheck()` (arithmetic + rank derivation + problems list).
+`scanCanonicalCharacter()` maps screen names to stored ones ("Orange Yoshi" →
+"Yoshi (Orange)", "Birdo (Black)" → "Birdo", "Villager" → "Villager").
+`bin/scan_eval.php` scores a model against `private/data/scan_fixtures/`
+(gitignored: 20 photos of real GPs + `expected.json`, hand-checked against the
+DB — s03gp07/08/17/22/26/27, s02gp232–236, 262, 266–267, 272–276, 282).
+
+**Facts established on those 20 photos** (do not re-derive):
+- The screen shows only character names. Humans = rows with a solid coloured
+  bar; CPU rows are dark/grey/see-through (scenery can tint them blue).
+- A four-race GP's twelve totals always sum to **328** (82 per race). 18/18
+  complete photos did. 246 = photo taken after race 3.
+- **Never read the position column.** A photo taken while totals animate shows
+  that race's finishing order beside the GP totals (s03gp22). Rank from points,
+  ties sharing a place, matched the stored rank for **74/74** human rows.
+- **Colour does not identify a racer** — it changes within a night when
+  controllers reconnect (five racers did). **Character does**, usually: match
+  each human row to the GP's line-up by character history → 70/74 right; the
+  rest were two humans on the same character (s02gp236, two Baby Rosalinas —
+  leave blank or break the tie with that night's earlier colour) and a real
+  data-entry error. Racers rarely switch character; when they do (Dom → King
+  Boo, Dino → Link) elimination solves it if one racer and one row are left.
+- Stored characters are partly the form's autofill, not what was played: the
+  scanner should save what is on screen.
+- The photos found a wrong result: s02gp274 had Tom and Tegan's points the
+  wrong way round. Fixed on the live DB 2026-09-27 (snapshot
+  `backups/league-pre-s02gp274-swap.db` on the server).
+
+**Model results so far:** gemini-2.5-flash read 182/182 totals right on 8
+photos (6 pass, 2 caught, 0 silently wrong); its one slip — a CPU row with a
+blue position arrow taken for a human — is addressed in the prompt (untested).
+gemini-2.5-flash-lite read 117/117 totals right but marked 6–12 rows per photo
+as human: unusable. **Use gemini-2.5-flash only, never a lighter fallback.**
+
+**User decisions:** stay on the **free tier** (20 requests/day per model, 5/min,
+shared with the newscasts; normal days are 1–3 GPs). **One read per photo.**
+**Photos are thrown away** after the scan. The manual form stays as is.
+
+**Next steps:**
+1. Finish the test: `php bin/scan_eval.php --limit=10` on two days (reads are
+   cached under `scan_fixtures/reads/`, a run stops at the daily quota). Gate:
+   0 SILENTLY WRONG and ≥18/20 read right (PASS or PASS, flagged).
+2. If it passes, build: a scan button on add_result.php → POST `/api/scan-result`
+   (wall code + `verify_csrf()` + `throttleAllow`, `@set_time_limit`, image
+   shrunk in the browser to ~1600px JPEG, never stored). Prefill rows from the
+   GP's line-up (start from the last GP's racers, as What cup? does); match by
+   character history, tie-break by tonight's earlier colour, else leave the
+   racer blank. Points and derived rank fill in; cup from tonight's What cup?
+   draw. Show every problem beside the form: checksum, cut-off rows, more
+   players than the line-up, a character nobody racing has played. On a quota
+   error say "enter it by hand today" — no fallback model.
+
 ## When in doubt
 
 - Read the `README.md` for what the system does.

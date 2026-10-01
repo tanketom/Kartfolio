@@ -1696,7 +1696,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <th>Season</th>
                     <th class="scoring-system-cell">System</th>
                     <th>Placement</th>
-                    <th>GPScore™</th>
+                    <th>Score</th>
                     <th>GPs</th>
                     <th>Points</th>
                     <th>Best GP</th>
