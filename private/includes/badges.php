@@ -799,6 +799,26 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
         $badges[] = badgeDef('duelist');
 }
 
+/**
+ * How many GPs a racer needs this season before the form badges (podium rate,
+ * Fourth Wall, Kaiju, …) are judged.
+ *
+ * It used to be a flat 3, which disagreed with seasons that rank racers from
+ * fewer: s05 (Head-to-Head) qualifies at 2, so Jack and Hannah A. held a place
+ * in the table with no racing badges at all. Systems that rank by the season's
+ * min_races_threshold now use that number. Systems with their own completion
+ * rule (cups, best-N, hunts, positional) never read the threshold — s02 stores
+ * a meaningless 1 — so they keep 3, and no archived season of theirs moves.
+ */
+function badgeRacingGate(PDO $pdo, string $season_id): int {
+    $rules = getSeasonRules($pdo, $season_id);
+    $def   = getScoringSystemDef($rules['scoring_system'] ?? 'average_attendance');
+    if (!empty($def['qualifies_by_threshold'])) {
+        return max(1, (int)($rules['min_races_threshold'] ?? 3));
+    }
+    return 3;
+}
+
 function getRacerBadges($pdo, $racer_id, $season_id) {
     $badges = [];
     $racer_id = (int)$racer_id;
@@ -822,7 +842,22 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     });
 
     $totalRaces = count($results);
-    if ($totalRaces < 3) return $badges; // Minimum races for racing badges; career badges already added
+
+    // Facts about the racer's career rather than this season's form. They need
+    // the racer to have turned up (Old Guard is about RETURNING), but not to
+    // have raced enough for the form badges below — so they sit before the gate.
+    if ($totalRaces > 0) {
+        // 31. 🎖️ Old Guard — raced in the pre-season (s00) and is back this season
+        if (($ctx['prevSeasonCount'][$racer_id] ?? 0) > 0 && $season_id !== 's00') {
+            $badges[] = badgeDef('old_guard');
+        }
+        // 🕰️ The Elder — competed in 3+ distinct seasons
+        if (($ctx['seasonsPlayed'][$racer_id] ?? 0) >= 3) {
+            $badges[] = badgeDef('the_elder');
+        }
+    }
+
+    if ($totalRaces < badgeRacingGate($pdo, $season_id)) return $badges; // career badges already added
 
     // Variables for calculation
     $lols = 0;
@@ -1132,12 +1167,6 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         $badges[] = badgeDef('tortoise');
     }
 
-    // 31. 🎖️ Old Guard — Participated in both s00 (pre-season) and current season
-    $prevSeasonCount = $ctx['prevSeasonCount'][$racer_id] ?? 0;
-    if ($prevSeasonCount > 0 && $season_id !== 's00') {
-        $badges[] = badgeDef('old_guard');
-    }
-
     // 33. 🐓 Early Bird — Participated in the first GP of this season
     if (!empty($ctx['firstGpRacers'][$racer_id])) {
         $badges[] = badgeDef('early_bird');
@@ -1214,12 +1243,6 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
     }
     if ($maxImprovementStreak >= 5) {
         $badges[] = badgeDef('ascendant');
-    }
-
-    // ── Career ────────────────────────────────────────────────────────────────
-    // 🕰️ The Elder — competed in 3+ distinct seasons
-    if (($ctx['seasonsPlayed'][$racer_id] ?? 0) >= 3) {
-        $badges[] = badgeDef('the_elder');
     }
 
     // ── ELO-based badges ──────────────────────────────────────────────────────
