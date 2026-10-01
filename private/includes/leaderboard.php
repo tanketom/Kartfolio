@@ -65,8 +65,11 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
         $breakdown = getScoringBreakdown($pdo, $rid, $seasonId);
 
         // Badges: rarest first, so the most interesting one leads — and on a
-        // sign, so the cap keeps the ones worth showing.
-        $badges = ($withBadges && $raceCount >= 3)
+        // sign, so the cap keeps the ones worth showing. No GP-count gate here:
+        // getRacerBadges() applies the season's own (badgeRacingGate()); a
+        // second, hardcoded copy of it hid Jack's s05 badges on this page after
+        // his profile already showed them.
+        $badges = $withBadges
             ? sortBadgesByRarity(getRacerBadges($pdo, $rid, $seasonId), $holderCount)
             : [];
         foreach ($badges as &$b) {

@@ -49,7 +49,7 @@ foreach ($activeRacers as $r) {
         'name'      => $r['name'],
         'score'     => $score,
         'char'      => $char,
-        'badges'    => ($raceCount >= 3) ? getRacerBadges($pdo, $r['id'], $seasonId) : [],
+        'badges'    => getRacerBadges($pdo, $r['id'], $seasonId),   // gated inside, per season
         'unique'    => getUniqueBadges($pdo, $r['id'], $seasonId),
         'raceCount' => $raceCount,
         'eligible'  => racerQualifies($raceCount, $meta)
