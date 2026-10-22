@@ -353,7 +353,8 @@ try {
         $sections['lexicon'] = "*** THE LEAGUE'S LEXICON ***\n"
             . "The league's own terms. Use them where they fit, the way an insider would — never explain them, never force them in.\n";
         foreach (array_slice($terms, 0, 40) as $t) {
-            $def = mb_substr(preg_replace('/\s+/', ' ', $t['definition']), 0, 140);
+            $def = preg_replace('/\s+/', ' ', $t['definition']);
+            if (mb_strlen($def) > 140) { $cut = mb_substr($def, 0, 140); $sp = mb_strrpos($cut, ' '); $def = ($sp !== false ? mb_substr($cut, 0, $sp) : $cut) . '…'; }
             $sections['lexicon'] .= "- {$t['term']}: {$def}\n";
         }
         $sections['lexicon'] .= "\n";
