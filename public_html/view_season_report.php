@@ -57,84 +57,24 @@ unset($_m);
 // Drop members who never raced this season.
 $mikkoliigaStandings = array_values(array_filter($mikkoliigaStandings, fn($m) => $m['total_gps'] > 0));
 
-// 3.5 Fetch Season Progression Data for Timeline
+// 3.5 Season Replay — seasonReplay() in gp_logic.php, the same replay
+//     /season-chart draws. Exact for every system that can be replayed (all
+//     but the Elo- and field-pool ones); level racers sit in the order the
+//     season finished them, so the last snapshot IS the final table. This used
+//     to run one query per racer per GP and sort by score alone.
+$replay = seasonReplay($pdo, $sid);
+$racerNames = array_column($racers, 'name', 'id');
 $progressionData = [];
-$gpStmt = $pdo->prepare("
-    SELECT DISTINCT gpid, race_date
-    FROM results
-    WHERE gpid LIKE ?
-    ORDER BY race_date ASC, gpid ASC
-");
-$gpStmt->execute([$sid . "%"]);
-$allGPs = $gpStmt->fetchAll(PDO::FETCH_ASSOC);
-$replayRules  = getSeasonRules($pdo, $sid);
-$seasonReplay = progressiveSeasonReplay($pdo, $replayRules['scoring_system'] ?? 'average_attendance', $sid, $replayRules);
-
-foreach ($allGPs as $gp) {
-    $gpResults = $pdo->prepare("SELECT racer_id, gp_points, rank FROM results WHERE gpid = ? ORDER BY rank ASC");
-    $gpResults->execute([$gp['gpid']]);
-    $results = $gpResults->fetchAll(PDO::FETCH_ASSOC);
-
-    // Calculate cumulative scores up to this GP
-    $cumulativeScores = [];
-    if ($seasonReplay !== null) {
-        // Field-dependent systems (Head-to-Head) replay with the whole season
-        // in view — exact, where the per-racer path below could only fall back
-        // to a points average.
-        foreach ($racers as $r) {
-            $x = $seasonReplay[$gp['gpid']][(int)$r['id']] ?? null;
-            if ($x && racerQualifies($x['gps'], $replayRules) && $x['score'] > 0) {
-                $cumulativeScores[] = ['name' => $r['name'], 'score' => $x['score']];
-            }
-        }
-    } else {
-        foreach ($racers as $r) {
-            $scoreUpToNow = calculateGPScoreUpTo($pdo, $r['id'], $sid, $gp['race_date']);
-            if ($scoreUpToNow > 0) {
-                $cumulativeScores[] = [
-                    'name' => $r['name'],
-                    'score' => $scoreUpToNow
-                ];
-            }
-        }
+foreach ($replay['gps'] as $gp) {
+    $frame = $replay['frames'][$gp['gpid']] ?? [];
+    $standings = [];
+    foreach (seasonReplayOrder($frame, $replay['final']) as $rid) {
+        if (!$frame[$rid]['qualifies']) continue;   // the timeline shows ranked racers only
+        $standings[] = ['name' => $racerNames[$rid] ?? '?', 'score' => $frame[$rid]['score']];
     }
-    usort($cumulativeScores, fn($a, $b) => $b['score'] <=> $a['score']);
-
-    $progressionData[] = [
-        'gpid' => $gp['gpid'],
-        'date' => $gp['race_date'],
-        'standings' => $cumulativeScores,
-        'winner' => $results[0] ?? null
-    ];
+    $progressionData[] = ['gpid' => $gp['gpid'], 'date' => $gp['race_date'], 'standings' => $standings];
 }
-
-// Helper function to calculate GPScore up to a specific date
-// Note: For cup-based and other complex scoring systems, progressive scoring may not be accurate
-function calculateGPScoreUpTo($pdo, $racer_id, $season_id, $date) {
-    $rules = getSeasonRules($pdo, $season_id);
-
-    $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-
-    $stmt = $pdo->prepare("SELECT gp_points, race_date, rank, id FROM results WHERE racer_id = ? AND gpid LIKE ? AND gpid LIKE 's%' AND race_date <= ? ORDER BY gp_points ASC, id ASC");
-    $stmt->execute([$racer_id, $season_id . "%", $date]);
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $totalRaces = count($results);
-    if (!racerQualifies($totalRaces, $rules)) return 0;
-
-    // Systems that replay exactly from the racer's own rows (gp_logic).
-    $exact = progressiveScoreFromRows($scoringSystem, $results, $rules);
-    if ($exact !== null) return $exact;
-
-    // Average+Attendance and Pre-Season replay exactly through the helper above.
-    {
-        // Cup-, Elo- and field-dependent systems can't be replayed from one
-        // racer's rows: show a plain points average and SAY SO on the page.
-        $GLOBALS['progressionApprox'] = true;
-        $pointsOnly = array_column($results, 'gp_points');
-        return round(array_sum($pointsOnly) / count($pointsOnly), 2);
-    }
-}
+$replayApprox = !$replay['exact'];
 
 // 4. Formatter — shared with the broadcast page (private/includes/prose.php).
 //    The copy that lived here never escaped its input.
@@ -172,7 +112,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <!-- Interactive Season Replay Timeline -->
                 <div class="timeline-container">
                     <h2 class="timeline-heading">📊 Season Replay</h2>
-                    <p class="timeline-desc">Scrub through the season timeline to see standings evolution<?php if (!empty($GLOBALS['progressionApprox'])): ?>
+                    <p class="timeline-desc">Scrub through the season timeline to see standings evolution<?php if ($replayApprox): ?>
                         &middot; <?= htmlspecialchars((getScoringSystemDef(getSeasonRules($pdo, $sid)['scoring_system'] ?? 'average_attendance')['name'] ?? 'This system')) ?> can't be replayed GP by GP, so these snapshots rank a plain points average — the final standings above are the real ones<?php endif; ?></p>
 
                     <div class="timeline-slider-wrap">

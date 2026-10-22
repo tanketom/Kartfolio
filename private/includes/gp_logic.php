@@ -1487,6 +1487,90 @@ function progressiveSeasonReplay(PDO $pdo, string $system, string $season_id, ar
 }
 
 /**
+ * A season replayed GP by GP — the one source for every replay view (the
+ * season report's timeline, /season-chart's Positions and The Race). One pass
+ * over the cached season, no per-racer queries.
+ *
+ *   'gps'    => [['gpid', 'race_date', 'cup_name'], …]  in race order
+ *   'frames' => [gpid => [racer_id => ['score', 'gps', 'qualifies']]]  — every
+ *               racer who has raced by then, as they stood after that GP
+ *   'exact'  => false when the system cannot be replayed and a plain points
+ *               average stands in for it (the pages say so)
+ *   'final'  => [racer_id => place in the final standings, 0-based]
+ *
+ * Field-dependent systems go through progressiveSeasonReplay(); the rest are
+ * replayed from each racer's own rows (progressiveScoreFromRows), recomputed
+ * only for racers who raced in that GP.
+ */
+function seasonReplay(PDO $pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+    require_once __DIR__ . '/leaderboard.php';
+
+    $rules  = getSeasonRules($pdo, $season_id);
+    $system = $rules['scoring_system'] ?? 'average_attendance';
+
+    $gps = []; $gpRows = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        foreach ($rows as $r) {
+            $g = $r['gpid']; $d = (string)$r['race_date'];
+            if (!isset($gps[$g])) $gps[$g] = ['gpid' => $g, 'race_date' => $d, 'cup_name' => (string)($r['cup_name'] ?? '')];
+            elseif (strcmp($d, $gps[$g]['race_date']) < 0) $gps[$g]['race_date'] = $d;
+            $gpRows[$g][(int)$rid] = $r;
+        }
+    }
+    uasort($gps, fn($a, $b) => strcmp($a['race_date'], $b['race_date']) ?: strnatcmp($a['gpid'], $b['gpid']));
+
+    $frames = []; $exact = true;
+    $field = progressiveSeasonReplay($pdo, $system, $season_id, $rules);
+    if ($field !== null) {
+        foreach ($gps as $g => $_) {
+            foreach ($field[$g] ?? [] as $rid => $x) {
+                $frames[$g][$rid] = $x + ['qualifies' => racerQualifies($x['gps'], $rules)];
+            }
+        }
+    } else {
+        $soFar = []; $cur = [];
+        foreach ($gps as $g => $_) {
+            foreach ($gpRows[$g] as $rid => $row) {
+                $soFar[$rid][] = $row;
+                $score = progressiveScoreFromRows($system, $soFar[$rid], $rules);
+                if ($score === null) {
+                    $exact = false;
+                    $pts = array_map(fn($r) => (int)$r['gp_points'], $soFar[$rid]);
+                    $score = round(array_sum($pts) / count($pts), 2);
+                }
+                $n = count($soFar[$rid]);
+                $cur[$rid] = ['score' => (float)$score, 'gps' => $n, 'qualifies' => racerQualifies($n, $rules)];
+            }
+            $frames[$g] = $cur;
+        }
+    }
+
+    $final = [];
+    foreach (leaderboardRows($pdo, $season_id, 0, false) as $i => $row) $final[(int)$row['id']] = $i;
+
+    return $cache[$season_id] = ['gps' => array_values($gps), 'frames' => $frames, 'exact' => $exact, 'final' => $final];
+}
+
+/**
+ * One checkpoint in standings order: qualifiers first, then score, and level
+ * racers in the order the season finished them. That tie rule is what makes
+ * the last checkpoint equal the final table; a plain score sort left level
+ * racers in whatever order they were fetched (s04's last snapshot had Andreas
+ * above Hanna, who is ahead on count-back). Returns racer ids.
+ */
+function seasonReplayOrder(array $frame, array $final): array {
+    $ids = array_keys($frame);
+    usort($ids, fn($a, $b) =>
+        ((int)!$frame[$a]['qualifies'] <=> (int)!$frame[$b]['qualifies'])
+        ?: ($frame[$b]['score'] <=> $frame[$a]['score'])
+        ?: (($final[$a] ?? PHP_INT_MAX) <=> ($final[$b] ?? PHP_INT_MAX))
+        ?: ($a <=> $b));
+    return $ids;
+}
+
+/**
  * Aggregate head-to-head record for a racer in a season.
  * $npcWeight overrides the season's saved knob (the simulator passes its own).
  * Returns wins/losses/matchups (weighted, 2dp), gps, rate (0-100, 1dp), plus
@@ -3194,6 +3278,19 @@ function progressiveScoreFromRows(string $system, array $rows, array $rules): ?f
             return aaFromRows($rows, $rules)['score'];
         case 'preseason':
             return $rows ? preseasonFromRows($rows)['score'] : 0.0;
+        case 'top_12_unique': {
+            // Same as calculateTop12UniqueScore(): best score per cup on the
+            // official cup list, the twelve best of those summed.
+            $valid = array_flip(getMKAllCups());
+            $best = [];
+            foreach ($rows as $r) {
+                $c = (string)($r['cup_name'] ?? '');
+                if (isset($valid[$c])) $best[$c] = max($best[$c] ?? 0, (int)$r['gp_points']);
+            }
+            $b = array_values(array_filter($best));
+            rsort($b);
+            return round(array_sum(array_slice($b, 0, 12)), 2);
+        }
         case 'median':
             return round(medianOf(array_map(fn($r) => (int)$r['gp_points'], $rows)), 1);
         case 'form': {

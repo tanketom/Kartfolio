@@ -3,12 +3,12 @@
  * Season Chart — F1-style spaghetti showing each racer's rank in the season
  * standings after every GP, GP by GP. Crossings make rivalries pop.
  *
- * Rank is computed from cumulative gp_points (sum of every GP a racer has
- * played up to that point in the season). This is a faithful proxy for the
- * eventual scoring system in most cases — and matches the visual intuition
- * everyone has about season standings. A footnote on the page makes that
- * caveat explicit so admins running Best-N / Drop-Worst / MONSTER HUNT
- * seasons don't expect this to be exact final standings.
+ * Rank is the season's OWN standings after each GP — seasonReplay() in
+ * gp_logic.php, the same replay The Race view and the season report's
+ * timeline read. It used to be cumulative gp_points for every system, which
+ * on a Head-to-Head season ranks whoever played most GPs, not who won most
+ * duels. Systems that can't be replayed fall back to a plain points average,
+ * and the caveat under the chart only appears for them.
  *
  * Path: /cdnmk/public_html/season_chart.php
  */
@@ -22,74 +22,32 @@ $selectedSeason = $_GET['season'] ?? $currentSeason;
 // Available seasons for the picker.
 $seasons = $pdo->query("SELECT DISTINCT SUBSTR(gpid, 1, 3) AS season FROM results WHERE gpid LIKE 's%' ORDER BY season ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-// ── Build chronological GP list for the selected season ────────────────
-$gpStmt = $pdo->prepare("
-    SELECT gpid, MIN(race_date) AS race_date, cup_name
-    FROM results WHERE gpid LIKE ?
-    GROUP BY gpid
-    ORDER BY race_date ASC, gpid ASC
-");
-$gpStmt->execute([$selectedSeason . '%']);
-$seasonGPs = $gpStmt->fetchAll(PDO::FETCH_ASSOC);
-
-// ── Per-racer cumulative points after each GP (in chronological order) ──
-// We compute everyone's rolling cumulative gp_points and use that as the
-// rank basis. A racer who hasn't yet appeared in the season has 0 points
-// and so doesn't appear on the chart until their first GP.
+// ── The season replayed GP by GP (shared with The Race and the report) ──
+// Each racer's y is their place in the standings as they stood after that GP:
+// qualifiers first, then score, level racers in the order the season finished
+// them, so the last point on every line is the racer's final place. Racers
+// appear from their first GP.
+$replay = seasonReplay($pdo, $selectedSeason);
 $racerStmt = $pdo->prepare("
     SELECT DISTINCT res.racer_id, r.name
     FROM results res JOIN racers r ON r.id = res.racer_id
     WHERE res.gpid LIKE ?
 ");
 $racerStmt->execute([$selectedSeason . '%']);
-$seasonRacers = $racerStmt->fetchAll(PDO::FETCH_ASSOC);
+$racerNames = [];
+foreach ($racerStmt->fetchAll(PDO::FETCH_ASSOC) as $r) { $racerNames[(int)$r['racer_id']] = $r['name']; }
 
-// Pull every result in the season, indexed by gpid → racer_id → points.
-$resStmt = $pdo->prepare("
-    SELECT gpid, racer_id, gp_points
-    FROM results WHERE gpid LIKE ?
-");
-$resStmt->execute([$selectedSeason . '%']);
-$byGp = [];
-foreach ($resStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-    $byGp[$r['gpid']][$r['racer_id']] = (int)$r['gp_points'];
-}
-
-// Walk the chronological GP list and build per-racer (gpIndex, rank) pairs.
-// Racers who haven't yet appeared are excluded from that GP's ranking so
-// they don't all start at rank 1 at GP 0.
-$cumPoints   = [];               // racer_id → cumulative points
-$hasAppeared = [];               // racer_id → bool
-$racerNames  = [];               // racer_id → name
-foreach ($seasonRacers as $r) { $racerNames[(int)$r['racer_id']] = $r['name']; }
-
+$seasonGPs = $replay['gps'];
 $series = [];                    // racer_id → [{x, y} ...]
 $gpLabels = [];
-
 foreach ($seasonGPs as $idx => $gp) {
-    $gpid = $gp['gpid'];
-    $gpLabels[] = strtoupper($gpid);
-    $gpResults = $byGp[$gpid] ?? [];
-
-    foreach ($gpResults as $rid => $pts) {
-        $cumPoints[$rid] = ($cumPoints[$rid] ?? 0) + $pts;
-        $hasAppeared[$rid] = true;
-    }
-
-    // Rank everyone who has appeared so far by their cumulative points
-    // (descending); ties broken by racer_id ascending for stability.
-    $candidates = [];
-    foreach ($hasAppeared as $rid => $_) {
-        $candidates[] = ['id' => $rid, 'pts' => $cumPoints[$rid] ?? 0];
-    }
-    usort($candidates, function ($a, $b) {
-        if ($a['pts'] !== $b['pts']) return $b['pts'] <=> $a['pts'];
-        return $a['id'] <=> $b['id'];
-    });
-    foreach ($candidates as $rank0 => $c) {
-        $series[$c['id']][] = ['x' => $idx + 1, 'y' => $rank0 + 1];
+    $gpLabels[] = strtoupper($gp['gpid']);
+    $frame = $replay['frames'][$gp['gpid']] ?? [];
+    foreach (seasonReplayOrder($frame, $replay['final']) as $rank0 => $rid) {
+        $series[$rid][] = ['x' => $idx + 1, 'y' => $rank0 + 1];
     }
 }
+$chartApprox = !$replay['exact'];
 
 // Sort racers by their final rank (last data point) so the legend reads
 // top-to-bottom in the same order as the final standings on the chart.
@@ -171,12 +129,13 @@ include __DIR__ . '/../private/templates/header.php';
             <canvas id="seasonChart"></canvas>
         </div>
 
+        <?php if ($chartApprox): ?>
         <p class="sc-caveat">
-            Rank is computed from <strong>cumulative GP points</strong> in chronological order.
-            For Average + Attendance and most cup-based scoring systems this tracks the official standings
-            closely; for Best-N, Drop-Worst, MONSTER HUNT, Bounty Hunter, and Pari-Mutuel it may diverge
-            from the final leaderboard. The shape of the rivalries is unchanged either way.
+            <?= htmlspecialchars(getScoringSystemDef(getSeasonRules($pdo, $selectedSeason)['scoring_system'] ?? 'average_attendance')['name'] ?? 'This system') ?>
+            can't be replayed GP by GP, so the places along the way rank a plain points average.
+            The final standings are the real ones.
         </p>
+        <?php endif; ?>
         </div>
 
         <div id="sc-panel-race" class="anim-container" role="tabpanel" hidden>
@@ -378,9 +337,9 @@ window.initSeasonRace = function () {
             gpLabel.textContent = `GP 0 / ${data.totalGPs}`;
             if (data.approximate) {
                 // The server couldn't replay this system GP by GP — say so
-                // rather than presenting a GPScore™-style curve as the real thing.
+                // rather than presenting an average as the real thing.
                 const sub = document.querySelector('.anim-subtitle');
-                if (sub) sub.textContent += ` · ${data.systemName} can't be replayed GP by GP — frames show a GPScore™-style average as an approximation`;
+                if (sub) sub.textContent += ` · ${data.systemName} can't be replayed GP by GP — frames show a plain points average as an approximation`;
             }
 
             // Assign colors
