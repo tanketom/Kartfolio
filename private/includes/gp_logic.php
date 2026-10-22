@@ -595,20 +595,13 @@ function getTop12UniqueTiebreaker($pdo, $racer_id, $season_id) {
  * The result looks like a real score but the math is deliberately hard to reverse-engineer.
  */
 function calculateBlackBoxScore($pdo, $racer_id, $season_id, $rules) {
-    // Cache rows are gp_points ASC; Black Box needs race_date ASC (momentum
-    // bonus walks results chronologically), so re-sort the slice.
     $results = getRacerSeasonRows($pdo, $racer_id, $season_id);
-    usort($results, function ($a, $b) {
-        if ($a['race_date'] !== $b['race_date']) return strcmp($a['race_date'], $b['race_date']);
-        return $a['gp_points'] <=> $b['gp_points'];
-    });
+    if (count($results) < 3) return 0; // Min threshold built-in
+    return blackBoxFromRows($results, (int)$racer_id, blackBoxCareerAvgs($pdo)[(int)$racer_id] ?? 40.0);
+}
 
-    $totalRaces = count($results);
-    if ($totalRaces === 0) return 0;
-    if ($totalRaces < 3) return 0; // Min threshold built-in
-
-    // --- Career average (across ALL seasons) for comeback multiplier ---
-    // One GROUP BY query for every racer, cached for the request.
+/** Career average (across ALL seasons) per racer, for the comeback multiplier. One GROUP BY, cached for the request. */
+function blackBoxCareerAvgs(PDO $pdo): array {
     static $careerAvgs = null;
     if ($careerAvgs === null) {
         $careerAvgs = [];
@@ -617,7 +610,18 @@ function calculateBlackBoxScore($pdo, $racer_id, $season_id, $rules) {
             $careerAvgs[(int)$row['racer_id']] = (float)$row['career_avg'];
         }
     }
-    $careerAvg = $careerAvgs[(int)$racer_id] ?? 40.0;
+    return $careerAvgs;
+}
+
+/** The Black Box formula over any bag of a racer's rows (3+ of them) — the calculator and the replay share it. */
+function blackBoxFromRows(array $results, int $racer_id, float $careerAvg): float {
+    // Cache rows are gp_points ASC; Black Box needs race_date ASC (momentum
+    // bonus walks results chronologically), so re-sort the slice.
+    usort($results, function ($a, $b) {
+        if ($a['race_date'] !== $b['race_date']) return strcmp($a['race_date'], $b['race_date']);
+        return $a['gp_points'] <=> $b['gp_points'];
+    });
+    $totalRaces = count($results);
 
     // Comeback multiplier: lower career avg = higher multiplier (range: 1.0 to 1.35)
     // A 60-avg player gets 1.0, a 20-avg player gets ~1.32
@@ -1475,15 +1479,55 @@ function headToHeadReplay(PDO $pdo, string $season_id, ?float $npcWeight = null)
 /**
  * Season-wide replay for systems that can only be replayed with the whole
  * field in view. Returns [gpid => [racer_id => ['score', 'gps']]] in race
- * order, or null for systems replayed per racer (progressiveScoreFromRows) or
+ * order, or null for systems replayed per racer (progressiveRacerScore) or
  * not replayable at all. Pages call this rather than checking the system name.
  */
 function progressiveSeasonReplay(PDO $pdo, string $system, string $season_id, array $rules): ?array {
     switch ($system) {
         case 'head_to_head':
             return headToHeadReplay($pdo, $season_id, h2hWeightFromRules($rules));
+        case 'monster_hunt':
+            return monsterHuntReplay($pdo, $season_id, $rules);
     }
     return null;
+}
+
+/**
+ * One racer's score from a bag of their own rows, for seasonReplay(). Systems
+ * that also need something from outside the bag — Black Box's career average
+ * and the racer id its chaos hash is seeded with, Random Cup Draw's dealt
+ * cups — are handled here; the rest go to progressiveScoreFromRows(). Null
+ * when the system can't be replayed from the racer's rows.
+ */
+function progressiveRacerScore(PDO $pdo, string $system, string $season_id, array $rules, int $racer_id, array $rows): ?float {
+    switch ($system) {
+        case 'black_box':
+            return count($rows) < 3 ? 0.0 : blackBoxFromRows($rows, $racer_id, blackBoxCareerAvgs($pdo)[$racer_id] ?? 40.0);
+        case 'random_cup_draw':
+            $cups = randomCupDrawAssignments($pdo, $season_id, $rules)[$racer_id] ?? [];
+            return $cups ? round(array_sum(cupBestsFromRows($rows, $cups)), 2) : 0.0;
+    }
+    return progressiveScoreFromRows($system, $rows, $rules);
+}
+
+/**
+ * MONSTER HUNT replayed hunt by hunt: the best-mh_best_x XP sum after each GP,
+ * off mhSeasonHunts() — the walk calculateMonsterHuntScore() reads, solo GPs
+ * included, so the last checkpoint is the leaderboard score. Field-dependent:
+ * who is the Monster depends on who else turned up.
+ */
+function monsterHuntReplay(PDO $pdo, string $season_id, array $rules): array {
+    $bestX = max(1, (int)($rules['mh_best_x'] ?? 20));
+    $ids = array_flip(racerNamesMap($pdo));
+    $xp = []; $out = [];
+    foreach (mhSeasonHunts($pdo, $season_id, $rules) as $h) {
+        foreach ($h['xp'] as $name => $x) if (isset($ids[$name])) $xp[$ids[$name]][] = $x;
+        foreach ($xp as $rid => $list) {
+            rsort($list);
+            $out[$h['gpid']][$rid] = ['score' => round(array_sum(array_slice($list, 0, $bestX)), 2), 'gps' => count($list)];
+        }
+    }
+    return $out;
 }
 
 /**
@@ -1499,7 +1543,7 @@ function progressiveSeasonReplay(PDO $pdo, string $system, string $season_id, ar
  *   'final'  => [racer_id => place in the final standings, 0-based]
  *
  * Field-dependent systems go through progressiveSeasonReplay(); the rest are
- * replayed from each racer's own rows (progressiveScoreFromRows), recomputed
+ * replayed from each racer's own rows (progressiveRacerScore), recomputed
  * only for racers who raced in that GP.
  */
 function seasonReplay(PDO $pdo, string $season_id): array {
@@ -1524,17 +1568,22 @@ function seasonReplay(PDO $pdo, string $season_id): array {
     $frames = []; $exact = true;
     $field = progressiveSeasonReplay($pdo, $system, $season_id, $rules);
     if ($field !== null) {
+        // A GP the field replay has no checkpoint for (MONSTER HUNT skips a
+        // GP missing from the Elo changelog) keeps the standings it found.
+        $cur = [];
         foreach ($gps as $g => $_) {
-            foreach ($field[$g] ?? [] as $rid => $x) {
-                $frames[$g][$rid] = $x + ['qualifies' => racerQualifies($x['gps'], $rules)];
+            if (isset($field[$g])) {
+                $cur = [];
+                foreach ($field[$g] as $rid => $x) $cur[$rid] = $x + ['qualifies' => racerQualifies($x['gps'], $rules)];
             }
+            $frames[$g] = $cur;
         }
     } else {
         $soFar = []; $cur = [];
         foreach ($gps as $g => $_) {
             foreach ($gpRows[$g] as $rid => $row) {
                 $soFar[$rid][] = $row;
-                $score = progressiveScoreFromRows($system, $soFar[$rid], $rules);
+                $score = progressiveRacerScore($pdo, $system, $season_id, $rules, $rid, $soFar[$rid]);
                 if ($score === null) {
                     $exact = false;
                     $pts = array_map(fn($r) => (int)$r['gp_points'], $soFar[$rid]);
@@ -3251,14 +3300,15 @@ function racerSeasonGpCount(PDO $pdo, int $racer_id, string $season_id): int {
 
 // ============================================================================
 // PROGRESSIVE (REPLAY) SCORING — "what was X's score after GP k?"
-// The season-replay pages (stats chart, season report timeline, animate)
-// re-implement scoring on a growing bag of rows. Systems whose score depends
-// only on the racer's own rows can be replayed exactly; this is the one
-// implementation of those. Returns null for a system that cannot be replayed
-// from one racer's rows alone (Elo-, standings- or league-dependent systems),
-// so callers can label the chart as an approximation instead of mislabelling
-// a GPScore™ curve as that system — which stats.php did for nine systems.
-// Rows need gp_points, race_date, rank, id.
+// The replay pages (the /stats chart, the season report timeline,
+// /season-chart) all read seasonReplay(), which scores a growing bag of rows
+// through here. Systems whose score depends only on the racer's own rows are
+// replayed exactly; this is the one implementation of those. Returns null for
+// a system that cannot be replayed from one racer's rows alone (Elo-,
+// standings- or league-dependent systems; the field-dependent ones that CAN be
+// replayed live in progressiveSeasonReplay()), so seasonReplay() reports
+// 'exact' => false and the pages label the chart as an approximation.
+// Rows need gp_points, race_date, rank, id, cup_name.
 // ============================================================================
 function progressiveScoreFromRows(string $system, array $rows, array $rules): ?float {
     switch ($system) {
@@ -3278,16 +3328,28 @@ function progressiveScoreFromRows(string $system, array $rows, array $rules): ?f
             return aaFromRows($rows, $rules)['score'];
         case 'preseason':
             return $rows ? preseasonFromRows($rows)['score'] : 0.0;
-        case 'top_12_unique': {
-            // Same as calculateTop12UniqueScore(): best score per cup on the
-            // official cup list, the twelve best of those summed.
-            $valid = array_flip(getMKAllCups());
-            $best = [];
-            foreach ($rows as $r) {
-                $c = (string)($r['cup_name'] ?? '');
-                if (isset($valid[$c])) $best[$c] = max($best[$c] ?? 0, (int)$r['gp_points']);
+        case 'best_n_gps': {
+            $pts = array_map(fn($r) => (int)$r['gp_points'], $rows);
+            rsort($pts);
+            return round(array_sum(array_slice($pts, 0, (int)($rules['best_n_count'] ?? 15))), 2);
+        }
+        case 'cup_based':
+            return round(array_sum(cupBestsFromRows($rows, array_slice(getMKAllCups(), 0, $rules['cups_required'] ?? 12))), 2);
+        case 'drop_worst': {
+            $b = cupBestsFromRows($rows, array_slice(getMKAllCups(), 0, $rules['cups_required'] ?? 12));
+            sort($b);
+            return round(array_sum(array_slice($b, (int)($rules['drop_worst_count'] ?? 2))), 2);
+        }
+        case 'perfect_hunt': {
+            $mult = $rules['perfect_multiplier'] ?? 2.0;
+            $total = 0;
+            foreach (cupBestsFromRows($rows, array_slice(getMKAllCups(), 0, $rules['cups_required'] ?? 12)) as $s) {
+                $total += ($s == MK_MAX_GP_POINTS) ? ($s * $mult) : $s;
             }
-            $b = array_values(array_filter($best));
+            return round($total, 2);
+        }
+        case 'top_12_unique': {
+            $b = cupBestsFromRows($rows, getMKAllCups());
             rsort($b);
             return round(array_sum(array_slice($b, 0, 12)), 2);
         }
@@ -3303,11 +3365,20 @@ function progressiveScoreFromRows(string $system, array $rows, array $rules): ?f
     return null;
 }
 
-/** Systems the replay pages can reproduce exactly from a racer's own rows. */
-function progressiveReplayableSystems(): array {
-    return ['average_attendance', 'preseason', 'best_n_gps', 'cup_based', 'drop_worst', 'perfect_hunt',
-            'top_12_unique', 'black_box', 'random_cup_draw', 'monster_hunt',
-            'positional_points', 'median', 'form'];
+/**
+ * getBestScorePerCup() over a bag of rows instead of the season cache: the
+ * best score on each of $cups the racer has raced, zeros left out, as a list —
+ * what the cup-based calculators sum once they array_filter() the nulls.
+ */
+function cupBestsFromRows(array $rows, array $cups): array {
+    $wanted = array_flip($cups);
+    $best = [];
+    foreach ($rows as $r) {
+        $c = $r['cup_name'] ?? null;
+        if ($c === null || !isset($wanted[$c])) continue;
+        $best[$c] = max($best[$c] ?? 0, (int)$r['gp_points']);
+    }
+    return array_values(array_filter($best));
 }
 
 // ============================================================================

@@ -22,15 +22,12 @@ if (!$isAllTime) {
 
     $scoringInfo = getScoringSystemInfo($pdo, $currentSeason);
     $scoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-
-    $attWeight = $rules['attendance_weight'] ?? 1.0;
-    $dropRate  = $rules['drop_rate'] ?? 10;
-    $weeklyCap = $rules['weekly_bonus_cap'] ?? 2;
-    $threshold = $rules['min_races_threshold'] ?? 3;
 } else {
     $scoringInfo = ['name' => 'All-Time Legacy', 'description' => 'All seasons combined', 'icon' => '🏆', 'system' => 'average_attendance'];
     $scoringSystem = 'average_attendance';
-    $attWeight = 1.0; $dropRate = 10; $weeklyCap = 2; $threshold = 3;
+    // The All-Time curve is GPScore™ over every season's rows, on default knobs.
+    $rules = ['scoring_system' => 'average_attendance', 'attendance_weight' => 1.0, 'drop_rate' => 10,
+              'weekly_bonus_cap' => 2, 'min_races_threshold' => 3];
 }
 
 // 2. Fetch Raw Results
@@ -70,232 +67,42 @@ foreach ($raw_data as $row) {
 $timeline = array_values(array_unique($all_dates));
 sort($timeline);
 
-// 3b. Pre-compute MONSTER HUNT XP per GP per racer (needs all participants + Elo)
-$mhXpSeries = []; // racer_name => [gpid => xp_earned]
-$gpDates     = []; // gpid => race_date
-foreach ($raw_data as $row) {
-    if (!isset($gpDates[$row['gpid']])) $gpDates[$row['gpid']] = $row['race_date'];
-}
-if (!$isAllTime && $scoringSystem === 'monster_hunt') {
-    // Per-GP XP from the MONSTER HUNT engine. The copy that lived here picked
-    // the Monster by raw Elo and ignored the is_monster admin flag, so it
-    // credited XP to the wrong racer on 12 of s03's 31 GPs.
-    foreach (mhSeasonHunts($pdo, $currentSeason, $rules) as $h) {
-        if ($h['solo']) continue;
-        foreach ($h['xp'] as $name => $xp) $mhXpSeries[$name][$h['gpid']] = $xp;
+// 4. THE CHART — one point per race night: each racer's score after that
+// night's last GP. A season is seasonReplay() (gp_logic.php), the same replay
+// /season-chart and the season report draw, scored under the season's own
+// system; 'exact' => false means a plain points average stands in for a system
+// that can't be replayed, and the subtitle says so. All-Time has no system of
+// its own: a GPScore™ curve over every season's rows.
+$chart_series = [];
+$chartApprox  = false;
+if (!$isAllTime) {
+    $replay = seasonReplay($pdo, $currentSeason);
+    $chartApprox = !$replay['exact'];
+    $nightFrame = [];   // race_date => standings after that night's last GP
+    foreach ($replay['gps'] as $gp) $nightFrame[$gp['race_date']] = $replay['frames'][$gp['gpid']] ?? [];
+    $frames = [];
+    $frame = [];
+    foreach ($timeline as $d) $frames[] = $frame = $nightFrame[$d] ?? $frame;
+    foreach ($racer_ids as $name => $rid) {
+        $chart_series[$name] = array_map(fn($f) => $f[(int)$rid]['score'] ?? null, $frames);
+    }
+} else {
+    foreach ($racer_raw_data as $name => $entries) {
+        $bag = []; $i = 0; $n = count($entries);
+        foreach ($timeline as $d) {
+            for (; $i < $n && $entries[$i]['date'] <= $d; $i++) {
+                $bag[] = ['gp_points' => $entries[$i]['points'], 'race_date' => $entries[$i]['date'], 'id' => $entries[$i]['id']];
+            }
+            $chart_series[$name][] = $bag ? aaFromRows($bag, $rules)['score'] : null;
+        }
     }
 }
 
-// 4. THE REPLAY ENGINE
-// Can the chart reproduce this system GP by GP, or only approximate it?
-$chartApprox  = !$isAllTime && !in_array($scoringSystem, progressiveReplayableSystems(), true);
-$chart_series = [];
+// 5. Stats tables
 $stats_summary = [];
 $peak_performances = [];
 $volatility_data = [];
-$all_racers = array_keys($racer_raw_data);
-
-foreach ($all_racers as $racer) {
-    $running_bag = [];
-    $chart_points = [];
-    $racerId = $racer_ids[$racer];
-
-    // A. Chart Generation (Use Season-Aware Scoring)
-    // For black_box, pre-fetch career average for this racer
-    $careerAvg = 40;
-    if ($scoringSystem === 'black_box') {
-        $careerStmt = $pdo->prepare("SELECT AVG(gp_points) as career_avg FROM results WHERE racer_id = ? AND gpid LIKE 's%'");
-        $careerStmt->execute([$racerId]);
-        $careerAvg = (float)($careerStmt->fetchColumn() ?: 40);
-    }
-
-    foreach ($timeline as $currentDate) {
-        $running_bag = [];
-        foreach ($racer_raw_data[$racer] as $entry) {
-            if ($entry['date'] <= $currentDate) {
-                $running_bag[] = $entry;
-            }
-        }
-
-        $count = count($running_bag);
-
-        if ($count > 0) {
-            $pointsOnly = array_column($running_bag, 'points');
-            $bagRows    = array_map(fn($e) => ['gp_points' => $e['points'], 'race_date' => $e['date'], 'rank' => $e['rank'], 'id' => $e['id']], $running_bag);
-
-            switch ($scoringSystem) {
-                case 'average_attendance':
-                case 'preseason':
-                case 'positional_points':
-                case 'median':
-                case 'form':
-                    // Exact replays from the racer's own rows (gp_logic).
-                    $chart_points[] = progressiveScoreFromRows($scoringSystem, $bagRows, $rules);
-                    break;
-
-                default:
-                    // No replay for this system — a GPScore™-style
-                    // Average+Attendance APPROXIMATION; the subtitle says so
-                    // ($chartApprox). It used to be silently labelled as the
-                    // season's real system.
-                    $chart_points[] = aaFromRows($bagRows, $rules)['score'];
-                    break;
-
-                case 'best_n_gps':
-                    // Sum of best N scores
-                    $bestN = $rules['best_n_count'] ?? 15;
-                    $sorted = $pointsOnly;
-                    rsort($sorted);
-                    $top = array_slice($sorted, 0, $bestN);
-                    $chart_points[] = round(array_sum($top), 2);
-                    break;
-
-                case 'cup_based':
-                    // Best score per required cup, sum
-                    $cupsRequired = $rules['cups_required'] ?? 12;
-                    $allCups = array_slice(getMKAllCups(), 0, $cupsRequired);
-                    $cupBests = [];
-                    foreach ($running_bag as $e) {
-                        $cn = $e['cup_name'];
-                        if ($cn && in_array($cn, $allCups)) {
-                            $cupBests[$cn] = max($cupBests[$cn] ?? 0, $e['points']);
-                        }
-                    }
-                    $chart_points[] = round(array_sum($cupBests), 2);
-                    break;
-
-                case 'drop_worst':
-                    // Best per cup, drop N worst, sum
-                    $cupsRequired = $rules['cups_required'] ?? 12;
-                    $dropWorstCount = $rules['drop_worst_count'] ?? 2;
-                    $allCups = array_slice(getMKAllCups(), 0, $cupsRequired);
-                    $cupBests = [];
-                    foreach ($running_bag as $e) {
-                        $cn = $e['cup_name'];
-                        if ($cn && in_array($cn, $allCups)) {
-                            $cupBests[$cn] = max($cupBests[$cn] ?? 0, $e['points']);
-                        }
-                    }
-                    $scores = array_values($cupBests);
-                    sort($scores);
-                    $filtered = array_slice($scores, min($dropWorstCount, max(0, count($scores) - 1)));
-                    $chart_points[] = round(array_sum($filtered), 2);
-                    break;
-
-                case 'perfect_hunt':
-                    // Cup-based with multiplier for 60s
-                    $cupsRequired = $rules['cups_required'] ?? 12;
-                    $perfectMultiplier = $rules['perfect_multiplier'] ?? 2.0;
-                    $allCups = array_slice(getMKAllCups(), 0, $cupsRequired);
-                    $cupBests = [];
-                    foreach ($running_bag as $e) {
-                        $cn = $e['cup_name'];
-                        if ($cn && in_array($cn, $allCups)) {
-                            $cupBests[$cn] = max($cupBests[$cn] ?? 0, $e['points']);
-                        }
-                    }
-                    $total = 0;
-                    foreach ($cupBests as $score) {
-                        $total += ($score == MK_MAX_GP_POINTS) ? ($score * $perfectMultiplier) : $score;
-                    }
-                    $chart_points[] = round($total, 2);
-                    break;
-
-                case 'top_12_unique':
-                    // Best score per cup, take top 12
-                    $allCups = getMKAllCups();
-                    $cupBests = [];
-                    foreach ($running_bag as $e) {
-                        $cn = $e['cup_name'];
-                        if ($cn) {
-                            $cupBests[$cn] = max($cupBests[$cn] ?? 0, $e['points']);
-                        }
-                    }
-                    $scores = array_values($cupBests);
-                    rsort($scores);
-                    $top12 = array_slice($scores, 0, 12);
-                    $chart_points[] = round(array_sum($top12), 2);
-                    break;
-
-                case 'black_box':
-                    // Replicate black box formula in-memory
-                    if ($count < 3) {
-                        $chart_points[] = 0;
-                        break;
-                    }
-                    $comebackMultiplier = 1.0 + max(0, (50 - $careerAvg) / 50) * 0.45;
-                    $comebackMultiplier = min($comebackMultiplier, 1.35);
-
-                    $mean = array_sum($pointsOnly) / $count;
-                    $variance = 0;
-                    foreach ($pointsOnly as $p) { $variance += ($p - $mean) ** 2; }
-                    $stdDev = sqrt($variance / $count);
-                    $consistencyFactor = max(0.92, 1.0 - max(0, ($stdDev - 10) * 0.008));
-
-                    $runningTotal = 0;
-                    $recentScores = [];
-                    foreach ($running_bag as $i => $res) {
-                        $pts = (float)$res['points'];
-                        $baseScore = sqrt($pts) * 7.7;
-                        $momentumBonus = 0;
-                        if (count($recentScores) >= 3) {
-                            $recentAvg = array_sum(array_slice($recentScores, -3)) / 3;
-                            if ($pts > $recentAvg) {
-                                $momentumBonus = ($pts - $recentAvg) * 0.3;
-                            }
-                        }
-                        $dateHash = crc32($racerId . $res['date'] . $i);
-                        $chaosPoints = (($dateHash % 500) / 100) - 1.5;
-                        $gpContribution = ($baseScore + $momentumBonus + $chaosPoints) * $comebackMultiplier;
-                        $runningTotal += max(0, $gpContribution);
-                        $recentScores[] = $pts;
-                    }
-                    $runningTotal *= $consistencyFactor;
-                    $attendanceBonus = log($count + 1, 2) * 3.3;
-                    $chart_points[] = round($runningTotal / $count + $attendanceBonus, 2);
-                    break;
-
-                case 'random_cup_draw':
-                    // Score from assigned cups only
-                    $racerCups = randomCupDrawAssignments($pdo, $currentSeason, (array)$rules)[(int)$racerId] ?? [];
-                    if (empty($racerCups)) {
-                        $chart_points[] = 0;
-                        break;
-                    }
-                    $cupBests = [];
-                    foreach ($running_bag as $e) {
-                        $cn = $e['cup_name'];
-                        if ($cn && in_array($cn, $racerCups)) {
-                            $cupBests[$cn] = max($cupBests[$cn] ?? 0, $e['points']);
-                        }
-                    }
-                    $chart_points[] = round(array_sum($cupBests), 2);
-                    break;
-
-                case 'monster_hunt':
-                    // Running Best X XP sum as of $currentDate
-                    $mhBestX   = max(1, (int)($rules['mh_best_x'] ?? 20));
-                    $mhSeries  = $mhXpSeries[$racer] ?? [];
-                    $mhRunning = [];
-                    foreach ($mhSeries as $gpid => $xp) {
-                        $gpDate = $gpDates[$gpid] ?? '';
-                        if ($gpDate && $gpDate <= $currentDate) $mhRunning[] = $xp;
-                    }
-                    if (count($mhRunning) > 0) {
-                        rsort($mhRunning);
-                        $topX = array_slice($mhRunning, 0, $mhBestX);
-                        $chart_points[] = round(array_sum($topX), 2);
-                    } else {
-                        $chart_points[] = null;
-                    }
-                    break;
-            }
-        } else {
-            $chart_points[] = null;
-        }
-    }
-    $chart_series[$racer] = $chart_points;
-    
+foreach (array_keys($racer_raw_data) as $racer) {
     // B. Stats Calculation (Loose Rules - Form doesn't care about thresholds)
     $full_bag = $racer_raw_data[$racer]; 
     $pointsOnly = array_column($full_bag, 'points');
@@ -390,7 +197,7 @@ foreach ($chart_series as $name => $dataPoints) {
             <?php if ($scoringSystem === 'monster_hunt'): ?>
                 Tracking the best-<?= max(1, (int)($rules['mh_best_x'] ?? 20)) ?> XP sum over the season — the number the leaderboard ranks on. Title and level are shown on the leaderboard.
             <?php elseif (!empty($chartApprox)): ?>
-                <?= htmlspecialchars($scoringInfo['name']) ?> can't be replayed GP by GP (it depends on the rest of the field), so this chart shows a GPScore™-style average as an approximation.
+                <?= htmlspecialchars($scoringInfo['name']) ?> can't be replayed GP by GP, so this chart shows each racer's plain points average as an approximation.
             <?php else: ?>
                 Tracking <?= htmlspecialchars($scoringInfo['name']) ?> progression over the season.
             <?php endif; ?>
@@ -552,7 +359,7 @@ foreach ($chart_series as $name => $dataPoints) {
                 y: { 
                     grid: { color: '#e8e0cc' },
                     ticks: { font: { weight: 'bold' } },
-                    title: { display: true, text: 'GPScore™', font: { weight: 'bold' } }
+                    title: { display: true, text: <?= jsonForScript($isAllTime ? 'GPScore™' : ($chartApprox ? 'Points average' : $scoringInfo['name'])) ?>, font: { weight: 'bold' } }
                 },
                 x: { 
                     grid: { display: false }, 

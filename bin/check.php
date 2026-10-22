@@ -46,12 +46,14 @@ $ok('badge emitters produce catalogue titles only', !array_diff(array_keys($emit
 echo "scoring\n";
 $bad = [];
 foreach (['s01', 's02'] as $s) { $rules = getSeasonRules($pdo, $s); foreach (array_keys(getSeasonResultsByRacer($pdo, $s)) as $rid) { $rows = getRacerSeasonRows($pdo, (int)$rid, $s);
-    foreach ([['average_attendance', 'calculateAverageAttendanceScore'], ['preseason', 'calculatePreSeasonScore'], ['positional_points', 'calculatePositionalScore'], ['median', 'calculateMedianScore'], ['form', 'calculateFormScore']] as [$sys, $fn]) {
+    foreach ([['average_attendance', 'calculateAverageAttendanceScore'], ['preseason', 'calculatePreSeasonScore'], ['positional_points', 'calculatePositionalScore'], ['median', 'calculateMedianScore'], ['form', 'calculateFormScore'],
+              ['best_n_gps', 'calculateBestNGPsScore'], ['cup_based', 'calculateCupBasedScore'], ['drop_worst', 'calculateDropWorstScore'], ['perfect_hunt', 'calculatePerfectHuntScore'], ['top_12_unique', 'calculateTop12UniqueScore'],
+              ['black_box', 'calculateBlackBoxScore'], ['random_cup_draw', 'calculateRandomCupDrawScore']] as [$sys, $fn]) {
         $live = $fn($pdo, (int)$rid, $s, $rules); if ($sys === 'average_attendance' && $live === 0) continue;   // threshold gate lives in the calculator
-        $rep = progressiveScoreFromRows($sys, $rows, (array)$rules);
+        $rep = progressiveRacerScore($pdo, $sys, $s, (array)$rules, (int)$rid, $rows);
         if (abs((float)$rep - (float)$live) > 1e-9) $bad[] = "$s/$rid/$sys $rep≠$live";
     } } }
-$ok('progressiveScoreFromRows == live calculators (AA, preseason, positional, median, form)', !$bad, implode(' ', array_slice($bad, 0, 5)));
+$ok('progressiveRacerScore == live calculators (12 per-racer replays)', !$bad, implode(' ', array_slice($bad, 0, 5)));
 // every system's calculator returns a number for every racer (the weird ones included)
 $bad = [];
 foreach (getScoringSystemRegistry() as $key => $def) foreach (array_keys(getSeasonResultsByRacer($pdo, 's02')) as $rid) { $v = ($def['calculate'])($pdo, (int)$rid, 's02', getSeasonRules($pdo, 's02')); if (!is_numeric($v)) $bad[] = "$key/$rid"; }
@@ -78,7 +80,7 @@ echo "pages\n";
 $pages = [];
 foreach (glob("$root/public_html/*.php") as $f) $pages[basename($f, '.php')] = [];
 unset($pages['login'], $pages['logout']);
-$variants = ['index' => ['', 'season=s01', 'season=s02', 'season=s03'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02', 'season=s03'], 'stats' => ['', 'season=s01'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'yearbook' => ['', 'season=s01', 'season=s02'], 'cup_mastery' => ['season=s02'], 'territory' => ['', 'season=s01', 'season=s02', 'season=zz'], 'predictions' => [''], 'season' => null];
+$variants = ['index' => ['', 'season=s01', 'season=s02', 'season=s03'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02', 'season=s03'], 'stats' => ['', 'season=s01', 'season=s02', 'season=all'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'yearbook' => ['', 'season=s01', 'season=s02'], 'cup_mastery' => ['season=s02'], 'territory' => ['', 'season=s01', 'season=s02', 'season=zz'], 'predictions' => [''], 'season' => null];
 $racerIds = $pdo->query("SELECT id FROM racers ORDER BY id LIMIT 2")->fetchAll(PDO::FETCH_COLUMN);
 $renderer = tempnam(sys_get_temp_dir(), 'render'); file_put_contents($renderer, '<?php
 // Renders one page from the CLI. A page may exit() (a redirect, a "not found"),
