@@ -14,7 +14,11 @@
  * show also gets a shorter, cheaper prompt.
  *
  * Sections: system · standings · odds · scenarios · form · results · nemesis
- *           · mikkoliiga · focus
+ *           · mikkoliiga · focus · badges (earned on the latest night) ·
+ *           attendance (debuts and absences) · racers (self-written nicknames
+ *           and catchphrases) · lexicon (the league's own terms).
+ * The league's identity, the season's name and dates, today's date and the
+ * race nights covered are not sections: every show gets them.
  */
 
 require_once __DIR__ . '/db.php';
@@ -23,6 +27,7 @@ require_once __DIR__ . '/settings.php';
 /** Every section, for a program that should see the lot. */
 const BROADCAST_ALL_SECTIONS = [
     'system', 'standings', 'odds', 'scenarios', 'form', 'results', 'nemesis', 'mikkoliiga',
+    'badges', 'attendance', 'racers', 'lexicon',
 ];
 
 /**
@@ -34,29 +39,32 @@ function broadcastDiet(string $programKey): array {
     $diets = [
         // Analytics for nerds — the only show that gets the lot, tie-breaks
         // and qualification rules included.
-        'meta_report' => ['system', 'standings', 'odds', 'scenarios', 'form', 'results', 'nemesis', 'mikkoliiga'],
+        'meta_report' => ['system', 'standings', 'odds', 'scenarios', 'form', 'results', 'nemesis', 'mikkoliiga', 'badges', 'attendance', 'racers', 'lexicon'],
 
         // Generic sports broadcast: the table, the story, the odds.
-        'core_team'   => ['system', 'standings', 'odds', 'form', 'results', 'nemesis', 'mikkoliiga'],
+        'core_team'   => ['system', 'standings', 'odds', 'form', 'results', 'nemesis', 'mikkoliiga', 'badges', 'attendance', 'racers', 'lexicon'],
 
-        // Personality and grudges. Movement and rivalry, no formulas.
-        'the_rant'    => ['standings', 'results', 'nemesis', 'form'],
+        // Personality and grudges. Movement and rivalry, no formulas — but
+        // who turned up, who didn't, and what they call themselves.
+        'the_rant'    => ['standings', 'results', 'nemesis', 'form', 'badges', 'attendance', 'racers', 'lexicon'],
 
         // "Study the spectacle": the table as an instrument of control, plus
-        // who is excluded by the threshold. No odds — this show does not
-        // forecast, it interprets.
-        'situated_spectator' => ['system', 'standings', 'results'],
+        // who is excluded by the threshold — and who was absent. No odds —
+        // this show does not forecast, it interprets. No catchphrases: it
+        // sees racers as interchangeable icons.
+        'situated_spectator' => ['system', 'standings', 'results', 'attendance', 'lexicon'],
 
         // One racer's story in depth, and the leader for contrast. No
         // league-wide tables: a documentary about an underdog does not open
         // with a spreadsheet.
-        'ghost_racer' => ['focus', 'results'],
+        'ghost_racer' => ['focus', 'results', 'lexicon'],
 
-        // Disdain for metrics. Raw outcomes only — who beat whom.
-        'reef_dispatch' => ['results'],
+        // Disdain for metrics. Raw outcomes and people — who beat whom, and
+        // what they say about themselves.
+        'reef_dispatch' => ['results', 'racers', 'lexicon'],
 
-        // Zero analysis, just gas.
-        'viberacing'  => ['results'],
+        // Zero analysis, just gas — and gas is badges and catchphrases.
+        'viberacing'  => ['results', 'badges', 'racers', 'lexicon'],
     ];
 
     return $diets[$programKey] ?? BROADCAST_ALL_SECTIONS;

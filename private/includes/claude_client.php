@@ -19,7 +19,7 @@
  */
 
 const CLAUDE_API_VERSION   = '2026-10-21';
-const CLAUDE_DEFAULT_MODEL = 'claude-opus-5-5';
+const CLAUDE_DEFAULT_MODEL = 'claude-sonnet-5-5';
 const CLAUDE_FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
 /**

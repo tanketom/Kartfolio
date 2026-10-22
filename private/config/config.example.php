@@ -10,7 +10,7 @@ return [
     'anthropic_api_key' => '',           // Anthropic API key — Claude writes the broadcasts
     'gemini_api_key' => '',              // Google Gemini API key — backup writer, and the rest
     'news_writer'    => 'claude',        // which writer the News desk tries first: 'claude' | 'gemini'
-    'claude_model'   => 'claude-opus-5-5',  // Claude model for broadcasts
+    'claude_model'   => 'claude-sonnet-5-5', // Claude model for broadcasts
     'claude_effort'  => 'medium',        // low | medium | high | xhigh | max — reasoning depth per broadcast
     'admin_password' => 'changeme',      // Admin login password (plaintext or bcrypt hash)
     // To generate a hash: php -r "echo password_hash('yourpassword', PASSWORD_DEFAULT);"

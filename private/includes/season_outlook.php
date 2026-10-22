@@ -304,6 +304,10 @@ function seasonOutlook(PDO $pdo): array {
         }
     }
 
+    // Only assigned on the simulated path; a finished or data-starved season
+    // reached this compact() without it and logged a warning on every broadcast.
+    $existingPoints = $existingPoints ?? [];
+
     return $cache = compact(
         'currentSeason', 'seasonName', 'startDate', 'endDate', 'insufficientData',
         'seasonComplete', 'racers', 'probabilities', 'scenarios',

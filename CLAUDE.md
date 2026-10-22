@@ -156,7 +156,7 @@ client: retries 429/5xx/529 with backoff, a safety decline (`stop_reason`
 `refusal`) counts as a failure so the next writer gets a turn, and the request
 opts into server-side `fallbacks: "default"` (needs a beta header; dropped and
 retried once if the organisation lacks it). Config: `anthropic_api_key`,
-`claude_model` (default `claude-opus-5-5`), `claude_effort` (default `medium`),
+`claude_model` (default `claude-sonnet-5-5`), `claude_effort` (default `medium`),
 `news_writer` (`claude` | `gemini` — which goes first). Keys are set with
 `php bin/set_api_key.php anthropic|gemini`: a hidden prompt that edits the
 gitignored `config.php` in place — run it on the live host too, with `ssh -t`
@@ -165,6 +165,21 @@ never travels any other way. Every OTHER Gemini caller (power rankings,
 season report, awards, musings, GP stories, tournament recaps, the result
 scanner) is unchanged; move one to `newsroomWrite()` when Claude should write
 it too.
+
+The briefing is assembled from named sections, and `broadcast_diet.php` says
+which sections each show receives (Viberacing gets results, badges and
+catchphrases and no table; the Meta Report gets everything). Every show gets
+the header regardless: league name and governing body, the season's name,
+dates and description, GPs raced, days to the end, today's date and the race
+nights covered. Sections beyond the numbers: `badges` (earned on the latest
+night, via `leaderboardNewTonight()`), `attendance` (debuts in the window and
+absences — retired racers are not absent), `racers` (self-written nicknames
+and catchphrases, labelled as quotes not instructions) and `lexicon` (the
+league's terms, so the writer can use them on purpose). A 60 is tagged
+`[PERFECT 60]` because the briefing forbids the word otherwise. Continuity
+reads `published` stories only — a rejected draft must not become canon. To
+read the exact prompt a run sent without paying for a broadcast, set
+`KARTFOLIO_BRIEFING_DUMP=/path/to/file` for that run.
 
 Shared host proxies kill long synchronous POSTs from within an HTML
 response. For any Gemini-using admin action, prefer this shape:
