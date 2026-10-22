@@ -74,7 +74,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <div class="feature-card">
                     <div class="feature-icon">📻</div>
                     <h3>AI Broadcasts</h3>
-                    <p>Gemini-powered commentary in eight distinct program voices — sports desk, gonzo journalism, academic analysis, meta breakdowns — plus weekly power rankings and per-GP MONSTER HUNT Chronicles.</p>
+                    <p>AI commentary (Claude, with Gemini as the backup) in eight distinct program voices — sports desk, gonzo journalism, academic analysis, meta breakdowns — plus weekly power rankings and per-GP MONSTER HUNT Chronicles.</p>
                 </div>
 
                 <div class="feature-card">
@@ -145,7 +145,8 @@ include __DIR__ . '/../private/templates/header.php';
             <ul class="tech-stack">
                 <li><strong>PHP 8 & SQLite</strong> — core backend and single-file database</li>
                 <li><strong>Vanilla JavaScript & Chart.js</strong> — interactive dashboards and rating curves</li>
-                <li><strong>Google Gemini</strong> — broadcasts, power rankings, tournament recaps, season reports, personalized awards</li>
+                <li><strong>Anthropic Claude</strong> — the broadcasts (Gemini steps in as the backup)</li>
+                <li><strong>Google Gemini</strong> — power rankings, tournament recaps, season reports, personalized awards</li>
                 <li><strong>Custom CSS</strong> — Nintendo-inspired design system with responsive layouts and dedicated signage stylesheets</li>
                 <li><strong>Apache with mod_rewrite</strong> — clean URLs and route mapping via .htaccess</li>
             </ul>

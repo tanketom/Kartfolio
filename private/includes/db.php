@@ -432,8 +432,9 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
-    // News desk: broadcasts are drafts until published; one can be pinned to the ticker.
-    foreach (["status TEXT DEFAULT 'published'", "pinned INTEGER DEFAULT 0"] as $col) {
+    // News desk: broadcasts are drafts until published; one can be pinned to the
+    // ticker; model_used records which writer answered ("claude:claude-opus-5-5").
+    foreach (["status TEXT DEFAULT 'published'", "pinned INTEGER DEFAULT 0", "model_used TEXT DEFAULT NULL"] as $col) {
         try { $pdo->exec("ALTER TABLE recap_archive ADD COLUMN $col"); } catch (PDOException $e) {}
     }
 

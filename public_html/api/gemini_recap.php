@@ -1,23 +1,25 @@
 <?php
 /**
- * Gemini AI Recap Generator - Auto-Linking Edition
- * Path: /cdnmk/public_html/api/gemini_recap.php
+ * Broadcast generator — the newsroom's AI writer (Auto-Linking Edition).
+ *
+ * Writes through newswriter.php: Claude first, Gemini as the backup (config
+ * 'news_writer' flips the order). The file keeps its historical name because
+ * the forms, .htaccess and the dev router all post to it.
+ *
+ * Path: /cdnmk/public_html/api/gemini_recap.php   (route: /api/recap)
  */
 
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/gp_logic.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/ecology_text.php';
-require_once __DIR__ . '/../../private/includes/gemini_client.php';
+require_once __DIR__ . '/../../private/includes/newswriter.php';
 
-// 1. CONFIGURATION
+// 1. CONFIGURATION — at least one writer key (Anthropic or Gemini) must be set.
 $config = kartfolioConfig();
-if (!isset($config['gemini_api_key']) || empty($config['gemini_api_key'])) {
-    die("Error: 'gemini_api_key' missing in config.php");
+if (!newsWriterOrder($config)) {
+    die("Error: no AI writer is configured. Add a key with:  php bin/set_api_key.php anthropic   (or gemini)");
 }
-$apiKey = $config['gemini_api_key'];
-// gemini-1.5-flash has been retired from v1beta; default to current flash.
-$modelName = $config['model_name'] ?? 'gemini-2.5-flash';
 
 require_admin();
 verify_csrf();
@@ -509,78 +511,65 @@ if (!empty($userNotes)) {
 }
 
 // 10. CONSTRUCT PROMPT
-$fullPrompt = "TASK: Write a broadcast script analysing the recent Mario Kart results.\n\n";
-$fullPrompt .= "PERSONA: " . $persona['prompt'] . "\n\n";
-$fullPrompt .= "LENGTH TARGET: Aim for approximately {$targetLength} words in the script body (excluding headline and quote).\n\n";
-$fullPrompt .= "CRITICAL FORMATTING INSTRUCTIONS:\n";
-$fullPrompt .= "1. The VERY FIRST line must be 'HEADLINE: [Insert 5-8 word punchy headline here]'\n";
-$fullPrompt .= "2. The SECOND line must be 'QUOTE: [Insert a short, memorable quote from the script]'\n";
-$fullPrompt .= "3. Use **Double Asterisks** around racer names (e.g. **Mario**).\n";
-$fullPrompt .= "4. Leave a blank line, then start the actual script.\n\n";
-$fullPrompt .= "DATA SOURCE:\n" . $dataContext;
-$fullPrompt .= $previousBroadcasts;
-$fullPrompt .= $notesInstruction;
+// Two halves: the standing brief (task, persona, format) is the system prompt;
+// the night's data, continuity and director's notes are the user turn.
+// newswriter.php joins them back into one text for Gemini.
+$systemPrompt  = "TASK: Write a broadcast script analysing the recent Mario Kart results.\n\n";
+$systemPrompt .= "PERSONA: " . $persona['prompt'] . "\n\n";
+$systemPrompt .= "LENGTH TARGET: Aim for approximately {$targetLength} words in the script body (excluding headline and quote).\n\n";
+$systemPrompt .= "CRITICAL FORMATTING INSTRUCTIONS:\n";
+$systemPrompt .= "1. The VERY FIRST line must be 'HEADLINE: [Insert 5-8 word punchy headline here]'\n";
+$systemPrompt .= "2. The SECOND line must be 'QUOTE: [Insert a short, memorable quote from the script]'\n";
+$systemPrompt .= "3. Use **Double Asterisks** around racer names (e.g. **Mario**).\n";
+$systemPrompt .= "4. Leave a blank line, then start the actual script. Output the script only — no preamble and no remarks about the briefing.\n";
 
-// 11. CALL GEMINI API (shared client: retry + model fallback)
-$payload = [
-    "contents" => [["parts" => [["text" => $fullPrompt]]]],
-    "safetySettings" => [
-        ["category" => "HARM_CATEGORY_HARASSMENT", "threshold" => "BLOCK_ONLY_HIGH"],
-        ["category" => "HARM_CATEGORY_HATE_SPEECH", "threshold" => "BLOCK_ONLY_HIGH"],
-        ["category" => "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold" => "BLOCK_ONLY_HIGH"],
-        ["category" => "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold" => "BLOCK_ONLY_HIGH"]
-    ]
-];
+$userPrompt  = "DATA SOURCE:\n" . $dataContext;
+$userPrompt .= $previousBroadcasts;
+$userPrompt .= $notesInstruction;
 
-[$response, $httpCode, $lastError, $modelUsed] =
-    callGeminiWithRetry(geminiDefaultModelChain($modelName), $apiKey, $payload);
+// 11. WRITE IT — Claude first, Gemini as the backup (newswriter.php)
+$written = newsroomWrite($config, $systemPrompt, $userPrompt);
 
 // 12. HANDLE RESPONSE & SAVE
-if ($httpCode === 200 && $response) {
-    $json = json_decode($response, true);
-    
-    if (isset($json['candidates'][0]['content']['parts'][0]['text'])) {
-        $rawText = $json['candidates'][0]['content']['parts'][0]['text'];
-        
-        $headline = "Breaking News: Season " . $currentSeason . " Update"; 
-        $quote = "Live results coming in..."; 
-        $bodyText = $rawText;
-
-        // Parse Output
-        if (preg_match('/^HEADLINE:\s*(.*)$/m', $rawText, $matches)) {
-            $headline = trim($matches[1]);
-            $bodyText = str_replace($matches[0], '', $bodyText);
-        }
-        if (preg_match('/^QUOTE:\s*(.*)$/m', $rawText, $matches)) {
-            $quote = trim($matches[1]);
-            $bodyText = str_replace($matches[0], '', $bodyText);
-        }
-        $bodyText = trim($bodyText);
-
-        // Prepare Linked IDs string (e.g., "s01g04,s01g05")
-        $linkedIDsString = implode(',', $gpidList);
-
-        // Save to DB
-        // Drafts land on the News desk for a read before anyone else sees them.
-        $asDraft = !empty($_POST['draft']);
-        $save = $pdo->prepare("
-            INSERT INTO recap_archive 
-            (season_id, recap_text, headline, key_quote, program_key, linked_gpids, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
-        $save->execute([$currentSeason, $bodyText, $headline, $quote, $pKey, $linkedIDsString, $asDraft ? 'draft' : 'published']);
-        
-        $newId = $pdo->lastInsertId();
-        header($asDraft ? "Location: /admin/news?open=$newId" : "Location: /view-recap/$newId");
-        exit;
-    } else {
-        echo "<h1>AI Generation Failed</h1>";
-        echo "<pre>" . htmlspecialchars(print_r($json, true)) . "</pre>";
-        exit;
-    }
-} else {
-    // Shared client surfaces a cumulative error across all attempted models.
-    echo "<h1>API Connection Error ($httpCode)</h1>";
-    echo "<pre>" . htmlspecialchars($lastError) . "</pre>";
+if ($written['text'] === null) {
+    http_response_code(502);
+    echo "<h1>AI Generation Failed</h1>";
+    echo "<p>Every configured writer failed:</p>";
+    echo "<pre>" . htmlspecialchars($written['error']) . "</pre>";
     exit;
 }
+
+$rawText   = $written['text'];
+$modelUsed = $written['provider'] . ':' . $written['model'];   // e.g. claude:claude-opus-5-5
+
+$headline = "Breaking News: Season " . $currentSeason . " Update";
+$quote    = "Live results coming in...";
+$bodyText = $rawText;
+
+// Parse Output
+if (preg_match('/^HEADLINE:\s*(.*)$/m', $rawText, $matches)) {
+    $headline = trim($matches[1]);
+    $bodyText = str_replace($matches[0], '', $bodyText);
+}
+if (preg_match('/^QUOTE:\s*(.*)$/m', $rawText, $matches)) {
+    $quote = trim($matches[1]);
+    $bodyText = str_replace($matches[0], '', $bodyText);
+}
+$bodyText = trim($bodyText);
+
+// Prepare Linked IDs string (e.g., "s01g04,s01g05")
+$linkedIDsString = implode(',', $gpidList);
+
+// Save to DB. Drafts land on the News desk for a read before anyone else
+// sees them; model_used records which writer answered.
+$asDraft = !empty($_POST['draft']);
+$save = $pdo->prepare("
+    INSERT INTO recap_archive
+    (season_id, recap_text, headline, key_quote, program_key, linked_gpids, status, model_used)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+");
+$save->execute([$currentSeason, $bodyText, $headline, $quote, $pKey, $linkedIDsString, $asDraft ? 'draft' : 'published', $modelUsed]);
+
+$newId = $pdo->lastInsertId();
+header($asDraft ? "Location: /admin/news?open=$newId" : "Location: /view-recap/$newId");
+exit;

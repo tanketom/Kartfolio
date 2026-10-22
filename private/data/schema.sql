@@ -166,7 +166,8 @@ CREATE TABLE IF NOT EXISTS recap_archive (
     program_key TEXT DEFAULT 'core_team',
     linked_gpids TEXT DEFAULT '',
     status TEXT DEFAULT 'published',
-    pinned INTEGER DEFAULT 0
+    pinned INTEGER DEFAULT 0,
+    model_used TEXT DEFAULT NULL
 );
 
 -- GP Stories (MONSTER HUNT Chronicles)

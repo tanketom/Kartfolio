@@ -144,6 +144,27 @@ $modelChain = geminiDefaultModelChain($config['model_name'] ?? 'gemini-2.5-flash
 if ($response === null) { /* surface $lastError */ }
 ```
 
+**The News desk writes with Claude first, Gemini as the backup.** The broadcast
+endpoint (`api/gemini_recap.php` — historical name, route `/api/recap`) does
+not call `callGeminiWithRetry()` itself. It builds a system prompt (task,
+persona, format) and a user turn (the night's briefing) and hands both to
+`newsroomWrite()` in `private/includes/newswriter.php`, which tries the
+configured writers in order and returns the text plus `provider:model`, which
+`recap_archive.model_used` records and the News desk shows. Claude goes through
+`claude_client.php` — the raw Messages API over curl, same shape as the Gemini
+client: retries 429/5xx/529 with backoff, a safety decline (`stop_reason`
+`refusal`) counts as a failure so the next writer gets a turn, and the request
+opts into server-side `fallbacks: "default"` (needs a beta header; dropped and
+retried once if the organisation lacks it). Config: `anthropic_api_key`,
+`claude_model` (default `claude-opus-5-5`), `claude_effort` (default `medium`),
+`news_writer` (`claude` | `gemini` — which goes first). Keys are set with
+`php bin/set_api_key.php anthropic|gemini`: a hidden prompt that edits the
+gitignored `config.php` in place — run it over ssh on the live host too, the
+key never travels any other way. Every OTHER Gemini caller (power rankings,
+season report, awards, musings, GP stories, tournament recaps, the result
+scanner) is unchanged; move one to `newsroomWrite()` when Claude should write
+it too.
+
 Shared host proxies kill long synchronous POSTs from within an HTML
 response. For any Gemini-using admin action, prefer this shape:
 
@@ -464,6 +485,7 @@ deliberate and load-bearing.
 | `private/includes/gp_logic.php` | Scoring engine, system registry, Elo, Mikkoliiga, Bounty Hunter, Pari-Mutuel. |
 | `private/includes/elo_engine.php` | All-time Elo computation. Returns `ratings` map, `history`, `gp_changelog`. Heavy — cache results when possible. |
 | `private/includes/gemini_client.php` | **Use for every Gemini call.** `callGeminiWithRetry()` + `geminiDefaultModelChain()`. |
+| `private/includes/newswriter.php` | The News desk's writer: `newsroomWrite()` — Claude (`claude_client.php`) first, Gemini backup. Only the broadcast endpoint uses it so far. |
 | `private/includes/programs.php` | News program catalog (AI personas + OMK Press Office). |
 | `private/includes/mk_data.php` | Cups and characters. |
 | `private/includes/badge_catalog.php` | **The** badge definitions — icon, title, earned text, criterion, category for all 91. Add a badge here first. |
@@ -794,6 +816,10 @@ Cross-reference if you find half-implemented work:
   `territory_map.js`; table = cup, holder, score to beat, times changed hands,
   undefended n/decay; plus the latest takeovers from the event log. Linked
   from /map. A holder line on each `/cup/<slug>` page is the planned follow-up
+- **Claude writes the news** — `newswriter.php` (Claude → Gemini) behind the
+  broadcast endpoint, `claude_client.php` (raw Messages API, curl),
+  `recap_archive.model_used` shown on the News desk, `bin/set_api_key.php`
+  (hidden prompt, edits config.php in place, works over ssh). See §3
 - **Crystal Ball cached** — `sim_cache` table + `private/includes/sim_cache.php`:
   predictions.php's 5000-run Monte Carlo runs once per (season, results
   signature, day, GPs remaining) instead of per view (423 → 10 ms; odds no

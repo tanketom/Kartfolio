@@ -92,7 +92,8 @@ $rows = [];
 $cfg = kartfolioConfig();
 if (!empty($cfg['_missing'])) $rows[] = ['config.php', 'missing — running on config.example.php, admin login disabled', '/admin/settings', 'Settings'];
 if (trim((string)getSetting($pdo, 'wall_code', '')) === '') $rows[] = ['Wall code', 'empty — result entry is locked', '/admin/settings', 'Settings'];
-if (trim((string)($cfg['gemini_api_key'] ?? '')) === '') $rows[] = ['Gemini API key', 'empty — broadcasts, musings and reports cannot generate', '/admin/settings', 'Settings'];
+if (trim((string)($cfg['anthropic_api_key'] ?? '')) === '' && trim((string)($cfg['gemini_api_key'] ?? '')) === '') $rows[] = ['AI writer keys', 'no Anthropic or Gemini key — broadcasts cannot generate (php bin/set_api_key.php)', '/admin/settings', 'Settings'];
+if (trim((string)($cfg['gemini_api_key'] ?? '')) === '') $rows[] = ['Gemini API key', 'empty — musings, reports, awards and power rankings cannot generate, and the News desk has no backup writer', '/admin/settings', 'Settings'];
 $pw = (string)($cfg['admin_password'] ?? '');
 if ($pw !== '' && !preg_match('/^\$(2y|argon2)/', $pw)) $rows[] = ['Admin password', 'stored as plain text in config.php — replace it with a bcrypt hash', '/admin/settings', 'Settings'];
 foreach ($q("SELECT ip, action, COUNT(*) AS n FROM auth_throttle WHERE attempted_at > datetime('now', '-1 day') GROUP BY ip, action HAVING n >= 5 ORDER BY n DESC LIMIT 10") as $r)

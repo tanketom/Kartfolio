@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $open = (int)($_GET['open'] ?? 0);
 $aiPrograms = getAIProgramsCatalog();
-$all = $pdo->query("SELECT id, season_id, headline, key_quote, program_key, created_at, status, pinned, LENGTH(recap_text) AS len, recap_text FROM recap_archive ORDER BY (status = 'draft') DESC, pinned DESC, created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+$all = $pdo->query("SELECT id, season_id, headline, key_quote, program_key, created_at, status, pinned, model_used, LENGTH(recap_text) AS len, recap_text FROM recap_archive ORDER BY (status = 'draft') DESC, pinned DESC, created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 $drafts = array_values(array_filter($all, fn($r) => $r['status'] === 'draft'));
 $published = array_values(array_filter($all, fn($r) => $r['status'] !== 'draft'));
 $openRow = null; foreach ($all as $r) if ((int)$r['id'] === $open) $openRow = $r;
@@ -40,6 +40,13 @@ $extraCss  = '<link rel="stylesheet" href="/assets/css/admin.css">';
 include __DIR__ . '/../../private/templates/header.php';
 
 function newsProgramLabel(string $key): string { $p = getProgramInfo($key); return (string)($p['label'] ?? $key); }
+/** " · ✍️ claude-opus-5-5" — which writer answered (model_used is "provider:model"); empty for hand-written and older rows. */
+function newsWriterTag(array $r): string {
+    $m = trim((string)($r['model_used'] ?? ''));
+    if ($m === '') return '';
+    $model = ($p = strpos($m, ':')) !== false ? substr($m, $p + 1) : $m;
+    return ' · ✍️ ' . htmlspecialchars($model);
+}
 function newsActions(array $r): string {
     $id = (int)$r['id']; $t = csrf_field();
     $btn = fn(string $a, string $label, string $cls = 'btn-secondary', string $confirm = '') => '<form method="POST" class="news-act"' . ($confirm ? ' onsubmit="return confirm(' . htmlspecialchars(json_encode($confirm)) . ');"' : '') . '>' . $t . '<input type="hidden" name="id" value="' . $id . '"><input type="hidden" name="action" value="' . $a . '"><button type="submit" class="' . $cls . ' btn-sm">' . $label . '</button></form>';
@@ -63,7 +70,7 @@ function newsActions(array $r): string {
         <div class="news-open-head">
             <span class="news-status news-status--<?= $openRow['status'] ?>"><?= $openRow['status'] === 'draft' ? 'Draft' : 'Published' ?></span>
             <span class="news-program"><?= htmlspecialchars(newsProgramLabel($openRow['program_key'])) ?></span>
-            <span class="news-date"><?= htmlspecialchars(substr($openRow['created_at'], 0, 16)) ?></span>
+            <span class="news-date"><?= htmlspecialchars(substr($openRow['created_at'], 0, 16)) ?><?= newsWriterTag($openRow) ?></span>
         </div>
         <h2 class="news-open-headline"><?= htmlspecialchars((string)$openRow['headline']) ?></h2>
         <?php if (!empty($openRow['key_quote'])): ?><p class="news-open-quote">“<?= htmlspecialchars($openRow['key_quote']) ?>”</p><?php endif; ?>
@@ -106,7 +113,7 @@ function newsActions(array $r): string {
             <article class="news-row news-row--draft">
                 <div class="news-row-main">
                     <a class="news-row-headline" href="/admin/news?open=<?= (int)$r['id'] ?>"><?= htmlspecialchars((string)($r['headline'] ?: '(no headline)')) ?></a>
-                    <div class="news-row-meta"><?= htmlspecialchars(newsProgramLabel($r['program_key'])) ?> · <?= strtoupper(htmlspecialchars($r['season_id'])) ?> · <?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?> · <?= (int)$r['len'] ?> chars</div>
+                    <div class="news-row-meta"><?= htmlspecialchars(newsProgramLabel($r['program_key'])) ?> · <?= strtoupper(htmlspecialchars($r['season_id'])) ?> · <?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?> · <?= (int)$r['len'] ?> chars<?= newsWriterTag($r) ?></div>
                 </div>
                 <div class="news-actions"><?= newsActions($r) ?></div>
             </article>
@@ -120,7 +127,7 @@ function newsActions(array $r): string {
         <article class="news-row<?= (int)$r['pinned'] ? ' news-row--pinned' : '' ?>">
             <div class="news-row-main">
                 <a class="news-row-headline" href="/admin/news?open=<?= (int)$r['id'] ?>"><?= (int)$r['pinned'] ? '📌 ' : '' ?><?= htmlspecialchars((string)($r['headline'] ?: '(no headline)')) ?></a>
-                <div class="news-row-meta"><?= htmlspecialchars(newsProgramLabel($r['program_key'])) ?> · <?= strtoupper(htmlspecialchars($r['season_id'])) ?> · <?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></div>
+                <div class="news-row-meta"><?= htmlspecialchars(newsProgramLabel($r['program_key'])) ?> · <?= strtoupper(htmlspecialchars($r['season_id'])) ?> · <?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?><?= newsWriterTag($r) ?></div>
             </div>
             <div class="news-actions"><?= newsActions($r) ?></div>
         </article>
