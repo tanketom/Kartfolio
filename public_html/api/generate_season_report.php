@@ -2,12 +2,15 @@
 require_once __DIR__ . '/../../private/includes/session.php';
 /**
  * Season Report Generator & Archiver
+ *
+ * The archival report is written through newswriter.php — Claude first,
+ * Gemini as the backup — the same writer the News desk uses.
  * Path: /cdnmk/public_html/api/generate_season_report.php
  */
 require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/gp_logic.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
-require_once __DIR__ . '/../../private/includes/gemini_client.php';
+require_once __DIR__ . '/../../private/includes/newswriter.php';
 
 if (session_status() === PHP_SESSION_NONE) { kartfolioSessionStart(); }
 require_admin();
@@ -25,10 +28,6 @@ verify_csrf();
 ignore_user_abort(true);
 
 $config = kartfolioConfig();
-$apiKey = $config['gemini_api_key'] ?? '';
-// gemini-1.5-flash has been retired from v1beta; default to the current
-// flash so a missing config key doesn't always 404 on the first attempt.
-$model  = $config['model_name'] ?? 'gemini-2.5-flash';
 
 $seasonId = $_POST['season'] ?? null;
 if (!$seasonId) {
@@ -84,28 +83,31 @@ foreach ($standings as $i => $s) {
 }
 
 $scoringInfo = getScoringSystemInfo($pdo, $seasonId);
-$prompt = "Act as a Mushroom Kingdom sports historian. Write an archival report for Season $seasonId.
-The champion is $winnerName.
+$seasonName  = trim((string)($rules['season_name'] ?? ''));
 
-This season was scored under {$scoringInfo['name']} {$scoringInfo['icon']} — {$scoringInfo['long_description']}
-Read the final standings through THIS system (the 'pts' below are its scores); don't assume Average + Attendance / GPScore™ unless that's the named system.
+// The standing brief is the system prompt; the season's facts are the user
+// turn (joined into one text for Gemini by newswriter.php).
+$systemPrompt = "Act as a Mushroom Kingdom sports historian writing the archival report of a finished season "
+              . "of a workplace Mario Kart 8 Deluxe league.\n"
+              . "Tone: Professional, nostalgic, slightly eccentric.\n"
+              . "Read the final standings through the scoring system the report names (the 'pts' are its scores); "
+              . "do not assume Average + Attendance / GPScore™ unless that is the named system. "
+              . "Quote every figure exactly as given. Output the report only — no preamble, no notes about the briefing.";
 
-Final Standings:
-$standingsText
-Tone: Professional, nostalgic, slightly eccentric.";
+$userPrompt = "Write the archival report for Season " . strtoupper($seasonId) . ($seasonName !== '' ? " — \"{$seasonName}\"" : '') . ".\n"
+            . "The champion is $winnerName.\n\n"
+            . "This season was scored under {$scoringInfo['name']} {$scoringInfo['icon']} — {$scoringInfo['long_description']}\n\n"
+            . "Final Standings:\n$standingsText";
 
-// 4. Gemini API Call (shared client: retry + model fallback)
-$payload = ["contents" => [["parts" => [["text" => $prompt]]]]];
-[$response, $httpCode, $lastError, $modelUsed] =
-    callGeminiWithRetry(geminiDefaultModelChain($model), $apiKey, $payload);
-
-if ($response === null) {
-    // Don't block the archive on AI failure — log a placeholder and move on.
-    $aiReport = "Historical report unavailable (Gemini error: " . $lastError . ").";
+// 4. Write it — Claude first, Gemini as the backup. Never block the archive on
+//    a writer failure: record a placeholder and move on.
+if (!newsWriterOrder($config)) {
+    $aiReport = "Historical report unavailable (no AI writer is configured — php bin/set_api_key.php).";
 } else {
-    $result   = json_decode($response, true);
-    $aiReport = $result['candidates'][0]['content']['parts'][0]['text']
-        ?? "Historical report pending archive retrieval.";
+    $written = newsroomWrite($config, $systemPrompt, $userPrompt);
+    $aiReport = $written['text'] !== null
+        ? $written['text']
+        : "Historical report unavailable (writer error: " . $written['error'] . ").";
 }
 
 // 5. Update Metadata with Final Snapshot
