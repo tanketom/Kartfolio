@@ -35,21 +35,15 @@ $racerStmt = $pdo->prepare("
 $racerStmt->execute([$sid . "%"]);
 $racers = $racerStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// The sidebar reads leaderboardRows(), the builder the homepage and the signs
+// use: registry sort with the system's own tie-break, ranks for qualifiers
+// only. It used to sort calculateGPScore() by itself, with neither.
+require_once __DIR__ . '/../private/includes/leaderboard.php';
 $finalStandings = [];
-foreach ($racers as $r) {
-    // This uses the calculateGPScore logic which respects season_meta rules
-    $score = calculateGPScore($pdo, $r['id'], $sid);
-
-    // Get the character they used most in this season
-    $charStmt = $pdo->prepare("SELECT character_used FROM results WHERE racer_id = ? AND gpid LIKE ? GROUP BY character_used ORDER BY COUNT(*) DESC LIMIT 1");
-    $charStmt->execute([$r['id'], $sid . "%"]);
-    $char = $charStmt->fetchColumn() ?: 'Mii';
-
-    if ($score > 0) {
-        $finalStandings[] = ['name' => $r['name'], 'score' => $score, 'char' => $char];
-    }
+foreach (leaderboardRows($pdo, $sid, 0, false) as $row) {
+    if ($row['rank'] === null) continue;
+    $finalStandings[] = ['name' => $row['name'], 'score' => $row['score'], 'char' => ($row['char'] ?? '') ?: 'Mii'];
 }
-usort($finalStandings, fn($a, $b) => $b['score'] <=> $a['score']);
 
 // Mikkoliiga standings for this archived season. Returns empty if no
 // members or no Mikkoliiga races happened this season.
@@ -73,6 +67,8 @@ $gpStmt = $pdo->prepare("
 ");
 $gpStmt->execute([$sid . "%"]);
 $allGPs = $gpStmt->fetchAll(PDO::FETCH_ASSOC);
+$replayRules  = getSeasonRules($pdo, $sid);
+$seasonReplay = progressiveSeasonReplay($pdo, $replayRules['scoring_system'] ?? 'average_attendance', $sid, $replayRules);
 
 foreach ($allGPs as $gp) {
     $gpResults = $pdo->prepare("SELECT racer_id, gp_points, rank FROM results WHERE gpid = ? ORDER BY rank ASC");
@@ -81,13 +77,25 @@ foreach ($allGPs as $gp) {
 
     // Calculate cumulative scores up to this GP
     $cumulativeScores = [];
-    foreach ($racers as $r) {
-        $scoreUpToNow = calculateGPScoreUpTo($pdo, $r['id'], $sid, $gp['race_date']);
-        if ($scoreUpToNow > 0) {
-            $cumulativeScores[] = [
-                'name' => $r['name'],
-                'score' => $scoreUpToNow
-            ];
+    if ($seasonReplay !== null) {
+        // Field-dependent systems (Head-to-Head) replay with the whole season
+        // in view — exact, where the per-racer path below could only fall back
+        // to a points average.
+        foreach ($racers as $r) {
+            $x = $seasonReplay[$gp['gpid']][(int)$r['id']] ?? null;
+            if ($x && racerQualifies($x['gps'], $replayRules) && $x['score'] > 0) {
+                $cumulativeScores[] = ['name' => $r['name'], 'score' => $x['score']];
+            }
+        }
+    } else {
+        foreach ($racers as $r) {
+            $scoreUpToNow = calculateGPScoreUpTo($pdo, $r['id'], $sid, $gp['race_date']);
+            if ($scoreUpToNow > 0) {
+                $cumulativeScores[] = [
+                    'name' => $r['name'],
+                    'score' => $scoreUpToNow
+                ];
+            }
         }
     }
     usort($cumulativeScores, fn($a, $b) => $b['score'] <=> $a['score']);

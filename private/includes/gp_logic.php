@@ -1409,6 +1409,84 @@ function headToHeadGrid(PDO $pdo, string $season_id): array {
 }
 
 /**
+ * One racer's duels in one GP: [humansBeaten, humansAhead, cpusBeaten,
+ * cpusAhead, weightedWins, weightedLosses], or null when the racer did not
+ * race it or it held no duels (a solo GP at weight 0). Shared by
+ * headToHeadRaw() and headToHeadReplay(), so the season total and its replay
+ * cannot drift apart.
+ */
+function headToHeadGpTally(array $ranks, int $racer_id, float $w): ?array {
+    if (!isset($ranks[$racer_id])) return null;
+    $mine = $ranks[$racer_id];
+
+    // Humans beaten / humans who beat me, from their real grid positions.
+    $hb = 0; $ha = 0;
+    foreach ($ranks as $rid => $rk) {
+        if ($rid === $racer_id) continue;
+        if ($rk > $mine) $hb++; elseif ($rk < $mine) $ha++;
+    }
+    // Everyone else on the grid is a CPU kart.
+    $nb = max(0, (ELO_FIELD_SIZE - $mine) - $hb);
+    $na = max(0, ($mine - 1) - $ha);
+
+    $gpWins = $hb + $w * $nb;
+    $gpLoss = $ha + $w * $na;
+    if ($gpWins + $gpLoss <= 0) return null;
+    return [$hb, $ha, $nb, $na, $gpWins, $gpLoss];
+}
+
+/**
+ * Head-to-Head replayed GP by GP, in race order (race_date, then gpid):
+ *   [gpid => [racer_id => ['score' => win rate after this GP, 'gps' => n]]]
+ * Every racer who has raced by then appears at every later checkpoint. The
+ * last checkpoint equals headToHeadRaw() for every racer — same tally.
+ *
+ * Head-to-Head is field-dependent (your result depends on who else raced),
+ * so it cannot be replayed from one racer's own rows the way
+ * progressiveScoreFromRows() works; it needs the whole season in one pass.
+ */
+function headToHeadReplay(PDO $pdo, string $season_id, ?float $npcWeight = null): array {
+    $w = $npcWeight ?? h2hWeightFromRules(getSeasonRules($pdo, $season_id));
+    $grid = headToHeadGrid($pdo, $season_id);
+
+    $when = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rows) {
+        foreach ($rows as $r) $when[$r['gpid']] = (string)$r['race_date'];
+    }
+    uksort($grid, fn($a, $b) => strcmp($when[$a] ?? '', $when[$b] ?? '') ?: strnatcmp($a, $b));
+
+    $tot = [];   // racer_id => [wins, losses, gps]
+    $out = [];
+    foreach ($grid as $gpid => $ranks) {
+        foreach (array_keys($ranks) as $rid) {
+            $t = headToHeadGpTally($ranks, (int)$rid, $w);
+            if ($t === null) continue;
+            $tot[$rid] = $tot[$rid] ?? [0.0, 0.0, 0];
+            $tot[$rid][0] += $t[4]; $tot[$rid][1] += $t[5]; $tot[$rid][2]++;
+        }
+        foreach ($tot as $rid => [$wn, $ls, $n]) {
+            $m = $wn + $ls;
+            $out[$gpid][$rid] = ['score' => $m > 0 ? round($wn / $m * 100, 1) : 0.0, 'gps' => $n];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Season-wide replay for systems that can only be replayed with the whole
+ * field in view. Returns [gpid => [racer_id => ['score', 'gps']]] in race
+ * order, or null for systems replayed per racer (progressiveScoreFromRows) or
+ * not replayable at all. Pages call this rather than checking the system name.
+ */
+function progressiveSeasonReplay(PDO $pdo, string $system, string $season_id, array $rules): ?array {
+    switch ($system) {
+        case 'head_to_head':
+            return headToHeadReplay($pdo, $season_id, h2hWeightFromRules($rules));
+    }
+    return null;
+}
+
+/**
  * Aggregate head-to-head record for a racer in a season.
  * $npcWeight overrides the season's saved knob (the simulator passes its own).
  * Returns wins/losses/matchups (weighted, 2dp), gps, rate (0-100, 1dp), plus
@@ -1423,22 +1501,9 @@ function headToHeadRaw(PDO $pdo, int $racer_id, string $season_id, ?float $npcWe
     $wins = 0.0; $losses = 0.0; $gps = 0;
     $hw = 0; $hl = 0; $nw = 0; $nl = 0;
     foreach (headToHeadGrid($pdo, $season_id) as $ranks) {
-        if (!isset($ranks[$racer_id])) continue;
-        $mine = $ranks[$racer_id];
-
-        // Humans beaten / humans who beat me, from their real grid positions.
-        $hb = 0; $ha = 0;
-        foreach ($ranks as $rid => $rk) {
-            if ($rid === $racer_id) continue;
-            if ($rk > $mine) $hb++; elseif ($rk < $mine) $ha++;
-        }
-        // Everyone else on the grid is a CPU kart.
-        $nb = max(0, (ELO_FIELD_SIZE - $mine) - $hb);
-        $na = max(0, ($mine - 1) - $ha);
-
-        $gpWins = $hb + $w * $nb;
-        $gpLoss = $ha + $w * $na;
-        if ($gpWins + $gpLoss <= 0) continue; // solo GP at weight 0: no duels
+        $t = headToHeadGpTally($ranks, $racer_id, $w);
+        if ($t === null) continue;
+        [$hb, $ha, $nb, $na, $gpWins, $gpLoss] = $t;
 
         $wins += $gpWins; $losses += $gpLoss;
         $hw += $hb; $hl += $ha; $nw += $nb; $nl += $na;

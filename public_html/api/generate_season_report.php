@@ -38,65 +38,63 @@ if (!$seasonId) {
 // 1. Fetch Season Rules
 $rules = getSeasonRules($pdo, $seasonId);
 
-// 2. Identify the Champion (Ranking logic)
-$racerStmt = $pdo->prepare("SELECT DISTINCT r.id, r.name FROM racers r JOIN results res ON r.id = res.racer_id WHERE res.gpid LIKE ?");
-$racerStmt->execute([$seasonId . "%"]);
-$racers = $racerStmt->fetchAll(PDO::FETCH_ASSOC);
+// 2. The final table — leaderboardRows(), the same builder the homepage, the
+//    signs and the broadcasts read: registry sort with the system's own
+//    tie-break, and a rank only for racers who meet the season's threshold.
+//    This used to be its own usort on calculateGPScore(): no qualifier gate,
+//    no tie-break outside one system.
+require_once __DIR__ . '/../../private/includes/leaderboard.php';
+$rows   = leaderboardRows($pdo, $seasonId, 0, false);
+$ranked = array_values(array_filter($rows, fn($r) => $r['rank'] !== null));
 
-$standings = [];
-foreach ($racers as $r) {
-    $score = calculateGPScore($pdo, $r['id'], $seasonId);
-    if ($score > 0) {
-        $standings[] = ['id' => $r['id'], 'name' => $r['name'], 'score' => $score];
-    }
-}
-$currentScoringSystem = $rules['scoring_system'] ?? 'average_attendance';
-if ($currentScoringSystem === 'top_12_unique') {
-    foreach ($standings as &$s) {
-        $s['tiebreaker'] = getTop12UniqueTiebreaker($pdo, $s['id'], $seasonId);
-    }
-    unset($s);
-    usort($standings, function($a, $b) {
-        if ($b['score'] != $a['score']) return $b['score'] <=> $a['score'];
-        if ($b['tiebreaker'] != $a['tiebreaker']) return $b['tiebreaker'] <=> $a['tiebreaker'];
-        return strcmp($a['name'], $b['name']);
-    });
-} else {
-    usort($standings, fn($a, $b) => $b['score'] <=> $a['score']);
-}
-
-$winner = $standings[0] ?? null;
+$winner     = $ranked[0] ?? null;
 $winnerName = $winner['name'] ?? 'The Ghost';
-$winnerChar = 'Mii';
+$winnerChar = ($winner['char'] ?? '') ?: 'Mii';
 
-if ($winner) {
-    $charStmt = $pdo->prepare("SELECT character_used FROM results WHERE racer_id = ? AND gpid LIKE ? GROUP BY character_used ORDER BY COUNT(*) DESC LIMIT 1");
-    $charStmt->execute([$winner['id'], $seasonId . "%"]);
-    $winnerChar = $charStmt->fetchColumn() ?: 'Mii';
-}
-
-// 3. Prepare AI Prompt
-$standingsText = "";
-foreach ($standings as $i => $s) {
-    $rank = $i + 1;
-    $standingsText .= "#$rank: {$s['name']} ({$s['score']} pts)\n";
-}
-
+// 3. The briefing. Each line carries the scoring system's own account of the
+//    number (scoringTooltipFromBreakdown, §2a). It used to say "(88.0 pts)"
+//    for every system and tell the writer the pts were the score, so the S05
+//    report called an 88.0% Head-to-Head win rate "88 pts" and could not say
+//    what share of matchups the champion won. The system's long description
+//    gives its general defaults (an NPC weight of 0.25); the lines carry this
+//    season's real ones (×0.2).
 $scoringInfo = getScoringSystemInfo($pdo, $seasonId);
 $seasonName  = trim((string)($rules['season_name'] ?? ''));
+$qualDef     = getScoringSystemDef($scoringInfo['system'] ?? 'average_attendance');
+
+$standingsText = '';
+foreach ($ranked as $r) {
+    $standingsText .= "#{$r['rank']} {$r['name']} — score {$r['score']} — {$r['raceCount']} GPs — {$r['tooltip']}";
+    if (!empty($r['tie'])) $standingsText .= " — TIE-BREAK: {$r['tie']}";
+    $standingsText .= "\n";
+}
+$unranked = array_values(array_filter($rows, fn($r) => $r['rank'] === null));
+if ($unranked) {
+    $standingsText .= "\nNot ranked (raced, but below the season's minimum): "
+        . implode(', ', array_map(fn($r) => "{$r['name']} ({$r['raceCount']} GP" . ($r['raceCount'] === 1 ? '' : 's') . ")", $unranked))
+        . "\n";
+}
+$qualLine = !empty($qualDef['qualifies_by_threshold'])
+    ? "Qualification: a racer needed at least " . (int)($rules['min_races_threshold'] ?? 0) . " GPs this season to hold a position."
+    : "Qualification: under this system everyone who raced holds a position.";
 
 // The standing brief is the system prompt; the season's facts are the user
 // turn (joined into one text for Gemini by newswriter.php).
 $systemPrompt = "Act as a Mushroom Kingdom sports historian writing the archival report of a finished season "
               . "of a workplace Mario Kart 8 Deluxe league.\n"
               . "Tone: Professional, nostalgic, slightly eccentric.\n"
-              . "Read the final standings through the scoring system the report names (the 'pts' are its scores); "
-              . "do not assume Average + Attendance / GPScore™ unless that is the named system. "
-              . "Quote every figure exactly as given. Output the report only — no preamble, no notes about the briefing.";
+              . "Each standings line gives a racer's score, then the scoring system's own account of what that "
+              . "number is. Describe every score in those terms and units: a win rate is a percentage, not points — "
+              . "write 'pts' only where the account itself speaks of points. "
+              . "The system description gives the system's general defaults; where a figure in the standings "
+              . "differs (a weight, a threshold), the standings are this season's truth. "
+              . "Quote every figure exactly as given; if you compare two figures, subtract them exactly. "
+              . "Output the report only — no preamble, no notes about the briefing.";
 
 $userPrompt = "Write the archival report for Season " . strtoupper($seasonId) . ($seasonName !== '' ? " — \"{$seasonName}\"" : '') . ".\n"
             . "The champion is $winnerName.\n\n"
             . "This season was scored under {$scoringInfo['name']} {$scoringInfo['icon']} — {$scoringInfo['long_description']}\n\n"
+            . "$qualLine\n\n"
             . "Final Standings:\n$standingsText";
 
 // 4. Write it — Claude first, Gemini as the backup. Never block the archive on
