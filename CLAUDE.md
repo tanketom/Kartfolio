@@ -161,10 +161,11 @@ retried once if the organisation lacks it). Config: `anthropic_api_key`,
 `php bin/set_api_key.php anthropic|gemini`: a hidden prompt that edits the
 gitignored `config.php` in place — run it on the live host too, with `ssh -t`
 (a command on the ssh line gets no terminal, so the prompt needs `-t`); the key
-never travels any other way. Every OTHER Gemini caller (power rankings,
-season report, awards, musings, GP stories, tournament recaps, the result
-scanner) is unchanged; move one to `newsroomWrite()` when Claude should write
-it too.
+never travels any other way. The season report (`api/generate_season_report.php`, the `ecology_report`
+the yearbook and `/view-season-report` read) writes through it as well.
+Every OTHER Gemini caller (power rankings, awards, musings, GP stories,
+tournament recaps, the result scanner) is unchanged; move one to
+`newsroomWrite()` when Claude should write it too.
 
 The briefing is assembled from named sections, and `broadcast_diet.php` says
 which sections each show receives (Viberacing gets results, badges and
@@ -835,7 +836,8 @@ Cross-reference if you find half-implemented work:
 - **Claude writes the news** — `newswriter.php` (Claude → Gemini) behind the
   broadcast endpoint, `claude_client.php` (raw Messages API, curl),
   `recap_archive.model_used` shown on the News desk, `bin/set_api_key.php`
-  (hidden prompt, edits config.php in place, works over ssh). See §3
+  (hidden prompt, edits config.php in place, works over ssh). The season
+  report at archive time writes through the same path. See §3
 - **Crystal Ball cached** — `sim_cache` table + `private/includes/sim_cache.php`:
   predictions.php's 5000-run Monte Carlo runs once per (season, results
   signature, day, GPs remaining) instead of per view (423 → 10 ms; odds no
