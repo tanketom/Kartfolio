@@ -159,8 +159,9 @@ retried once if the organisation lacks it). Config: `anthropic_api_key`,
 `claude_model` (default `claude-opus-5-5`), `claude_effort` (default `medium`),
 `news_writer` (`claude` | `gemini` — which goes first). Keys are set with
 `php bin/set_api_key.php anthropic|gemini`: a hidden prompt that edits the
-gitignored `config.php` in place — run it over ssh on the live host too, the
-key never travels any other way. Every OTHER Gemini caller (power rankings,
+gitignored `config.php` in place — run it on the live host too, with `ssh -t`
+(a command on the ssh line gets no terminal, so the prompt needs `-t`); the key
+never travels any other way. Every OTHER Gemini caller (power rankings,
 season report, awards, musings, GP stories, tournament recaps, the result
 scanner) is unchanged; move one to `newsroomWrite()` when Claude should write
 it too.

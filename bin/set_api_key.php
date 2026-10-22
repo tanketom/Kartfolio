@@ -10,9 +10,10 @@
  *
  * The key is never echoed, logged or passed on a command line. config.php is
  * gitignored and survives a deploy (CLAUDE.md §12), so for the live league run
- * this ON THE HOST, where the prompt works over ssh exactly as it does here:
+ * this ON THE HOST. ssh needs -t: a command given on the ssh line runs with no
+ * terminal, and the hidden prompt has nothing to attach to without one.
  *
- *   ssh <user>@<host> 'cd ~/www/cdnmk && php bin/set_api_key.php anthropic'
+ *   ssh -t <user>@<host> 'cd ~/www/cdnmk && php bin/set_api_key.php anthropic'
  *
  * Honours KARTFOLIO_CONFIG like the app does, so a test can target a scratch
  * file. A missing config.php is created from config.example.php first.
@@ -55,7 +56,7 @@ if (in_array('--stdin', $flags, true)) {
     $key = fgets(STDIN);
 } else {
     if (!stream_isatty(STDIN)) {
-        fwrite(STDERR, "No terminal to prompt on. Pipe the key in with --stdin.\n");
+        fwrite(STDERR, "No terminal to prompt on. Over ssh, add -t (ssh -t host '…'); or pipe the key in with --stdin.\n");
         exit(2);
     }
     fwrite(STDOUT, "Paste the " . ucfirst($which) . " API key (typing is hidden), then press Enter: ");
