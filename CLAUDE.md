@@ -983,6 +983,24 @@ Cross-reference if you find half-implemented work:
   longest gap first. Months exist because the league's history starts
   2025-11-19; with them every day of the coming year has a card (measured).
   Debuts beat top scores; the founding night has its own wording
+- **The Real Monster Was Yourself** (`haunted`, Halloween 2026) — raced
+  against your own ghost: your career average from BEFORE the season
+  (`hauntedGhostBase()`, league average for newcomers), growing `hn_creep`
+  points a day until the season's end date. Score more than `hn_margin` under
+  it → lose a heart (`hn_hearts`); beat it → a soul coin per point plus a
+  bonus sticker pack (`hauntedGrantPacks()`, called from add_result, source
+  `haunted`, idempotent per racer×GP, on top of the racing pack). Out of hearts
+  → ghost; a ghost who finishes ahead of a living racer turns them. Ranking
+  (`sortStandingsHaunted`): survivors by hearts then coins earned, ghosts by
+  how late they fell; below `min_races_threshold` GPs you "fled" (unranked).
+  The soul shop on `/haunted` sells packs (`hn_pack_cost`, granted as source
+  `soul_shop`) and hearts (`hn_heart_cost`, the living only, never above the
+  start count) — POST + CSRF + `throttleAllow('haunt_shop')` + the racer's
+  profile code, balance re-checked under `BEGIN IMMEDIATE`. Purchases live in
+  `haunt_purchases` with `after_gpid` (the latest GP when bought), so a heart
+  counts from the next GP and the replay applies it at the right moment.
+  Everything reads `hauntedSeason()`, one pass in race order; the season
+  replay goes through `progressiveSeasonReplay()`
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),

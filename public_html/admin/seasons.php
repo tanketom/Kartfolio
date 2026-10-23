@@ -235,6 +235,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($scoringSystem === 'form') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['form_thresh'] ?? 3));
                 $updateFields['form_window'] = max(1, min(50, (int)($_POST['form_window'] ?? 8)));
+            } elseif ($scoringSystem === 'haunted') {
+                // Same clamps as hauntedKnobs().
+                $updateFields['min_races_threshold'] = max(0, (int)($_POST['hn_thresh'] ?? 3));
+                $updateFields['hn_hearts']     = max(1, min(9, (int)($_POST['hn_hearts'] ?? 3)));
+                $updateFields['hn_margin']     = max(0, min(30, (int)($_POST['hn_margin'] ?? 5)));
+                $updateFields['hn_creep']      = max(0.0, min(10.0, (float)($_POST['hn_creep'] ?? 2.0)));
+                $updateFields['hn_pack_cost']  = max(1, (int)($_POST['hn_pack_cost'] ?? 25));
+                $updateFields['hn_heart_cost'] = max(1, (int)($_POST['hn_heart_cost'] ?? 25));
             }
 
             // Build SQL
@@ -552,6 +560,12 @@ include __DIR__ . '/../../private/templates/header.php';
                         <div class="form-field" id="sim-param-form-w" style="display:none;">
                             <label>Form Window (GPs)</label>
                             <input type="number" id="sim-form-window" value="8" min="1" max="50" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-hn" style="display:none;">
+                            <label>Hearts · margin · ghost growth/day</label>
+                            <input type="number" id="sim-hn-hearts" value="3" min="1" max="9" onchange="updateSimulator()">
+                            <input type="number" id="sim-hn-margin" value="5" min="0" max="30" onchange="updateSimulator()">
+                            <input type="number" id="sim-hn-creep" value="2" min="0" max="10" step="0.5" onchange="updateSimulator()">
                         </div>
                     </div>
                 </div>
@@ -1039,6 +1053,40 @@ include __DIR__ . '/../../private/templates/header.php';
                             </div>
                         </div>
                     </div>
+                    <div id="fields-<?= $sid ?>-haunted" class="scoring-fields" style="<?= $meta['scoring_system'] === 'haunted' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">👻 The Real Monster Was Yourself</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['haunted']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Min GPs to survive</label>
+                                <input type="number" name="hn_thresh" value="<?= htmlspecialchars((string)($meta['min_races_threshold'] ?? 3)) ?>" min="0" max="50">
+                                <small>Below this you fled the house — ranked under every survivor</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Hearts</label>
+                                <input type="number" name="hn_hearts" value="<?= htmlspecialchars((string)($meta['hn_hearts'] ?? 3)) ?>" min="1" max="9">
+                                <small>Everyone starts with this many; bought hearts can't go above it</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Margin (points)</label>
+                                <input type="number" name="hn_margin" value="<?= htmlspecialchars((string)($meta['hn_margin'] ?? 5)) ?>" min="0" max="30">
+                                <small>A heart is lost when you score more than this below your ghost</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Ghost grows / day</label>
+                                <input type="number" name="hn_creep" value="<?= htmlspecialchars((string)($meta['hn_creep'] ?? 2.0)) ?>" min="0" max="10" step="0.5">
+                                <small>Points added to every ghost per day of the season</small>
+                            </div>
+                            <div class="form-field">
+                                <label>Pack price (coins)</label>
+                                <input type="number" name="hn_pack_cost" value="<?= htmlspecialchars((string)($meta['hn_pack_cost'] ?? 25)) ?>" min="1">
+                            </div>
+                            <div class="form-field">
+                                <label>Heart price (coins)</label>
+                                <input type="number" name="hn_heart_cost" value="<?= htmlspecialchars((string)($meta['hn_heart_cost'] ?? 25)) ?>" min="1">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1381,6 +1429,9 @@ const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
     'pir_best_n'        => (int)($m['pir_best_n'] ?? 15),
     'eq_mode'           => $m['eq_mode'] ?? 'season',
     'form_window'       => (int)($m['form_window'] ?? 8),
+    'hn_hearts'         => (int)($m['hn_hearts'] ?? 3),
+    'hn_margin'         => (int)($m['hn_margin'] ?? 5),
+    'hn_creep'          => (float)($m['hn_creep'] ?? 2.0),
 ], $metaData), JSON_UNESCAPED_SLASHES) ?>;
 
 // Reseed the knob fields from the selected season, then re-run. Called when the
@@ -1409,6 +1460,7 @@ function onSimSelectionChange() {
         set('sim-pir-target', r.pir_target); set('sim-pir-n', r.pir_best_n);
         set('sim-eq-mode', r.eq_mode);
         set('sim-form-window', r.form_window);
+        set('sim-hn-hearts', r.hn_hearts); set('sim-hn-margin', r.hn_margin); set('sim-hn-creep', r.hn_creep);
     }
     loadSimData();
 }
@@ -1448,6 +1500,7 @@ function updateSimulator() {
         'sim-param-bs-cap':   system === 'blue_shell',
         'sim-param-hm-cap':   system === 'hard_mode',
         'sim-param-form-w':   system === 'form',
+        'sim-param-hn':       system === 'haunted',
     };
     for (const [id, visible] of Object.entries(show)) {
         document.getElementById(id).style.display = visible ? '' : 'none';
@@ -1475,6 +1528,7 @@ function updateSimulator() {
     if (system === 'price_is_right')    url += `&pir_target=${val('sim-pir-target')}&pir_best_n=${val('sim-pir-n')}`;
     if (system === 'equaliser')         url += `&eq_mode=${val('sim-eq-mode')}`;
     if (system === 'form')              url += `&form_window=${val('sim-form-window')}`;
+    if (system === 'haunted')           url += `&hn_hearts=${val('sim-hn-hearts')}&hn_margin=${val('sim-hn-margin')}&hn_creep=${val('sim-hn-creep')}`;
 
     document.getElementById('sim-standings-table').innerHTML = '<p class="sim-status">Computing...</p>';
     document.getElementById('sim-results').style.display = 'block';

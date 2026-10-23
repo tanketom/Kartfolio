@@ -314,6 +314,21 @@ function getScoringSystemRegistry(): array {
         ],
 
         // ── The weird ones ──
+        'haunted' => [
+            'name'                   => 'The Real Monster Was Yourself',
+            'icon'                   => '👻',
+            'description'            => fn($rules) => 'Beat your own ghost or lose a heart — ' . hauntedKnobs((array)$rules)['hearts'] . ' hearts, last one alive wins',
+            'long_description'       => "A Halloween season raced against yourself. Your ghost is your own career average from before the season, and it grows a little stronger every day. Score more than the margin below it and you lose a heart; beat it and you earn soul coins — one per point — plus a bonus sticker pack on top of the one you get for racing. Spend coins on more packs, or on a heart back. Run out of hearts and you become a ghost, and a ghost who finishes ahead of a living racer catches them: they become a ghost on the spot. The last racer alive wins; survivors rank by hearts, then soul coins, ghosts by how late they fell. You need the season's minimum GPs to count as a survivor — staying home is fleeing the house, not surviving it.",
+            'calculate'              => 'calculateHauntedScore',
+            'breakdown'              => 'breakdownHaunted',
+            'tooltip'                => 'tooltipHaunted',
+            'qualifies_by_threshold' => true,
+            'sort'                   => 'sortStandingsHaunted',
+            'tie_explain'            => 'tieExplainHaunted',
+            'page'                   => '/haunted',
+            'page_label'             => 'Enter the haunted house',
+        ],
+
         'kart_bingo' => [
             'name'                   => 'Kart Bingo',
             'icon'                   => '🎱',
@@ -1488,6 +1503,8 @@ function progressiveSeasonReplay(PDO $pdo, string $system, string $season_id, ar
             return headToHeadReplay($pdo, $season_id, h2hWeightFromRules($rules));
         case 'monster_hunt':
             return monsterHuntReplay($pdo, $season_id, $rules);
+        case 'haunted':
+            return hauntedSeason($pdo, $season_id, $rules)['frames'];
     }
     return null;
 }
@@ -3102,6 +3119,263 @@ function tooltipForm(array $c, $score): string {
         scoreNum($score), $c['gps_used'] ?? 0, $c['gps_played'] ?? 0, ($c['gps_played'] ?? 0) === 1 ? '' : 's', $c['latest'] ?? 0);
 }
 
+
+// ============================================================================
+// THE REAL MONSTER WAS YOURSELF ('haunted') — a Halloween season raced
+// against your own ghost. One chronological pass over the season, like
+// Territory: ghost lines, hearts, soul coins, deaths, the contagion (a ghost
+// who finishes ahead of a living racer turns them) and the heart purchases
+// from haunt_purchases. Everything the standings, /haunted, the replay and
+// the bonus packs show comes from hauntedSeason().
+// ============================================================================
+
+/** The season's knobs, clamped the way save_rules stores them. */
+function hauntedKnobs(array $rules): array {
+    return [
+        'hearts'     => max(1, min(9, (int)($rules['hn_hearts'] ?? 3))),
+        'margin'     => max(0, min(30, (int)($rules['hn_margin'] ?? 5))),
+        'creep'      => max(0.0, min(10.0, (float)($rules['hn_creep'] ?? 2.0))),
+        'pack_cost'  => max(1, (int)($rules['hn_pack_cost'] ?? 25)),
+        'heart_cost' => max(1, (int)($rules['hn_heart_cost'] ?? 25)),
+    ];
+}
+
+/**
+ * Each racer's ghost: their average GP score over every season BEFORE this
+ * one, and the league's average over the same rows for racers with no history.
+ * Fixed at the season's start, so nothing raced this week moves it.
+ */
+function hauntedGhostBase(PDO $pdo, string $season_id): array {
+    static $cache = [];
+    if (isset($cache[$season_id])) return $cache[$season_id];
+    $st = $pdo->prepare("SELECT racer_id, AVG(gp_points) a FROM results
+                         WHERE gpid LIKE 's%' AND substr(gpid, 1, 3) < ? GROUP BY racer_id");
+    $st->execute([$season_id]);
+    $per = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $per[(int)$r['racer_id']] = (float)$r['a'];
+    $st = $pdo->prepare("SELECT AVG(gp_points) FROM results WHERE gpid LIKE 's%' AND substr(gpid, 1, 3) < ?");
+    $st->execute([$season_id]);
+    $league = (float)($st->fetchColumn() ?: 35.0);
+    return $cache[$season_id] = ['per' => $per, 'league' => $league];
+}
+
+/** The season's heart and pack purchases, oldest first. */
+function hauntedPurchases(PDO $pdo, string $season_id): array {
+    try {
+        $st = $pdo->prepare("SELECT * FROM haunt_purchases WHERE season_id = ? ORDER BY id ASC");
+        $st->execute([$season_id]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { return []; }
+}
+
+/**
+ * The whole season, replayed in race order (race_date, then GP number).
+ *   'racers' => [racer_id => hearts, coins_earned, coins_spent, gps, ghost
+ *                (null, or ['gpid','seq','by']), base, beat (gpids)]
+ *   'events' => [['type' => heart|died|caught|beat|buy_heart|buy_pack,
+ *                 'gpid', 'seq', 'rid', 'by'?, 'points'?, 'line'?, 'coins'?]]
+ *   'frames' => [gpid => [racer_id => ['score' => hearts or 0, 'gps']]]
+ *   'gps'    => [gpid => seq], 'knobs', 'start' (Y-m-d)
+ * A purchase made after GP X (haunt_purchases.after_gpid) takes effect after
+ * X; one made before any GP takes effect at the start.
+ */
+function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
+    static $cache = [];
+    $k = hauntedKnobs($rules);
+    $purchases = hauntedPurchases($pdo, $season_id);
+    $key = $season_id . '|' . json_encode($k) . '|' . count($purchases) . ':' . ($purchases ? end($purchases)['id'] : 0);
+    if (isset($cache[$key])) return $cache[$key];
+
+    $base = hauntedGhostBase($pdo, $season_id);
+
+    // GPs in race order, with their rows by finishing position.
+    $gps = []; $rowsByGp = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rows) {
+        foreach ($rows as $r) {
+            $g = $r['gpid']; $d = substr((string)$r['race_date'], 0, 10);
+            if (!isset($gps[$g]) || strcmp($d, $gps[$g]) < 0) $gps[$g] = $d;
+            $rowsByGp[$g][] = ['rid' => (int)$rid, 'rank' => (int)$r['rank'], 'points' => (int)$r['gp_points']];
+        }
+    }
+    uksort($gps, fn($a, $b) => strcmp($gps[$a], $gps[$b]) ?: strnatcmp($a, $b));
+    $start = substr((string)($rules['start_date'] ?? ''), 0, 10);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) $start = $gps ? reset($gps) : date('Y-m-d');
+
+    $after = [];      // gpid ('' = before the first GP) => purchases
+    foreach ($purchases as $p) $after[isset($gps[$p['after_gpid'] ?? '']) ? $p['after_gpid'] : ''][] = $p;
+
+    $racers = []; $events = []; $frames = []; $seqOf = [];
+    $touch = function (int $rid) use (&$racers, $base, $k) {
+        if (!isset($racers[$rid])) {
+            $racers[$rid] = ['hearts' => $k['hearts'], 'coins_earned' => 0, 'coins_spent' => 0, 'gps' => 0,
+                             'ghost' => null, 'base' => $base['per'][$rid] ?? $base['league'], 'beat' => []];
+        }
+    };
+    $buy = function (array $p, string $g, int $seq) use (&$racers, &$events, $touch, $k) {
+        $rid = (int)$p['racer_id']; $touch($rid);
+        $racers[$rid]['coins_spent'] += (int)$p['cost'];
+        if ($p['item'] === 'heart' && $racers[$rid]['ghost'] === null) {
+            $racers[$rid]['hearts'] = min($k['hearts'], $racers[$rid]['hearts'] + 1);
+        }
+        $events[] = ['type' => $p['item'] === 'heart' ? 'buy_heart' : 'buy_pack', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'coins' => (int)$p['cost']];
+    };
+    foreach ($after[''] ?? [] as $p) $buy($p, '', 0);
+
+    $seq = 0;
+    foreach ($gps as $g => $date) {
+        $seq++; $seqOf[$g] = $seq;
+        $rows = $rowsByGp[$g];
+        usort($rows, fn($a, $b) => $a['rank'] <=> $b['rank'] ?: $a['rid'] <=> $b['rid']);
+        $day = max(0, (int)floor((strtotime($date) - strtotime($start)) / 86400));
+
+        // 1. Every living racer against their own ghost.
+        foreach ($rows as $r) {
+            $rid = $r['rid']; $touch($rid);
+            $x = &$racers[$rid];
+            $x['gps']++;
+            if ($x['ghost'] === null) {
+                $line = $x['base'] + $k['creep'] * $day;
+                if ($r['points'] > $line) {
+                    $c = (int)round($r['points'] - $line);
+                    $x['coins_earned'] += $c; $x['beat'][] = $g;
+                    $events[] = ['type' => 'beat', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1), 'coins' => $c];
+                } elseif ($line - $r['points'] > $k['margin']) {
+                    $x['hearts']--;
+                    $events[] = ['type' => 'heart', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1)];
+                    if ($x['hearts'] <= 0) {
+                        $x['ghost'] = ['gpid' => $g, 'seq' => $seq, 'by' => null];
+                        $events[] = ['type' => 'died', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid];
+                    }
+                }
+            }
+            unset($x);
+        }
+        // 2. The contagion: a ghost catches every living racer it finished ahead of.
+        foreach ($rows as $i => $r) {
+            if ($racers[$r['rid']]['ghost'] === null) continue;
+            for ($j = $i + 1; $j < count($rows); $j++) {
+                $v = $rows[$j]['rid'];
+                if ($racers[$v]['ghost'] !== null || $rows[$j]['rank'] <= $r['rank']) continue;
+                $racers[$v]['ghost'] = ['gpid' => $g, 'seq' => $seq, 'by' => $r['rid']];
+                $racers[$v]['hearts'] = 0;
+                $events[] = ['type' => 'caught', 'gpid' => $g, 'seq' => $seq, 'rid' => $v, 'by' => $r['rid']];
+            }
+        }
+        // 3. Purchases made after this GP.
+        foreach ($after[$g] ?? [] as $p) $buy($p, $g, $seq);
+
+        foreach ($racers as $rid => $x) {
+            $frames[$g][$rid] = ['score' => $x['ghost'] === null ? (float)$x['hearts'] : 0.0, 'gps' => $x['gps']];
+        }
+    }
+
+    $end = substr((string)($rules['end_date'] ?? ''), 0, 10);
+    return $cache[$key] = ['racers' => $racers, 'events' => $events, 'frames' => $frames,
+                           'gps' => $seqOf, 'knobs' => $k, 'start' => $start,
+                           'end' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) ? $end : null];
+}
+
+/** Today's ghost line for a racer: their base plus the day's growth, which stops at the season's end. */
+function hauntedLineToday(array $season, int $racer_id, ?string $date = null): float {
+    $x = $season['racers'][$racer_id] ?? null;
+    $base = $x ? $x['base'] : 0.0;
+    $date = $date ?? date('Y-m-d');
+    if ($season['end'] !== null && $date > $season['end']) $date = $season['end'];
+    $day = max(0, (int)floor((strtotime($date) - strtotime($season['start'])) / 86400));
+    return round($base + $season['knobs']['creep'] * $day, 1);
+}
+
+function calculateHauntedScore($pdo, $racer_id, $season_id, $rules) {
+    $x = hauntedSeason($pdo, $season_id, (array)$rules)['racers'][(int)$racer_id] ?? null;
+    return ($x && $x['ghost'] === null) ? $x['hearts'] : 0;
+}
+
+function breakdownHaunted($pdo, $racer_id, $season_id, $rules) {
+    $s = hauntedSeason($pdo, $season_id, (array)$rules);
+    $x = $s['racers'][(int)$racer_id] ?? null;
+    if (!$x) return ['alive' => true, 'hearts' => $s['knobs']['hearts'], 'max_hearts' => $s['knobs']['hearts'], 'coins' => 0, 'balance' => 0, 'line' => 0, 'gps' => 0];
+    $by = $x['ghost']['by'] ?? null;
+    return [
+        'alive'      => $x['ghost'] === null,
+        'hearts'     => $x['ghost'] === null ? $x['hearts'] : 0,
+        'max_hearts' => $s['knobs']['hearts'],
+        'coins'      => $x['coins_earned'],
+        'balance'    => $x['coins_earned'] - $x['coins_spent'],
+        'line'       => hauntedLineToday($s, (int)$racer_id),
+        'gps'        => $x['gps'],
+        'ghost_gp'   => $x['ghost']['gpid'] ?? null,
+        'ghost_seq'  => $x['ghost']['seq'] ?? null,
+        'caught_by'  => $by !== null ? (racerNamesMap($pdo)[$by] ?? null) : null,
+        'beat'       => count($x['beat']),
+    ];
+}
+
+function tooltipHaunted(array $c, $score): string {
+    if (empty($c['alive'])) {
+        return sprintf('👻 Ghost since %s%s · %d soul coin%s earned',
+            strtoupper((string)($c['ghost_gp'] ?? '?')), !empty($c['caught_by']) ? ' — caught by ' . $c['caught_by'] : ' — out of hearts',
+            $c['coins'] ?? 0, ($c['coins'] ?? 0) === 1 ? '' : 's');
+    }
+    return sprintf('%s alive · %d soul coin%s (%d to spend) · your ghost today: %s',
+        str_repeat('❤️', max(0, (int)($c['hearts'] ?? 0))), $c['coins'] ?? 0, ($c['coins'] ?? 0) === 1 ? '' : 's',
+        $c['balance'] ?? 0, scoreNum($c['line'] ?? 0));
+}
+
+/** Survivors first (hearts, then soul coins earned); ghosts by how late they fell, then coins. */
+function sortStandingsHaunted(array &$standings, $pdo, $season_id) {
+    $s = hauntedSeason($pdo, $season_id, getSeasonRules($pdo, $season_id));
+    $key = function ($row) use ($s) {
+        $x = $s['racers'][(int)$row['id']] ?? null;
+        $alive = !$x || $x['ghost'] === null;
+        return [$alive ? 1 : 0, $alive ? ($x['hearts'] ?? 0) : ($x['ghost']['seq'] ?? 0), $x['coins_earned'] ?? 0];
+    };
+    usort($standings, function ($a, $b) use ($key) {
+        $ka = $key($a); $kb = $key($b);
+        return ($kb <=> $ka) ?: strcmp($a['name'], $b['name']);
+    });
+}
+
+function tieExplainHaunted($pdo, $season_id, $rules, $a, $b): string {
+    $s = hauntedSeason($pdo, $season_id, (array)$rules);
+    $xa = $s['racers'][(int)$a['id']] ?? null; $xb = $s['racers'][(int)$b['id']] ?? null;
+    if (!$xa || !$xb) return '';
+    if ($xa['ghost'] === null) {
+        return $xa['coins_earned'] !== $xb['coins_earned']
+            ? sprintf('Level on hearts · %s ahead on soul coins: %d vs %d', $a['name'], $xa['coins_earned'], $xb['coins_earned'])
+            : 'Level on hearts and soul coins · ordered alphabetically';
+    }
+    if (($xa['ghost']['seq'] ?? 0) !== ($xb['ghost']['seq'] ?? 0)) {
+        return sprintf('Both ghosts · %s held on longer (fell in %s, %s in %s)', $a['name'],
+            strtoupper($xa['ghost']['gpid']), $b['name'], strtoupper($xb['ghost']['gpid']));
+    }
+    return $xa['coins_earned'] !== $xb['coins_earned']
+        ? sprintf('Both fell in %s · %s ahead on soul coins: %d vs %d', strtoupper($xa['ghost']['gpid']), $a['name'], $xa['coins_earned'], $xb['coins_earned'])
+        : 'Fell together on equal coins · ordered alphabetically';
+}
+
+/**
+ * The bonus pack for beating your ghost, on top of the racing pack. Called by
+ * add_result after a GP is saved; idempotent per (racer, GP), so re-saving or
+ * a later replay never doubles it. Returns how many packs it granted.
+ */
+function hauntedGrantPacks(PDO $pdo, string $gpid): int {
+    $season_id = substr($gpid, 0, 3);
+    $rules = getSeasonRules($pdo, $season_id);
+    if (($rules['scoring_system'] ?? '') !== 'haunted') return 0;
+    if (!function_exists('stickersEpoch')) require_once __DIR__ . '/stickers.php';
+    if (date('Y-m-d') < stickersEpoch($pdo)) return 0;
+    $has = $pdo->prepare("SELECT COUNT(*) FROM racer_packs WHERE racer_id = ? AND source = 'haunted' AND gpid = ?");
+    $ins = $pdo->prepare("INSERT INTO racer_packs (racer_id, source, gpid, seed, size) VALUES (?, 'haunted', ?, ?, ?)");
+    $n = 0;
+    foreach (hauntedSeason($pdo, $season_id, $rules)['events'] as $e) {
+        if ($e['type'] !== 'beat' || $e['gpid'] !== $gpid) continue;
+        $has->execute([$e['rid'], $gpid]);
+        if ((int)$has->fetchColumn() > 0) continue;
+        $ins->execute([$e['rid'], $gpid, crc32('haunted:' . $gpid . ':' . $e['rid']), STICKER_PACK_SIZE]);
+        $n++;
+    }
+    return $n;
+}
 
 // ============================================================================
 // SEASON PLACEMENTS — one ranking per season, shared by badges (On the Up,

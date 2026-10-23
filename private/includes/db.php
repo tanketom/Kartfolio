@@ -272,9 +272,25 @@ try {
         "bg_line_pts INTEGER DEFAULT 100", "bg_card_pts INTEGER DEFAULT 500",           // Kart Bingo
         "pir_target TEXT DEFAULT 'median'", "pir_best_n INTEGER DEFAULT 15",           // The Price Is Right
         "eq_mode TEXT DEFAULT 'season'",                                             // The Great Equaliser
+        "hn_hearts INTEGER DEFAULT 3", "hn_margin INTEGER DEFAULT 5", "hn_creep FLOAT DEFAULT 2.0",   // The Real Monster Was Yourself
+        "hn_pack_cost INTEGER DEFAULT 25", "hn_heart_cost INTEGER DEFAULT 25",
     ] as $col) {
         try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col"); } catch (PDOException $e) {}
     }
+
+    // The Real Monster Was Yourself: soul-coin purchases (a heart back, or a
+    // sticker pack). after_gpid is the season's latest GP when it was bought,
+    // so the replay applies it between the right two GPs.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS haunt_purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        season_id TEXT NOT NULL,
+        racer_id INTEGER NOT NULL,
+        item TEXT NOT NULL,
+        cost INTEGER NOT NULL,
+        after_gpid TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_haunt_purchases ON haunt_purchases(season_id, id)");
 
     // Sticker Packs — Panini-style collection. Packs are granted (1 per GP
     // raced from the stickers_epoch setting onward + a one-time Founders

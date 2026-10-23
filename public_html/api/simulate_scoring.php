@@ -115,6 +115,11 @@ if ($system === 'price_is_right') {
 }
 if ($system === 'equaliser' && isset($_GET['eq_mode'])) $rules['eq_mode'] = in_array($_GET['eq_mode'], ['season', 'per_gp'], true) ? $_GET['eq_mode'] : 'season';
 if ($system === 'form' && isset($_GET['form_window'])) $rules['form_window'] = max(1, min(50, (int)$_GET['form_window']));
+if ($system === 'haunted') {
+    if (isset($_GET['hn_hearts'])) $rules['hn_hearts'] = max(1, min(9, (int)$_GET['hn_hearts']));
+    if (isset($_GET['hn_margin'])) $rules['hn_margin'] = max(0, min(30, (int)$_GET['hn_margin']));
+    if (isset($_GET['hn_creep']))  $rules['hn_creep']  = max(0.0, min(10.0, (float)$_GET['hn_creep']));
+}
 
 // MONSTER HUNT knobs: only when explicitly supplied, otherwise the season's
 // own values (or the scoring function's defaults) stand.

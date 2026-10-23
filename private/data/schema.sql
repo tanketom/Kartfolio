@@ -152,8 +152,26 @@ CREATE TABLE IF NOT EXISTS season_meta (
     pir_best_n INTEGER DEFAULT 15,
     eq_mode TEXT DEFAULT 'season',
     -- Form (rolling window size)
-    form_window INTEGER DEFAULT 8
+    form_window INTEGER DEFAULT 8,
+    -- The Real Monster Was Yourself
+    hn_hearts INTEGER DEFAULT 3,
+    hn_margin INTEGER DEFAULT 5,
+    hn_creep FLOAT DEFAULT 2.0,
+    hn_pack_cost INTEGER DEFAULT 25,
+    hn_heart_cost INTEGER DEFAULT 25
 );
+
+-- The Real Monster Was Yourself: soul-coin purchases
+CREATE TABLE IF NOT EXISTS haunt_purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    season_id TEXT NOT NULL,
+    racer_id INTEGER NOT NULL,
+    item TEXT NOT NULL,
+    cost INTEGER NOT NULL,
+    after_gpid TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_haunt_purchases ON haunt_purchases(season_id, id);
 
 -- AI Broadcast Archive
 CREATE TABLE IF NOT EXISTS recap_archive (

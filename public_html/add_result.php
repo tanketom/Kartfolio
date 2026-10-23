@@ -159,6 +159,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/../private/includes/stickers.php';
         grantGpPacks($pdo, $gpid, $packRacers);
         $pdo->commit();
+        // The Real Monster Was Yourself: a bonus pack for everyone who beat
+        // their ghost in this GP (no-op on any other system).
+        try {
+            hauntedGrantPacks($pdo, $gpid);
+        } catch (Throwable $e) { error_log('haunted packs: ' . $e->getMessage()); }
         // Badge sightings for "new this week" on the homepage — never lets a
         // badge hiccup break result entry.
         try {
