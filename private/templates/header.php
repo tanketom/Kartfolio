@@ -17,8 +17,6 @@ initializeSettings($pdo);
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio');
 $primaryColor = getSetting($pdo, 'primary_color', '#E60012');
 $currentSeasonTag = strtoupper(getCurrentSeasonNumber());
-// "Tournament mode" — when on, the Tournaments hub is open to all players.
-$tournamentsOn = (bool) getSetting($pdo, 'enable_tournaments', true);
 
 // A brand-new install has no racers and no results. Surface the first-run
 // setup link (admins only) so /admin/setup is reachable without knowing the
@@ -96,10 +94,6 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
 
                 </div>
             </div>
-
-            <?php if ($tournamentsOn): ?>
-                <a href="/tournaments">🏆 Tournaments</a>
-            <?php endif; ?>
 
             <a href="/season-archives">Hall of Fame</a>
 
