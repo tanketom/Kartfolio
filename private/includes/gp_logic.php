@@ -3134,7 +3134,7 @@ function hauntedKnobs(array $rules): array {
     return [
         'hearts'     => max(1, min(9, (int)($rules['hn_hearts'] ?? 3))),
         'margin'     => max(0, min(30, (int)($rules['hn_margin'] ?? 5))),
-        'creep'      => max(0.0, min(10.0, (float)($rules['hn_creep'] ?? 2.0))),
+        'creep'      => max(0.0, min(10.0, (float)($rules['hn_creep'] ?? 1.0))),
         'pack_cost'  => max(1, (int)($rules['hn_pack_cost'] ?? 25)),
         'heart_cost' => max(1, (int)($rules['hn_heart_cost'] ?? 25)),
     ];

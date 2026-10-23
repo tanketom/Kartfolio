@@ -272,7 +272,7 @@ try {
         "bg_line_pts INTEGER DEFAULT 100", "bg_card_pts INTEGER DEFAULT 500",           // Kart Bingo
         "pir_target TEXT DEFAULT 'median'", "pir_best_n INTEGER DEFAULT 15",           // The Price Is Right
         "eq_mode TEXT DEFAULT 'season'",                                             // The Great Equaliser
-        "hn_hearts INTEGER DEFAULT 3", "hn_margin INTEGER DEFAULT 5", "hn_creep FLOAT DEFAULT 2.0",   // The Real Monster Was Yourself
+        "hn_hearts INTEGER DEFAULT 3", "hn_margin INTEGER DEFAULT 5", "hn_creep FLOAT DEFAULT 1.0",   // The Real Monster Was Yourself
         "hn_pack_cost INTEGER DEFAULT 25", "hn_heart_cost INTEGER DEFAULT 25",
     ] as $col) {
         try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col"); } catch (PDOException $e) {}

@@ -240,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['hn_thresh'] ?? 3));
                 $updateFields['hn_hearts']     = max(1, min(9, (int)($_POST['hn_hearts'] ?? 3)));
                 $updateFields['hn_margin']     = max(0, min(30, (int)($_POST['hn_margin'] ?? 5)));
-                $updateFields['hn_creep']      = max(0.0, min(10.0, (float)($_POST['hn_creep'] ?? 2.0)));
+                $updateFields['hn_creep']      = max(0.0, min(10.0, (float)($_POST['hn_creep'] ?? 1.0)));
                 $updateFields['hn_pack_cost']  = max(1, (int)($_POST['hn_pack_cost'] ?? 25));
                 $updateFields['hn_heart_cost'] = max(1, (int)($_POST['hn_heart_cost'] ?? 25));
             }
@@ -565,7 +565,7 @@ include __DIR__ . '/../../private/templates/header.php';
                             <label>Hearts · margin · ghost growth/day</label>
                             <input type="number" id="sim-hn-hearts" value="3" min="1" max="9" onchange="updateSimulator()">
                             <input type="number" id="sim-hn-margin" value="5" min="0" max="30" onchange="updateSimulator()">
-                            <input type="number" id="sim-hn-creep" value="2" min="0" max="10" step="0.5" onchange="updateSimulator()">
+                            <input type="number" id="sim-hn-creep" value="1" min="0" max="10" step="0.5" onchange="updateSimulator()">
                         </div>
                     </div>
                 </div>
@@ -1074,7 +1074,7 @@ include __DIR__ . '/../../private/templates/header.php';
                             </div>
                             <div class="form-field">
                                 <label>Ghost grows / day</label>
-                                <input type="number" name="hn_creep" value="<?= htmlspecialchars((string)($meta['hn_creep'] ?? 2.0)) ?>" min="0" max="10" step="0.5">
+                                <input type="number" name="hn_creep" value="<?= htmlspecialchars((string)($meta['hn_creep'] ?? 1.0)) ?>" min="0" max="10" step="0.5">
                                 <small>Points added to every ghost per day of the season</small>
                             </div>
                             <div class="form-field">
@@ -1431,7 +1431,7 @@ const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
     'form_window'       => (int)($m['form_window'] ?? 8),
     'hn_hearts'         => (int)($m['hn_hearts'] ?? 3),
     'hn_margin'         => (int)($m['hn_margin'] ?? 5),
-    'hn_creep'          => (float)($m['hn_creep'] ?? 2.0),
+    'hn_creep'          => (float)($m['hn_creep'] ?? 1.0),
 ], $metaData), JSON_UNESCAPED_SLASHES) ?>;
 
 // Reseed the knob fields from the selected season, then re-run. Called when the

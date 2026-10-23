@@ -137,7 +137,7 @@ $log = array_reverse($s['events']);
         <p class="haunt-sub"><?= htmlspecialchars($seasonName) ?> · <?= $over ? 'the haunting is over' : 'day ' . $day . ($days ? ' of ' . $days : '') ?><?= $endDate !== '' && !$over ? ' · ends ' . htmlspecialchars(date('j F', strtotime($endDate))) : '' ?></p>
         <p class="haunt-rules">
             Everyone starts with <strong><?= $k['hearts'] ?> hearts</strong>. Your ghost is your own career average,
-            and it grows <strong><?= scoreNum($k['creep']) ?> points</strong> stronger every day. Score more than
+            and it grows <strong><?= scoreNum($k['creep']) ?> point<?= (float)$k['creep'] === 1.0 ? '' : 's' ?></strong> stronger every day. Score more than
             <strong><?= $k['margin'] ?></strong> below it and you lose a heart; beat it and you earn a soul coin per point
             and a bonus sticker pack. A ghost who finishes ahead of you turns you into one.
             Survivors need <strong><?= $threshold ?> GPs</strong> — the last one alive wins.

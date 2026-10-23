@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS season_meta (
     -- The Real Monster Was Yourself
     hn_hearts INTEGER DEFAULT 3,
     hn_margin INTEGER DEFAULT 5,
-    hn_creep FLOAT DEFAULT 2.0,
+    hn_creep FLOAT DEFAULT 1.0,
     hn_pack_cost INTEGER DEFAULT 25,
     hn_heart_cost INTEGER DEFAULT 25
 );
