@@ -6423,3 +6423,45 @@ th.rotate > div {
     .haunt-title { font-size: 1.5rem; }
     .haunt-shop-form > * { flex: 1 1 100%; }
 }
+
+/* ── The racers (/racers) — the public roster ─────────────────────────── */
+.roster-head { margin-bottom: var(--space-md); }
+.roster-title { font-family: var(--font-display); font-size: 2.2rem; margin: 0; }
+.roster-sub { margin: 4px 0 14px; color: var(--ink-muted); }
+.roster-filter {
+    width: 100%; max-width: 360px; box-sizing: border-box;
+    padding: 10px 14px; border: 2px solid var(--line); border-radius: 12px; font: inherit;
+    background: var(--surface-raised);
+}
+.roster-section { margin: var(--space-md) 0 28px; }
+.roster-heading { font-family: var(--font-display); font-size: 1.35rem; margin: 0 0 2px; }
+.roster-count { font-family: var(--font-mono); font-size: 0.9rem; color: var(--ink-muted); }
+.roster-note { margin: 0 0 12px; color: var(--ink-muted); font-size: 0.9rem; }
+.roster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.roster-card {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 12px 14px; border-radius: 16px;
+    background: var(--surface-raised); border: 2px solid var(--line);
+    box-shadow: var(--shadow-sm); color: var(--ink); text-decoration: none;
+    transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.roster-card:hover { transform: translate(var(--lift), var(--lift)); box-shadow: var(--shadow-md); }
+.roster-card[hidden], .roster-section[hidden] { display: none; }
+.roster-portrait { width: 56px; height: 56px; object-fit: contain; flex: none; }
+.roster-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.roster-name { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.roster-nick { color: var(--nintendo-red); font-weight: 600; font-size: 0.9rem; }
+.roster-quote { color: var(--ink-muted); font-style: italic; font-size: 0.85rem; overflow-wrap: anywhere; }
+.roster-stats { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-muted); margin-top: 2px; }
+.roster-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.roster-chip {
+    font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--line);
+}
+.roster-chip--title { background: #fff7d1; border-color: var(--gold); }
+.roster-chip--now { background: var(--boost-soft); border-color: var(--boost); }
+.roster-none { color: var(--ink-muted); font-style: italic; }
+@media (max-width: 600px) {
+    .roster-title { font-size: 1.7rem; }
+    .roster-grid { grid-template-columns: 1fr; }
+}

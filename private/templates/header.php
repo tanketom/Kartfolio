@@ -79,6 +79,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
             <a href="/add-result">Add GP scores</a>
             <a href="#" id="cup-picker-btn">🎲 What cup?</a>
             <a href="/archive">News</a>
+            <a href="/racers">Racers</a>
 
             <div class="dropdown">
                 <span class="dropbtn">Statistics ▾</span>

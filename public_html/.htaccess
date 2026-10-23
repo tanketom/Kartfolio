@@ -150,6 +150,7 @@ RewriteRule ^display/auto-vertical$ auto-vertical.php [L]
 RewriteRule ^display/overlay$ overlay.php [L,QSA]
 RewriteRule ^display/ceremony$ ceremony.php [L,QSA]
 RewriteRule ^haunted$ haunted.php [L,QSA]
+RewriteRule ^racers$ racers.php [L]
 RewriteRule ^overlay$ overlay.php [L,QSA]
 
 # API routes - RESTful style
