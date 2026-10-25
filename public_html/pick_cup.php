@@ -261,6 +261,130 @@ function kartificialLine(string $cup, array $f): array {
     return ['line' => trim($lead . ($support ? ' ' . $support : '')), 'mood' => $mood];
 }
 
+/**
+ * Kartificial's pick: who he expects to be the best racer in the line-up on
+ * the cup just drawn. A fixed formula over the league's own results, not a
+ * model call, for the same reason as his line above — instant, free, and
+ * every fact he quotes is true.
+ *
+ * Each racer's expected score = their average over their last 20 GPs (form)
+ * plus how far their average on THIS cup sits above or below their career
+ * average, shrunk by how often they have raced it (n / (n + 3)), so one lucky
+ * night on a cup does not make a specialist. Highest expected score is the
+ * pick. No odds are shown and nothing is recorded: What cup? is often drawn
+ * and then not raced, so a hit rate would mean nothing.
+ *
+ * Two queries: the line-up's career results, and the best finishing place in
+ * every GP ever raced on this cup (so "the best racer here" is judged against
+ * everyone who raced it, not just tonight's line-up).
+ *
+ * @return array{name: string, line: string}|null  null with fewer than two
+ *         racers selected, or when nobody selected has raced before
+ */
+function kartificialPick(PDO $pdo, string $cup, array $racerIds, array $names): ?array {
+    if (count($racerIds) < 2) return null;
+
+    $in = implode(',', array_fill(0, count($racerIds), '?'));
+    $st = $pdo->prepare("SELECT racer_id, gpid, cup_name, gp_points, rank FROM results
+                         WHERE gpid LIKE 's%' AND racer_id IN ($in)
+                         ORDER BY race_date DESC, id DESC");
+    $st->execute(array_values($racerIds));
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $st = $pdo->prepare("SELECT gpid, MIN(rank) FROM results WHERE gpid LIKE 's%' AND cup_name = ? GROUP BY gpid");
+    $st->execute([$cup]);
+    $topRank = $st->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    $f = [];   // racer_id => facts
+    foreach ($rows as $r) {
+        $rid = (int)$r['racer_id'];
+        $f[$rid] ??= ['all' => [], 'recent' => [], 'here' => [], 'best' => 0];
+        $pts = (int)$r['gp_points'];
+        $f[$rid]['all'][] = $pts;
+        if (count($f[$rid]['recent']) < 20) $f[$rid]['recent'][] = $pts;   // newest first
+        if ($r['cup_name'] === $cup) {
+            $f[$rid]['here'][] = $pts;
+            if ((int)$r['rank'] === (int)($topRank[$r['gpid']] ?? -1)) $f[$rid]['best']++;
+        }
+    }
+
+    $avg = fn(array $a) => $a ? array_sum($a) / count($a) : 0.0;
+    $cands = [];
+    foreach ($racerIds as $rid) {
+        if (empty($f[$rid]['all']) || !isset($names[$rid])) continue;   // never raced: no basis to pick
+        $x = $f[$rid];
+        $n = count($x['here']);
+        $delta = $n ? $avg($x['here']) - $avg($x['all']) : 0.0;
+        $cands[] = [
+            'id' => $rid, 'name' => $names[$rid], 'n' => $n, 'best' => $x['best'],
+            'delta' => $delta, 'recent' => $avg($x['recent']),
+            'expect' => $avg($x['recent']) + $delta * $n / ($n + 3),
+        ];
+    }
+    if (!$cands) return null;
+    // Expected score, then form, then name — never the query plan (§10).
+    usort($cands, fn($a, $b) => ($b['expect'] <=> $a['expect']) ?: ($b['recent'] <=> $a['recent']) ?: strcmp($a['name'], $b['name']));
+
+    $p = $cands[0];
+    $q = $cands[1] ?? null;
+    $c = "$cup Cup";
+    $one = fn(float $d) => number_format(abs($d), 1);
+
+    // Who has been the best racer on this cup most often (ties: name, §10).
+    $leader = null;
+    foreach ($cands as $o) {
+        if ($o['best'] > 0 && ($leader === null || $o['best'] > $leader['best']
+            || ($o['best'] === $leader['best'] && strcmp($o['name'], $leader['name']) < 0))) $leader = $o;
+    }
+    $pLeads = $leader === null || $leader['id'] === $p['id'] || $leader['best'] <= $p['best'];
+    $topForm = max(array_column($cands, 'recent'));
+    $r = (int)round($p['recent']);
+
+    if ($q && $p['expect'] - $q['expect'] < 1.5) {
+        $line = ($p['n'] + $q['n'] > 0)
+            ? "{$p['name']} or {$q['name']}. " . ($p['n'] + $q['n']) . " $c" . ($p['n'] + $q['n'] === 1 ? '' : 's') . " between them all-time and nothing in it. I'm saying {$p['name']}, quietly."
+            : "{$p['name']} or {$q['name']}, and neither has raced $c. I'm saying {$p['name']}, quietly.";
+    } elseif ($pLeads && $p['n'] >= 4 && $p['best'] * 2 >= $p['n']) {
+        $line = "My pick: {$p['name']}, the best racer on $c {$p['best']} times in {$p['n']} all-time.";
+    } elseif ($p['n'] >= 3 && $p['delta'] >= 3) {
+        $line = "My pick: {$p['name']}, who scores {$one($p['delta'])} above the usual average on $c.";
+    } elseif ($p['n'] === 0) {
+        $line = "My pick: {$p['name']}. Never raced $c, but nobody here is in better form.";
+    } else {
+        // Plain form. The variant follows the cup, so a draw always reads the same.
+        $variants = ["My pick: {$p['name']}, on form: $r a GP lately. Prove me wrong.",
+                     "{$p['name']}. $r a GP over the last twenty. I have spoken."];
+        if ($p['recent'] >= $topForm) $variants[] = "I'm going with {$p['name']}. Nobody here has been scoring more lately: $r a GP.";
+        $line = $variants[crc32($cup) % count($variants)];
+    }
+
+    // One aside about somebody else, when there is a true thing worth saying
+    // — never about the runner-up the line has just named.
+    $named = $q && $p['expect'] - $q['expect'] < 1.5;
+    $aside = null;
+    if (!$pLeads && $leader['best'] >= 3 && !($named && $leader['id'] === $q['id'])) {
+        $aside = "{$leader['name']} has been the best racer on $c more often over the years, though: {$leader['best']} times to {$p['best']}.";
+    }
+    if ($aside === null) {
+        foreach (array_slice($cands, 1) as $o) {
+            if ($named && $o['id'] === $q['id']) continue;
+            if ($o['n'] >= 3 && $o['best'] >= 3 && $o['best'] * 2 >= $o['n']) {
+                $aside = "Don't rule out {$o['name']}: the best racer on $c {$o['best']} times over the years."; break;
+            }
+        }
+    }
+    if ($aside === null) {
+        $most = null;
+        foreach ($cands as $o) if ($o['id'] !== $p['id'] && ($most === null || $o['n'] > $most['n'])) $most = $o;
+        if ($most && $named && $most['id'] === $q['id']) $most = null;
+        if ($most && $most['n'] >= 5 && $most['delta'] <= -3) {
+            $aside = "{$most['name']} has raced $c more than anyone here, {$most['n']} times, and $c still owes {$most['name']} one.";
+        }
+    }
+
+    return ['name' => $p['name'], 'line' => $aside ? "$line $aside" : $line];
+}
+
 // ── Response ──────────────────────────────────────────────────────────────
 $response = [
     'cup'             => $selectedCup,
@@ -328,5 +452,7 @@ $response['host'] = kartificialLine($selectedCup, [
     'excludedToday'   => count($racedToday),
     'relaxed'         => $relaxed,
 ]);
+$pick = kartificialPick($pdo, $selectedCup, $racerIds, $names);
+if ($pick) $response['pick'] = $pick;
 
 echo json_encode($response);

@@ -248,6 +248,12 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     border: 8px solid transparent;
     border-right-color: var(--ink, #111);
 }
+.cup-host-pick {
+    display: block;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 2px dashed rgba(0, 0, 0, 0.15);
+}
 .cup-stage--grumpy .cup-host-bubble { background: #fdf0e8; }
 .cup-stage--excited .cup-host-bubble { background: #fff6dc; }
 
@@ -978,6 +984,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.host && data.host.line) {
                         cupHostLine.textContent = data.host.line;
                         cupSetMood(data.host.mood);
+                    }
+                    // His pick for the line-up, on its own line in the same
+                    // bubble — also textContent, it carries racer names.
+                    if (data.pick && data.pick.line) {
+                        const p = document.createElement('span');
+                        p.className = 'cup-host-pick';
+                        p.textContent = data.pick.line;
+                        cupHostLine.appendChild(p);
                     }
                     if (data.allCups) cupAllCups = data.allCups;
 
