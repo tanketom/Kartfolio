@@ -97,6 +97,7 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
             'badge_overflow' => $badgeLimit > 0 ? max(0, $total - $badgeLimit) : 0,
             'breakdown'   => $breakdown,
             'tooltip'     => scoringTooltipFromBreakdown($breakdown),
+            'display'     => scoreDisplayFromBreakdown($breakdown),   // null = print the number
             'cupsCounted' => (int)($breakdown['components']['cups_counted'] ?? 0),
             'mikko'       => $mikkoByRacer[$rid] ?? null,
         ];

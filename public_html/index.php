@@ -331,7 +331,9 @@ $liveFormatLabels = [
                 </div>
             </div>
             <div class="racer-score" data-tooltip="<?= htmlspecialchars($tooltip) ?>">
-                <?php if ($bdSystem === 'top_12_unique'): ?>
+                <?php if (!empty($row['display'])): ?>
+                    <span class="score-display"><?= htmlspecialchars($row['display']) ?></span>
+                <?php elseif ($bdSystem === 'top_12_unique'): ?>
                     <?= (int)$row['score'] ?>
                     <div class="cup-completion">
                         <?= $c['cups_counted'] ?? 0 ?> of 12 cups counted

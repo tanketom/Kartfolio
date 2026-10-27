@@ -146,7 +146,7 @@ if ($n > 0) {
     $board = [];
     foreach (array_reverse(array_slice($ranked, 3)) as $r) {
         $board[] = ['rank' => ceremonyOrdinal((int)$r['rank']), 'name' => $r['name'],
-                    'score' => ceremonyScore($r['score']), 'char' => (string)($r['char'] ?? ''),
+                    'score' => $r['display'] ?? ceremonyScore($r['score']), 'char' => (string)($r['char'] ?? ''),
                     'gps' => (int)$r['raceCount'], 'tie' => $r['tie'] ?? null];
     }
     $batch = max(0, count($board) - 9);
@@ -176,14 +176,14 @@ if ($n > 0) {
         $steps[] = ['type' => 'podium', 'place' => $place,
                     'kicker' => ['1' => 'Champion', '2' => 'Second place', '3' => 'Third place'][(string)$place],
                     'title' => $r['name'], 'char' => (string)($r['char'] ?? ''),
-                    'sub' => ceremonyScore($r['score']) . ($systemName !== '' ? ' · ' . $systemName : '')
+                    'sub' => ($r['display'] ?? ceremonyScore($r['score'])) . ($systemName !== '' ? ' · ' . $systemName : '')
                              . ' · ' . (int)$r['raceCount'] . ' GPs',
                     'tie' => $r['tie'] ?? null,
                     'host' => $podiumHost[$place]];
     }
 
     $podium = array_map(fn($r) => ['name' => $r['name'], 'char' => (string)($r['char'] ?? ''),
-                                   'score' => ceremonyScore($r['score'])], array_slice($ranked, 0, 3));
+                                   'score' => $r['display'] ?? ceremonyScore($r['score'])], array_slice($ranked, 0, 3));
     $steps[] = ['type' => 'finale', 'kicker' => $seasonName, 'title' => $ranked[0]['name'],
                 'podium' => $podium,
                 'host' => "That's the season. Thank you all for coming. Please take your karts with you."];

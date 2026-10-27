@@ -102,7 +102,7 @@ if ($latestNews) $tickerLines[] = ['h' => $latestNews['headline'], 'q' => $lates
                         <div class="v-name"><?= htmlspecialchars($entry['name']) ?><?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?><?php if (!empty($entry['mikko'])): ?><span class="mikko-leaderboard-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?></div>
                         <div class="v-meta-small"><?= (int)$entry['raceCount'] ?> GPs Raced<?php if (!empty($entry['badges'])): ?><span class="badge-container badge-container--inline"><?php foreach ($entry['badges'] as $b): ?><span class="badge-icon<?= !empty($b['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($b['title']) ?>"><?= $b['icon'] ?></span><?php endforeach; ?><?php if (!empty($entry['badge_overflow'])): ?><span class="badge-more">+<?= (int)$entry['badge_overflow'] ?></span><?php endif; ?></span><?php endif; ?></div>
                     </div>
-                    <div class="v-score"><?= number_format($entry['score'], 2) ?></div>
+                    <div class="v-score"><?= !empty($entry['display']) ? '<span class="score-display">' . htmlspecialchars($entry['display']) . '</span>' : number_format($entry['score'], 2) ?></div>
                 </div>
                 <?php endforeach; ?>
             </main>

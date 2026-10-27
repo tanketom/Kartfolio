@@ -207,7 +207,9 @@ while($row = $newsStmt->fetch()) {
                 </div>
 
                 <div class="racer-score">
-                    <?php if (($rules['scoring_system'] ?? '') === 'top_12_unique'): ?>
+                    <?php if (!empty($row['display'])): ?>
+                        <span class="score-display"><?= htmlspecialchars($row['display']) ?></span>
+                    <?php elseif (($rules['scoring_system'] ?? '') === 'top_12_unique'): ?>
                         <?= (int)$row['score'] ?>
                         <div class="cup-completion"><?= $row['cupsCounted'] ?? 0 ?> of 12 cups counted</div>
                     <?php else: ?>

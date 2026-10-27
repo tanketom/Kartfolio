@@ -322,6 +322,8 @@ function getScoringSystemRegistry(): array {
             'calculate'              => 'calculateHauntedScore',
             'breakdown'              => 'breakdownHaunted',
             'tooltip'                => 'tooltipHaunted',
+            // The standings show hearts, not a number (Trends / All-Time keep the number).
+            'display'                => 'displayHaunted',
             'qualifies_by_threshold' => true,
             'sort'                   => 'sortStandingsHaunted',
             'tie_explain'            => 'tieExplainHaunted',
@@ -1893,6 +1895,25 @@ function getScoringBreakdown($pdo, $racer_id, $season_id) {
  * scoring system explains itself by adding one key (never by editing pages).
  * Takes an ALREADY-COMPUTED breakdown so callers pay no extra queries.
  */
+/**
+ * How the standings screens show a score, when the system shows something
+ * other than the number (the registry's optional 'display' fn — hearts for
+ * The Real Monster Was Yourself). Null means "print the number as usual", so
+ * a page never needs to know which system is running (§2a). Plain text; the
+ * caller escapes it.
+ */
+function scoreDisplayFromBreakdown(array $bd): ?string {
+    $fn = getScoringSystemDef($bd['system'] ?? 'average_attendance')['display'] ?? null;
+    return ($fn !== null && function_exists($fn)) ? $fn($bd['components'] ?? [], $bd['total_score'] ?? 0) : null;
+}
+
+/** scoreDisplayFromBreakdown() for one racer, skipping the breakdown entirely when the system has no display. */
+function scoreDisplayFor(PDO $pdo, int $racer_id, string $season_id): ?string {
+    $system = getSeasonRules($pdo, $season_id)['scoring_system'] ?? 'average_attendance';
+    if (empty(getScoringSystemDef($system)['display'])) return null;
+    return scoreDisplayFromBreakdown(getScoringBreakdown($pdo, $racer_id, $season_id));
+}
+
 function scoringTooltipFromBreakdown(array $bd): string {
     $system = $bd['system'] ?? 'average_attendance';
     $def    = getScoringSystemDef($system);
@@ -3319,6 +3340,13 @@ function tooltipHaunted(array $c, $score): string {
     return sprintf('%s alive · %d soul coin%s (%d to spend) · your ghost today: %s',
         str_repeat('❤️', max(0, (int)($c['hearts'] ?? 0))), $c['coins'] ?? 0, ($c['coins'] ?? 0) === 1 ? '' : 's',
         $c['balance'] ?? 0, scoreNum($c['line'] ?? 0));
+}
+
+/** The standings show the hearts themselves: ❤️❤️🖤 for a survivor, 👻 for a ghost. */
+function displayHaunted(array $c, $score): string {
+    if (empty($c['alive'])) return '👻';
+    $h = max(0, (int)($c['hearts'] ?? 0));
+    return str_repeat('❤️', $h) . str_repeat('🖤', max(0, (int)($c['max_hearts'] ?? $h) - $h));
 }
 
 /** Survivors first (hearts, then soul coins earned); ghosts by how late they fell, then coins. */

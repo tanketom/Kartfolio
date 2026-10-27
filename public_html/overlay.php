@@ -62,7 +62,12 @@ $racersStmt = $pdo->prepare("
     HAVING gp_count >= ?
     ORDER BY r.name
 ");
-$racersStmt->execute([$seasonId . '%', $visibilityFloor]);
+// The floor MUST be bound as an integer. execute([...]) binds text, and in
+// SQLite COUNT(...) >= '1' is false for every row (a number never compares
+// greater than text), so this view showed "No standings yet" for every season.
+$racersStmt->bindValue(1, $seasonId . '%');
+$racersStmt->bindValue(2, $visibilityFloor, PDO::PARAM_INT);
+$racersStmt->execute();
 $activeRacers = $racersStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $standings = [];
@@ -73,6 +78,7 @@ foreach ($activeRacers as $r) {
         'name'  => $r['name'],
         'score' => $score,
         'gps'   => (int)$r['gp_count'],
+        'display' => scoreDisplayFor($pdo, (int)$r['id'], $seasonId),   // hearts etc.; null = the number
     ];
 }
 // Sort through the registry: this used a score-only usort (ties in whatever
@@ -339,7 +345,7 @@ $primaryRGB = implode(',', sscanf($primaryColor, '#%02x%02x%02x'));
             <div class="overlay-row <?= $i === 0 ? 'overlay-row--leader' : '' ?>">
                 <span class="overlay-pos"><?= $i + 1 ?></span>
                 <span class="overlay-name"><?= htmlspecialchars($row['name']) ?></span>
-                <span class="overlay-score"><?= $isIntScore ? number_format($row['score'], 0) : number_format($row['score'], 2) ?></span>
+                <span class="overlay-score"><?= !empty($row['display']) ? '<span class="score-display">' . htmlspecialchars($row['display']) . '</span>' : ($isIntScore ? number_format($row['score'], 0) : number_format($row['score'], 2)) ?></span>
                 <?php if ($scoringSystem === 'top_12_unique' && ($row['tiebreaker'] ?? 0) > 0): ?>
                     <span class="overlay-tiebreak">🌟<?= $row['tiebreaker'] ?></span>
                 <?php endif; ?>

@@ -91,7 +91,9 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                         <div class="racer-stat-label"><?= $entry['raceCount'] ?> GPs</div>
                     </div>
                     <div class="racer-score">
-                        <?php if ($currentScoringSystem === 'top_12_unique'): ?>
+                        <?php if (!empty($entry['display'])): ?>
+                            <span class="score-display"><?= htmlspecialchars($entry['display']) ?></span>
+                        <?php elseif ($currentScoringSystem === 'top_12_unique'): ?>
                             <?= (int)$entry['score'] ?>
                             <div class="cup-completion"><?= (int)($entry['cupsCounted'] ?? 0) ?> of 12 cups counted</div>
                         <?php else: ?>
@@ -130,7 +132,9 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                         <div class="racer-stat-label"><?= $entry['raceCount'] ?> GPs</div>
                     </div>
                     <div class="racer-score">
-                        <?php if ($currentScoringSystem === 'top_12_unique'): ?>
+                        <?php if (!empty($entry['display'])): ?>
+                            <span class="score-display"><?= htmlspecialchars($entry['display']) ?></span>
+                        <?php elseif ($currentScoringSystem === 'top_12_unique'): ?>
                             <?= (int)$entry['score'] ?>
                             <div class="cup-completion"><?= (int)($entry['cupsCounted'] ?? 0) ?> of 12 cups counted</div>
                         <?php else: ?>

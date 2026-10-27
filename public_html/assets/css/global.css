@@ -2318,3 +2318,13 @@ select, textarea {
 .tt-tip b { display: block; font-family: 'Fredoka', 'Inter', sans-serif; font-size: .95rem; }
 .tt-tip .m { color: #b9c3d8; }
 .leaderboard-grid[hidden] { display: none; }
+
+/* A score shown as something other than a number (the registry's 'display'
+   — hearts on The Real Monster Was Yourself). Emoji run wide, so it sits a
+   size below the numerals it replaces and never wraps. */
+.score-display {
+    font-size: 0.62em;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+    line-height: 1;
+}
