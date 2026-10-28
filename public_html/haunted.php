@@ -138,8 +138,8 @@ $log = array_reverse($s['events']);
         <p class="haunt-rules">
             Everyone starts with <strong><?= $k['hearts'] ?> hearts</strong>. Your ghost is your own career average,
             and it grows <strong><?= scoreNum($k['creep']) ?> point<?= (float)$k['creep'] === 1.0 ? '' : 's' ?></strong> stronger every day.
-            Every GP is one of three things: <strong>beat your ghost</strong> (score above it) and you earn a soul coin per point
-            and a bonus sticker pack; finish <strong>up to <?= $k['margin'] ?> points under it</strong> and nothing happens;
+            Every GP is one of three things: <strong>beat your ghost</strong> (score above it) and you earn a soul coin per point above it
+            (rounded up, so always at least one) and a bonus sticker pack; finish <strong>up to <?= $k['margin'] ?> points under it</strong> and nothing happens;
             finish <strong>more than <?= $k['margin'] ?> under it</strong> and you lose a heart. Your two numbers for today are
             on your row below. A ghost who finishes ahead of you turns you into one.
             Survivors need <strong><?= $threshold ?> GPs</strong> — the last one alive wins.
@@ -156,7 +156,7 @@ $log = array_reverse($s['events']);
             <?php if (!$alive): ?><p class="haunt-empty">Nobody. It's ghost town.</p><?php endif; ?>
             <ol class="haunt-list">
             <?php foreach ($alive as $r): $x = $r['h']; $need = max(0, $threshold - $x['gps']);
-                $line = hauntedLineToday($s, (int)$r['id']); $t = hauntedTargets($line, $k['margin']); ?>
+                $line = hauntedLineToday($s, (int)$r['id']); $t = hauntedTargets(hauntedLineRaw($s, (int)$r['id']), $k['margin']); ?>
                 <li class="haunt-row">
                     <span class="haunt-name"><a href="/racer/<?= (int)$r['id'] ?>"><?= htmlspecialchars($r['name']) ?></a></span>
                     <span class="haunt-hearts" aria-label="<?= $x['hearts'] ?> of <?= $k['hearts'] ?> hearts"><?= str_repeat('❤️', $x['hearts']) . str_repeat('🖤', max(0, $k['hearts'] - $x['hearts'])) ?></span>

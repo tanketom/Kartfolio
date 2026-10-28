@@ -317,8 +317,13 @@ function getScoringSystemRegistry(): array {
         'haunted' => [
             'name'                   => 'The Real Monster Was Yourself',
             'icon'                   => '👻',
-            'description'            => fn($rules) => 'Beat your own ghost or lose a heart — ' . hauntedKnobs((array)$rules)['hearts'] . ' hearts, last one alive wins',
-            'long_description'       => "A Halloween season raced against yourself. Your ghost is your own career average from before the season, and it grows a little stronger every day. Score more than the margin below it and you lose a heart; beat it and you earn soul coins — one per point — plus a bonus sticker pack on top of the one you get for racing. Spend coins on more packs, or on a heart back. Run out of hearts and you become a ghost, and a ghost who finishes ahead of a living racer catches them: they become a ghost on the spot. The last racer alive wins; survivors rank by hearts, then soul coins, ghosts by how late they fell. You need the season's minimum GPs to count as a survivor — staying home is fleeing the house, not surviving it.",
+            // States the margin: "beat it or lose a heart" is only true at margin 0,
+            // and on a margin-5 season it read as if 48 against a ghost of 50.1
+            // should cost a heart (it doesn't — 45 or less does).
+            'description'            => fn($rules) => (hauntedKnobs((array)$rules)['margin'] > 0
+                ? 'Beat your ghost for soul coins; finish more than ' . hauntedKnobs((array)$rules)['margin'] . ' under it and lose a heart — '
+                : 'Beat your own ghost or lose a heart — ') . hauntedKnobs((array)$rules)['hearts'] . ' hearts, last one alive wins',
+            'long_description'       => "A Halloween season raced against yourself. Your ghost is your own career average from before the season, and it grows a little stronger every day. Score more than the margin below it and you lose a heart; beat it and you earn soul coins — one per point above it, rounded up, so a beat always earns at least one — plus a bonus sticker pack on top of the one you get for racing. Spend coins on more packs, or on a heart back. Run out of hearts and you become a ghost, and a ghost who finishes ahead of a living racer catches them: they become a ghost on the spot. The last racer alive wins; survivors rank by hearts, then soul coins, ghosts by how late they fell. You need the season's minimum GPs to count as a survivor — staying home is fleeing the house, not surviving it.",
             'calculate'              => 'calculateHauntedScore',
             'breakdown'              => 'breakdownHaunted',
             'tooltip'                => 'tooltipHaunted',
@@ -3257,7 +3262,9 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
             if ($x['ghost'] === null) {
                 $line = $x['base'] + $k['creep'] * $day;
                 if ($r['points'] > $line) {
-                    $c = (int)round($r['points'] - $line);
+                    // Rounded UP, so a beat always earns at least one coin:
+                    // 40 against 39.6 is a beat, and used to pay round(0.4) = 0.
+                    $c = max(1, (int)ceil(round($r['points'] - $line, 6)));
                     $x['coins_earned'] += $c; $x['beat'][] = $g;
                     $events[] = ['type' => 'beat', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1), 'coins' => $c];
                 } elseif ($line - $r['points'] > $k['margin']) {
@@ -3296,14 +3303,24 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
                            'end' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) ? $end : null];
 }
 
-/** Today's ghost line for a racer: their base plus the day's growth, which stops at the season's end. */
-function hauntedLineToday(array $season, int $racer_id, ?string $date = null): float {
+/**
+ * The ghost line the engine compares against: base plus the day's growth,
+ * which stops at the season's end. NOT rounded — the base is a career
+ * average like 39.583, and a target derived from the rounded 39.6 would be
+ * wrong whenever the true line sits within 0.05 below a whole number.
+ */
+function hauntedLineRaw(array $season, int $racer_id, ?string $date = null): float {
     $x = $season['racers'][$racer_id] ?? null;
     $base = $x ? $x['base'] : 0.0;
     $date = $date ?? date('Y-m-d');
     if ($season['end'] !== null && $date > $season['end']) $date = $season['end'];
     $day = max(0, (int)floor((strtotime($date) - strtotime($season['start'])) / 86400));
-    return round($base + $season['knobs']['creep'] * $day, 1);
+    return $base + $season['knobs']['creep'] * $day;
+}
+
+/** The ghost line for display (one decimal). Targets come from hauntedLineRaw(). */
+function hauntedLineToday(array $season, int $racer_id, ?string $date = null): float {
+    return round(hauntedLineRaw($season, $racer_id, $date), 1);
 }
 
 /**
@@ -3332,7 +3349,7 @@ function breakdownHaunted($pdo, $racer_id, $season_id, $rules) {
     if (!$x) return ['alive' => true, 'hearts' => $s['knobs']['hearts'], 'max_hearts' => $s['knobs']['hearts'], 'coins' => 0, 'balance' => 0, 'line' => 0, 'gps' => 0];
     $by   = $x['ghost']['by'] ?? null;
     $line = hauntedLineToday($s, (int)$racer_id);
-    $t    = hauntedTargets($line, $s['knobs']['margin']);
+    $t    = hauntedTargets(hauntedLineRaw($s, (int)$racer_id), $s['knobs']['margin']);
     return [
         'alive'      => $x['ghost'] === null,
         'hearts'     => $x['ghost'] === null ? $x['hearts'] : 0,

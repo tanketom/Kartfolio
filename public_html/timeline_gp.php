@@ -76,9 +76,39 @@ $results = $resStmt->fetchAll(PDO::FETCH_ASSOC);
 // ── 3. Elo deltas around this GP ───────────────────────────────────────
 // Re-running the full Elo engine to extract per-GP deltas is heavy but
 // already cached in elo_engine.php's static memoisation per request.
+// gp_changelog is a LIST of {gpid, racers: [{name, change, …}]}. This used
+// to index it by gpid and match on racer_id / delta — keys the engine never
+// sets — so the column printed "—" on every GP since it was written.
 $eloData = calculateAllELORatings($pdo);
-$gpChangelog = $eloData['gp_changelog'] ?? [];
-$eloDeltas = $gpChangelog[$gpid] ?? [];
+$eloDeltas = [];   // racer name => Elo change in this GP
+foreach ($eloData['gp_changelog'] ?? [] as $g) {
+    if (($g['gpid'] ?? '') !== $gpid) continue;
+    foreach ($g['racers'] ?? [] as $r) $eloDeltas[(string)$r['name']] = (float)$r['change'];
+    break;
+}
+
+// ── 3b. Haunted: how each racer fared against their own ghost ─────────
+$hauntOutcome = [];   // racer_id => [kind, text]
+if (($season['scoring_system'] ?? '') === 'haunted') {
+    $hs = hauntedSeason($pdo, $seasonId, getSeasonRules($pdo, $seasonId));
+    $gpDate = substr((string)$gpHeader['race_date'], 0, 10);
+    foreach ($results as $row) {
+        $rid = (int)$row['racer_id'];
+        $line = hauntedLineToday($hs, $rid, $gpDate);
+        $ghostSince = $hs['racers'][$rid]['ghost']['seq'] ?? null;
+        $hauntOutcome[$rid] = ($ghostSince !== null && $ghostSince < ($hs['gps'][$gpid] ?? 0))
+            ? ['ghost', '👻 already a ghost']
+            : ['safe', '🕯️ safe · ghost ' . scoreNum($line)];
+    }
+    foreach ($hs['events'] as $e) {
+        if (($e['gpid'] ?? '') !== $gpid) continue;
+        $rid = (int)$e['rid'];
+        if ($e['type'] === 'beat')   $hauntOutcome[$rid] = ['beat',  '😈 beat ghost ' . scoreNum($e['line']) . ' · +' . $e['coins'] . ' coin' . ($e['coins'] === 1 ? '' : 's')];
+        if ($e['type'] === 'heart')  $hauntOutcome[$rid] = ['heart', '💔 lost a heart · ghost ' . scoreNum($e['line'])];
+        if ($e['type'] === 'died')   $hauntOutcome[$rid] = ['heart', '💀 last heart — became a ghost'];
+        if ($e['type'] === 'caught') $hauntOutcome[$rid] = ['heart', '👻 caught by ' . (racerNamesMap($pdo)[$e['by']] ?? 'a ghost')];
+    }
+}
 
 // ── 4. Adjacent GPs for prev/next navigation within the season ─────────
 $navStmt = $pdo->prepare("
@@ -175,10 +205,7 @@ include __DIR__ . '/../private/templates/header.php';
             </thead>
             <tbody>
                 <?php foreach ($results as $row):
-                    $eloDelta = null;
-                    foreach ($eloDeltas as $d) {
-                        if ((int)($d['racer_id'] ?? 0) === (int)$row['racer_id']) { $eloDelta = $d; break; }
-                    }
+                    $eloDelta = $eloDeltas[(string)$row['name']] ?? null;
                     $rowClass = $row['rank'] === 1 ? 'gp-row-gold'
                         : ($row['rank'] === 2 ? 'gp-row-silver'
                         : ($row['rank'] === 3 ? 'gp-row-bronze' : ''));
@@ -201,8 +228,8 @@ include __DIR__ . '/../private/templates/header.php';
                     </td>
                     <td class="num"><strong><?= (int)$row['gp_points'] ?></strong></td>
                     <td class="num">
-                        <?php if ($eloDelta && isset($eloDelta['delta'])):
-                            $d = (float)$eloDelta['delta']; ?>
+                        <?php if ($eloDelta !== null):
+                            $d = $eloDelta; ?>
                             <span class="elo-delta <?= $d > 0 ? 'pos' : ($d < 0 ? 'neg' : 'zero') ?>">
                                 <?= ($d > 0 ? '+' : '') . round($d, 1) ?>
                             </span>
@@ -214,6 +241,7 @@ include __DIR__ . '/../private/templates/header.php';
                         <?php if ($row['is_monster']): ?><span class="flag flag-monster">👹 Monster</span><?php endif; ?>
                         <?php if ($row['is_lol']): ?><span class="flag flag-lol">😂 LOL</span><?php endif; ?>
                         <?php if ((int)$row['gp_points'] === MK_MAX_GP_POINTS): ?><span class="flag flag-perfect">💎 Perfect</span><?php endif; ?>
+                        <?php if (isset($hauntOutcome[(int)$row['racer_id']])): [$hk, $ht] = $hauntOutcome[(int)$row['racer_id']]; ?><span class="flag flag-haunt flag-haunt--<?= $hk ?>"><?= htmlspecialchars($ht) ?></span><?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -361,6 +389,9 @@ include __DIR__ . '/../private/templates/header.php';
 .flag-monster { background: #5a2a8a; color: #fff; }
 .flag-lol     { background: #444; color: var(--nintendo-red); }
 .flag-perfect { background: #2ebd59; color: #fff; }
+.flag-haunt--beat  { background: #e8f7ec; color: #14602c; }
+.flag-haunt--heart { background: #fde8e8; color: #9b1c1c; }
+.flag-haunt--safe, .flag-haunt--ghost { background: #f1efe9; color: #5b5546; }
 
 .gp-story-section {
     background: var(--gray-50);
