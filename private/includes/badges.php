@@ -278,6 +278,71 @@ function badgeCareerContext($pdo) {
  * season so far ran four contested GPs, so anything gated at ten would never
  * fire for anyone.
  */
+/**
+ * The Haunted-season badges, one pass over hauntedSeason()'s event log (no
+ * queries of its own). racer_id => [badge key => true]. Three describe how
+ * the season ENDED and are only awarded once it has: Last One in the House
+ * when the house is decided, Hanging by a Thread and Fled the House when the
+ * season is over. The rest can appear (and Never Bitten disappear) mid-season.
+ */
+function hauntedSeasonFacts(PDO $pdo, string $season_id): array {
+    $rules = getSeasonRules($pdo, $season_id);
+    if (($rules['scoring_system'] ?? '') !== 'haunted') return [];
+    $s    = hauntedSeason($pdo, $season_id, $rules);
+    $m    = $s['knobs']['margin'];
+    $min  = (int)($rules['min_races_threshold'] ?? 0);
+    $over = $s['end'] !== null && date('Y-m-d') > $s['end'];
+    $out  = [];
+    $give = function ($rid, string $key) use (&$out) { $out[(int)$rid][$key] = true; };
+
+    $lost = []; $taken = []; $ghostCoins = []; $run = []; $firstDeath = null;
+    foreach ($s['events'] as $e) {
+        $rid = (int)($e['rid'] ?? 0);
+        switch ($e['type']) {
+            case 'beat':
+                $run[$rid] = ($run[$rid] ?? 0) + 1;
+                if ($run[$rid] >= 3) $give($rid, 'haunt_trick_or_treat');
+                if ($e['points'] - ($e['raw'] ?? $e['line']) >= 10) $give($rid, 'haunt_full_moon');
+                break;
+            case 'safe':
+                $run[$rid] = 0;
+                // The lowest score that kept the heart — one point less cost it.
+                if ((int)$e['points'] === hauntedTargets((float)($e['raw'] ?? $e['line']), $m)['keep']) $give($rid, 'haunt_close_shave');
+                break;
+            case 'heart':
+                $run[$rid] = 0; $lost[$rid] = true;
+                break;
+            case 'haunted':
+                $lost[$rid] = true;
+                $taken[(int)$e['by']] = ($taken[(int)$e['by']] ?? 0) + 1;
+                break;
+            case 'died':
+                $run[$rid] = 0;
+                if ($firstDeath === null) $firstDeath = $e['seq'];
+                if ($e['seq'] === $firstDeath) $give($rid, 'haunt_patient_zero');   // fell together in the first GP anyone fell: all of them
+                if (!empty($e['by'])) $give((int)$e['by'], 'haunt_heartstopper');
+                break;
+            case 'ghost_coins':
+                $ghostCoins[$rid] = ($ghostCoins[$rid] ?? 0) + (int)$e['coins'];
+                break;
+            case 'buy_heart':
+                $give($rid, 'haunt_lazarus');
+                break;
+        }
+    }
+    foreach ($taken as $rid => $n) if ($n >= 3) $give($rid, 'haunt_poltergeist');
+    foreach ($ghostCoins as $rid => $c) if ($c >= 10) $give($rid, 'haunt_afterlife');
+    foreach ($s['racers'] as $rid => $x) {
+        if ($x['gps'] >= max(3, $min) && empty($lost[$rid])) $give($rid, 'haunt_never_bitten');
+        if ($over && $x['ghost'] === null) {
+            if ($x['gps'] < $min)          $give($rid, 'haunt_fled');
+            elseif ($x['hearts'] === 1)    $give($rid, 'haunt_thread');
+        }
+    }
+    foreach ($s['decided']['winners'] ?? [] as $rid) $give($rid, 'haunt_last_one');
+    return $out;
+}
+
 function mikkoliigaSeasonFacts(PDO $pdo, string $season_id): array {
     $perGP = mikkoliigaSeasonPerGP($pdo, $season_id);
     $blank = ['wins' => [], 'contested' => [], 'cleanSweep' => [], 'perfectTen' => [], 'overflow' => [],
@@ -484,6 +549,9 @@ function badgeSeasonContext($pdo, $season_id) {
     // — The rest of the Mikkoliiga honours, one pass, no per-racer queries. —
     $mikko = mikkoliigaSeasonFacts($pdo, $season_id);
 
+    // — Haunted-season honours (only on a Haunted season), one pass. —
+    $haunted = ($scoringSystem === 'haunted') ? hauntedSeasonFacts($pdo, $season_id) : [];
+
     // Promoted: leads the sub-league AND finished in the top half of the main
     // standings. seasonPlacements() is the qualifier-gated ranking, so this
     // agrees with what the standings themselves say.
@@ -591,7 +659,7 @@ function badgeSeasonContext($pdo, $season_id) {
 
     return $cache[$season_id] = $career + compact(
         'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'mikko', 'mikkoPromoted', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'bingoFull', 'deadHeat', 'seasonGpTotal', 'questmaster',
-        'photoFinish', 'woodenSpoon', 'duelist'
+        'photoFinish', 'woodenSpoon', 'duelist', 'haunted'
     );
 }
 
@@ -716,6 +784,14 @@ function appendCompetitionBadges(array &$badges, array $ctx, int $racer_id) {
  * the only per-racer read is the season cache slice).
  */
 function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id, string $season_id) {
+    // 👻 Haunted-season honours, in catalogue order (hauntedSeasonFacts()).
+    // Here, before the racing gate, because 🚪 Fled the House is FOR racers
+    // under the minimum.
+    if (!empty($ctx['haunted'][$racer_id])) {
+        foreach (array_keys(badgeCatalog()) as $key) {
+            if (!empty($ctx['haunted'][$racer_id][$key])) $badges[] = badgeDef($key);
+        }
+    }
     // 🏘️ Landlord — 5+ cups held at once.
     if (($ctx['territoryHeld'][$racer_id] ?? 0) >= 5)
         $badges[] = badgeDef('landlord');

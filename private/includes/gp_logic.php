@@ -3303,7 +3303,7 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
                     // 40 against 39.6 is a beat, and used to pay round(0.4) = 0.
                     $c = max(1, (int)ceil(round($r['points'] - $line, 6)));
                     $x['coins_earned'] += $c; $x['beat'][] = $g;
-                    $events[] = ['type' => 'beat', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1), 'coins' => $c];
+                    $events[] = ['type' => 'beat', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1), 'raw' => $line, 'coins' => $c];
                 } elseif ($line - $r['points'] > $k['margin']) {
                     $x['hearts']--;
                     $events[] = ['type' => 'heart', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1)];
@@ -3314,7 +3314,7 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
                 } else {
                     // Inside the margin: nothing changes, but it is recorded, so
                     // a GP where everyone held their ghost off still shows up.
-                    $events[] = ['type' => 'safe', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1)];
+                    $events[] = ['type' => 'safe', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1), 'raw' => $line];
                 }
             }
             unset($x);

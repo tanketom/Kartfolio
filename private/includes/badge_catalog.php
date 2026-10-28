@@ -9,7 +9,7 @@
  */
 
 function badgeCategoryOrder(): array {
-    return ['performance', 'playstyle', 'volatility', 'progression', 'special', 'attendance', 'cups', 'characters', 'streaks', 'career', 'elo', 'monster_hunt', 'collection', 'honours', 'territory', 'legacy'];
+    return ['performance', 'playstyle', 'volatility', 'progression', 'special', 'attendance', 'cups', 'characters', 'streaks', 'career', 'elo', 'monster_hunt', 'haunted', 'collection', 'honours', 'territory', 'legacy'];
 }
 
 /** key => ['icon','title','desc' (earned text),'criteria' (short rule for the overview),'category'] */
@@ -131,6 +131,19 @@ function badgeCatalog(): array {
         'centurion' => ['icon' => '💯', 'title' => 'Centurion', 'desc' => 'Won one hundred career Grand Prix.', 'criteria' => 'Won 100 career Grand Prix', 'category' => 'career'],
         'dream_debut' => ['icon' => '🎬', 'title' => 'Dream Debut', 'desc' => 'Reached the podium in their very first career Grand Prix.', 'criteria' => 'Podium in first-ever career GP', 'category' => 'career'],
         'locked_in' => ['icon' => '🔒', 'title' => 'Locked In', 'desc' => 'Landed a maximum-confidence "lock" fantasy bet.', 'criteria' => 'Hit a confidence-3 lock fantasy bet', 'category' => 'honours'],
+        // ── Haunted seasons (The Real Monster Was Yourself) ──
+        'haunt_last_one' => ['icon' => '🏚️', 'title' => 'Last One in the House', 'desc' => 'Won the haunted house — the last one standing, or one of the last to fall together.', 'criteria' => 'Won a Haunted season (alone or shared)', 'category' => 'haunted'],
+        'haunt_patient_zero' => ['icon' => '🪦', 'title' => 'Patient Zero', 'desc' => 'The first racer of the season to become a ghost.', 'criteria' => 'First to become a ghost in a Haunted season', 'category' => 'haunted'],
+        'haunt_poltergeist' => ['icon' => '🦇', 'title' => 'Poltergeist', 'desc' => 'Took three or more hearts from the living as a ghost.', 'criteria' => 'Took 3+ hearts as a ghost', 'category' => 'haunted'],
+        'haunt_heartstopper' => ['icon' => '⚰️', 'title' => 'Heartstopper', 'desc' => 'Their ghost took somebody’s last heart.', 'criteria' => 'Took a racer’s last heart as a ghost', 'category' => 'haunted'],
+        'haunt_afterlife' => ['icon' => '🧟', 'title' => 'Afterlife Income', 'desc' => 'Earned ten or more soul coins after becoming a ghost.', 'criteria' => 'Earned 10+ soul coins as a ghost', 'category' => 'haunted'],
+        'haunt_never_bitten' => ['icon' => '🧛', 'title' => 'Never Bitten', 'desc' => 'Raced three or more GPs of a Haunted season without losing a single heart.', 'criteria' => '3+ GPs, no heart lost (to any ghost)', 'category' => 'haunted'],
+        'haunt_thread' => ['icon' => '🕸️', 'title' => 'Hanging by a Thread', 'desc' => 'Still alive when the haunting ended — on their last heart.', 'criteria' => 'Alive at the season’s end on one heart', 'category' => 'haunted'],
+        'haunt_close_shave' => ['icon' => '🧄', 'title' => 'Close Shave', 'desc' => 'Scored the lowest score that still kept their heart.', 'criteria' => 'Scored exactly the score needed to keep a heart', 'category' => 'haunted'],
+        'haunt_trick_or_treat' => ['icon' => '🎃', 'title' => 'Trick or Treat', 'desc' => 'Beat their ghost three GPs in a row.', 'criteria' => 'Beat your ghost 3 GPs in a row', 'category' => 'haunted'],
+        'haunt_full_moon' => ['icon' => '🌕', 'title' => 'Full Moon', 'desc' => 'Beat their ghost by ten points or more in one GP.', 'criteria' => 'Beat your ghost by 10+ in a GP', 'category' => 'haunted'],
+        'haunt_lazarus' => ['icon' => '🔦', 'title' => 'Lazarus', 'desc' => 'Bought a heart back in the soul shop.', 'criteria' => 'Bought a heart in the soul shop', 'category' => 'haunted'],
+        'haunt_fled' => ['icon' => '🚪', 'title' => 'Fled the House', 'desc' => 'Still alive when the haunting ended — but never raced enough GPs to count. Staying home is not surviving.', 'criteria' => 'Alive at the season’s end, under the minimum GPs', 'category' => 'haunted'],
     ];
 }
 
