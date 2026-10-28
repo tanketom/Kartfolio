@@ -103,6 +103,7 @@ if (($season['scoring_system'] ?? '') === 'haunted') {
     foreach ($hs['events'] as $e) {
         if (($e['gpid'] ?? '') !== $gpid) continue;
         $rid = (int)$e['rid'];
+        if ($e['type'] === 'ghost_coins') $hauntOutcome[$rid] = ['ghost', '👻 ghost beat its line ' . scoreNum($e['line']) . ' · +' . $e['coins'] . ' coin' . ($e['coins'] === 1 ? '' : 's')];
         if ($e['type'] === 'beat')   $hauntOutcome[$rid] = ['beat',  '😈 beat ghost ' . scoreNum($e['line']) . ' · +' . $e['coins'] . ' coin' . ($e['coins'] === 1 ? '' : 's')];
         if ($e['type'] === 'heart')  $hauntOutcome[$rid] = ['heart', '💔 lost a heart · ghost ' . scoreNum($e['line'])];
         if ($e['type'] === 'haunted') {

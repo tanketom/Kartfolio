@@ -323,12 +323,14 @@ function getScoringSystemRegistry(): array {
             'description'            => fn($rules) => (hauntedKnobs((array)$rules)['margin'] > 0
                 ? 'Beat your ghost for soul coins; finish more than ' . hauntedKnobs((array)$rules)['margin'] . ' under it and lose a heart — '
                 : 'Beat your own ghost or lose a heart — ') . hauntedKnobs((array)$rules)['hearts'] . ' hearts, last one alive wins',
-            'long_description'       => "A Halloween season raced against yourself. Your ghost is your own career average from before the season, and it grows a little stronger every day. Score more than the margin below it and you lose a heart; beat it and you earn soul coins — one per point above it, rounded up, so a beat always earns at least one — plus a bonus sticker pack on top of the one you get for racing. Spend coins on more packs, or on a heart back. Run out of hearts and you become a ghost — and a ghost who finishes ahead of a living racer takes one of their hearts (one per GP, however many ghosts beat you). The last racer alive wins; survivors rank by hearts, then soul coins, ghosts by how late they fell. You need the season's minimum GPs to count as a survivor — staying home is fleeing the house, not surviving it.",
+            'long_description'       => "A Halloween season raced against yourself. Your ghost is your own career average from before the season, and it grows a little stronger every day. Score more than the margin below it and you lose a heart; beat it and you earn soul coins — one per point above it, rounded up, so a beat always earns at least one — plus a bonus sticker pack on top of the one you get for racing. Spend coins on more packs, or on a heart back. Run out of hearts and you become a ghost — and a ghost who finishes ahead of a living racer takes one of their hearts (one per GP, however many ghosts beat you). Ghosts still earn soul coins for beating their line. The last racer alive wins the house — if the last few fall in the same GP, they share it — and once it is decided, nothing raced afterwards changes it. The last racer alive wins; survivors rank by hearts, then soul coins, ghosts by how late they fell. You need the season's minimum GPs to count as a survivor — staying home is fleeing the house, not surviving it.",
             'calculate'              => 'calculateHauntedScore',
             'breakdown'              => 'breakdownHaunted',
             'tooltip'                => 'tooltipHaunted',
             // The standings show hearts, not a number (Trends / All-Time keep the number).
             'display'                => 'displayHaunted',
+            // A line above the standings when the season has something to announce.
+            'banner'                 => 'bannerHaunted',
             'qualifies_by_threshold' => true,
             'sort'                   => 'sortStandingsHaunted',
             'tie_explain'            => 'tieExplainHaunted',
@@ -1912,6 +1914,17 @@ function scoreDisplayFromBreakdown(array $bd): ?string {
     return ($fn !== null && function_exists($fn)) ? $fn($bd['components'] ?? [], $bd['total_score'] ?? 0) : null;
 }
 
+/**
+ * Something the season's system wants announced above the standings (Haunted:
+ * the last one standing). Registry 'banner' fn → ['icon','title','text','link']
+ * or null. Pages print it without asking which system is running (§2a).
+ */
+function scoringSystemBanner(PDO $pdo, string $season_id): ?array {
+    $system = getSeasonRules($pdo, $season_id)['scoring_system'] ?? 'average_attendance';
+    $fn = getScoringSystemDef($system)['banner'] ?? null;
+    return ($fn !== null && function_exists($fn)) ? $fn($pdo, $season_id) : null;
+}
+
 /** scoreDisplayFromBreakdown() for one racer, skipping the breakdown entirely when the system has no display. */
 function scoreDisplayFor(PDO $pdo, int $racer_id, string $season_id): ?string {
     $system = getSeasonRules($pdo, $season_id)['scoring_system'] ?? 'average_attendance';
@@ -3209,7 +3222,10 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
     static $cache = [];
     $k = hauntedKnobs($rules);
     $purchases = hauntedPurchases($pdo, $season_id);
-    $key = $season_id . '|' . json_encode($k) . '|' . count($purchases) . ':' . ($purchases ? end($purchases)['id'] : 0);
+    $minGps  = max(0, (int)($rules['min_races_threshold'] ?? 0));
+    $endDate = substr((string)($rules['end_date'] ?? ''), 0, 10);
+    $over    = (bool)preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate) && date('Y-m-d') > $endDate;
+    $key = $season_id . '|' . json_encode($k) . '|' . $minGps . '|' . ($over ? 'over' : 'open') . '|' . count($purchases) . ':' . ($purchases ? end($purchases)['id'] : 0);
     if (isset($cache[$key])) return $cache[$key];
 
     $base = hauntedGhostBase($pdo, $season_id);
@@ -3247,6 +3263,19 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
     };
     foreach ($after[''] ?? [] as $p) $buy($p, '', 0);
 
+    // The qualified racers who fell latest (several when they fell together).
+    $lastToFall = function (array $racers, int $minGps): array {
+        $best = 0; $w = [];
+        foreach ($racers as $rid => $x) {
+            if ($x['ghost'] === null || $x['gps'] < $minGps) continue;
+            if ($x['ghost']['seq'] > $best) { $best = $x['ghost']['seq']; $w = [$rid]; }
+            elseif ($x['ghost']['seq'] === $best) $w[] = $rid;
+        }
+        sort($w);
+        return $w;
+    };
+    $decided = null; $pending = null;
+
     $seq = 0;
     foreach ($gps as $g => $date) {
         $seq++; $seqOf[$g] = $seq;
@@ -3254,13 +3283,21 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
         usort($rows, fn($a, $b) => $a['rank'] <=> $b['rank'] ?: $a['rid'] <=> $b['rid']);
         $day = max(0, (int)floor((strtotime($date) - strtotime($start)) / 86400));
 
-        // 1. Every living racer against their own ghost.
+        // 1. Every racer against their own ghost line. The living play for
+        //    coins and hearts; a ghost has no hearts left but still earns soul
+        //    coins for beating its line (no bonus pack — that is the living's).
         foreach ($rows as $r) {
             $rid = $r['rid']; $touch($rid);
             $x = &$racers[$rid];
             $x['gps']++;
-            if ($x['ghost'] === null) {
-                $line = $x['base'] + $k['creep'] * $day;
+            $line = $x['base'] + $k['creep'] * $day;
+            if ($x['ghost'] !== null) {
+                if ($r['points'] > $line) {
+                    $c = max(1, (int)ceil(round($r['points'] - $line, 6)));
+                    $x['coins_earned'] += $c;
+                    $events[] = ['type' => 'ghost_coins', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1), 'coins' => $c];
+                }
+            } else {
                 if ($r['points'] > $line) {
                     // Rounded UP, so a beat always earns at least one coin:
                     // 40 against 39.6 is a beat, and used to pay round(0.4) = 0.
@@ -3309,15 +3346,55 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
         // 3. Purchases made after this GP.
         foreach ($after[$g] ?? [] as $p) $buy($p, $g, $seq);
 
+        // 4. Is the house decided? Once it is, it stays decided — the ghosts
+        //    (and the winner) can keep racing and nothing changes who won.
+        if ($decided === null) {
+            $alive = []; $fell = [];
+            foreach ($racers as $rid => $x) {
+                if ($x['ghost'] === null) $alive[] = $rid;
+                elseif ($x['ghost']['seq'] === $seq) $fell[] = $rid;
+            }
+            $pending = null;
+            if (count($alive) < count($racers)) {                    // somebody has fallen
+                if (count($alive) === 1) {
+                    $only = $alive[0];
+                    // The last one alive must have raced the season's minimum;
+                    // until then they are alive but have not claimed the house.
+                    if ($racers[$only]['gps'] >= $minGps) $decided = ['gpid' => $g, 'seq' => $seq, 'winners' => [$only], 'how' => 'last'];
+                    else $pending = ['rid' => $only, 'need' => $minGps - $racers[$only]['gps']];
+                } elseif (count($alive) === 0) {
+                    // Everyone left fell in the same GP: they share the house.
+                    $q = array_values(array_filter($fell, fn($rid) => $racers[$rid]['gps'] >= $minGps));
+                    $w = $q ?: $lastToFall($racers, $minGps);
+                    if ($w) $decided = ['gpid' => $g, 'seq' => $seq, 'winners' => $w, 'how' => count($w) > 1 ? 'together' : 'last'];
+                }
+            }
+        }
+
         foreach ($racers as $rid => $x) {
             $frames[$g][$rid] = ['score' => $x['ghost'] === null ? (float)$x['hearts'] : 0.0, 'gps' => $x['gps']];
         }
     }
 
-    $end = substr((string)($rules['end_date'] ?? ''), 0, 10);
+    // The season is over and nobody claimed the house during it: racers still
+    // alive below the minimum GPs fled rather than survived. One qualified
+    // survivor wins; none, and the last qualified racers to fall share it;
+    // two or more, and the standings decide (hearts, then coins).
+    if ($decided === null && $over && $gps) {
+        $pending = null;
+        $alive = array_keys(array_filter($racers, fn($x) => $x['ghost'] === null && $x['gps'] >= $minGps));
+        $lastG = array_key_last($seqOf);
+        if (count($alive) === 1) {
+            $decided = ['gpid' => $lastG, 'seq' => $seqOf[$lastG], 'winners' => $alive, 'how' => 'last'];
+        } elseif (count($alive) === 0 && ($w = $lastToFall($racers, $minGps))) {
+            $decided = ['gpid' => $racers[$w[0]]['ghost']['gpid'], 'seq' => $racers[$w[0]]['ghost']['seq'], 'winners' => $w, 'how' => count($w) > 1 ? 'together' : 'last'];
+        }
+    }
+
     return $cache[$key] = ['racers' => $racers, 'events' => $events, 'frames' => $frames,
                            'gps' => $seqOf, 'knobs' => $k, 'start' => $start,
-                           'end' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) ? $end : null];
+                           'end' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate) ? $endDate : null,
+                           'decided' => $decided, 'pending' => $pending];
 }
 
 /**
@@ -3381,6 +3458,7 @@ function breakdownHaunted($pdo, $racer_id, $season_id, $rules) {
         'ghost_seq'  => $x['ghost']['seq'] ?? null,
         'caught_by'  => $by !== null ? (racerNamesMap($pdo)[$by] ?? null) : null,
         'beat'       => count($x['beat']),
+        'winner'     => in_array((int)$racer_id, $s['decided']['winners'] ?? [], true),
     ];
 }
 
@@ -3397,18 +3475,46 @@ function tooltipHaunted(array $c, $score): string {
 
 /** The standings show the hearts themselves: ❤️❤️🖤 for a survivor, 👻 for a ghost. */
 function displayHaunted(array $c, $score): string {
-    if (empty($c['alive'])) return '👻';
+    $crown = !empty($c['winner']) ? '👑 ' : '';
+    if (empty($c['alive'])) return $crown . '👻';
     $h = max(0, (int)($c['hearts'] ?? 0));
-    return str_repeat('❤️', $h) . str_repeat('🖤', max(0, (int)($c['max_hearts'] ?? $h) - $h));
+    return $crown . str_repeat('❤️', $h) . str_repeat('🖤', max(0, (int)($c['max_hearts'] ?? $h) - $h));
 }
 
-/** Survivors first (hearts, then soul coins earned); ghosts by how late they fell, then coins. */
+/** The last one standing, announced; or the one racer left alive who has not raced enough to claim it yet. */
+function bannerHaunted(PDO $pdo, string $season_id): ?array {
+    $s = hauntedSeason($pdo, $season_id, getSeasonRules($pdo, $season_id));
+    $names = racerNamesMap($pdo);
+    $gp = fn($g) => strtoupper((string)$g);
+    if ($d = $s['decided']) {
+        $who = array_map(fn($rid) => $names[$rid] ?? '?', $d['winners']);
+        $list = count($who) > 1 ? implode(', ', array_slice($who, 0, -1)) . ' and ' . end($who) : $who[0];
+        if ($d['how'] === 'together') {
+            return ['icon' => '👑', 'title' => "$list share the house",
+                    'text' => "The last racers alive all fell together in {$gp($d['gpid'])} — joint winners. The ghosts can keep racing; nothing changes that.",
+                    'link' => '/haunted'];
+        }
+        return ['icon' => '👑', 'title' => "$list is the last one standing",
+                'text' => "Every other racer in the house is a ghost (decided in {$gp($d['gpid'])}). The ghosts can keep racing; nothing changes the winner.",
+                'link' => '/haunted'];
+    }
+    if ($p = $s['pending']) {
+        $n = $names[$p['rid']] ?? '?';
+        return ['icon' => '🕯️', 'title' => "$n is the last one alive",
+                'text' => "Everyone else is a ghost — $n claims the house by racing {$p['need']} more GP" . ($p['need'] === 1 ? '' : 's') . ' before the season ends.',
+                'link' => '/haunted'];
+    }
+    return null;
+}
+
+/** The house's winner(s) first, once decided; then survivors (hearts, then soul coins); ghosts by how late they fell, then coins. */
 function sortStandingsHaunted(array &$standings, $pdo, $season_id) {
     $s = hauntedSeason($pdo, $season_id, getSeasonRules($pdo, $season_id));
-    $key = function ($row) use ($s) {
+    $winners = $s['decided']['winners'] ?? [];
+    $key = function ($row) use ($s, $winners) {
         $x = $s['racers'][(int)$row['id']] ?? null;
         $alive = !$x || $x['ghost'] === null;
-        return [$alive ? 1 : 0, $alive ? ($x['hearts'] ?? 0) : ($x['ghost']['seq'] ?? 0), $x['coins_earned'] ?? 0];
+        return [in_array((int)$row['id'], $winners, true) ? 1 : 0, $alive ? 1 : 0, $alive ? ($x['hearts'] ?? 0) : ($x['ghost']['seq'] ?? 0), $x['coins_earned'] ?? 0];
     };
     usort($standings, function ($a, $b) use ($key) {
         $ka = $key($a); $kb = $key($b);
@@ -3420,6 +3526,10 @@ function tieExplainHaunted($pdo, $season_id, $rules, $a, $b): string {
     $s = hauntedSeason($pdo, $season_id, (array)$rules);
     $xa = $s['racers'][(int)$a['id']] ?? null; $xb = $s['racers'][(int)$b['id']] ?? null;
     if (!$xa || !$xb) return '';
+    $w = $s['decided']['winners'] ?? [];
+    if (in_array((int)$a['id'], $w, true) && in_array((int)$b['id'], $w, true)) {
+        return sprintf('Joint winners — fell together in %s · listed by soul coins', strtoupper((string)$s['decided']['gpid']));
+    }
     if ($xa['ghost'] === null) {
         return $xa['coins_earned'] !== $xb['coins_earned']
             ? sprintf('Level on hearts · %s ahead on soul coins: %d vs %d', $a['name'], $xa['coins_earned'], $xb['coins_earned'])

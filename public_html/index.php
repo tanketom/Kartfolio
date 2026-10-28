@@ -225,6 +225,13 @@ $liveFormatLabels = [
         </div>
     </header>
 
+    <?php if ($sysBanner = scoringSystemBanner($pdo, $seasonId)): ?>
+    <a class="system-banner" href="<?= htmlspecialchars($sysBanner['link'] ?? '#') ?>">
+        <span class="system-banner-icon"><?= htmlspecialchars($sysBanner['icon']) ?></span>
+        <span class="system-banner-body"><strong><?= htmlspecialchars($sysBanner['title']) ?></strong><span><?= htmlspecialchars($sysBanner['text']) ?></span></span>
+    </a>
+    <?php endif; ?>
+
     <?php if ($scoringInfo['system'] === 'territory' && !empty($standings)):
         // Territory seasons get the overworld map above the fold, with a
         // Map / Rankings switch (remembered per browser). Data + renderer:

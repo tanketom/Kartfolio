@@ -2328,3 +2328,14 @@ select, textarea {
     letter-spacing: 0.04em;
     line-height: 1;
 }
+
+/* A season system's announcement above the standings (scoringSystemBanner) */
+.system-banner { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; padding: 14px 18px; border-radius: 14px;
+    background: var(--ink, #1c1c1c); color: #fff; border: 3px solid var(--gold, #ffd700); text-decoration: none; box-shadow: 4px 4px 0 rgba(0,0,0,0.25); }
+.system-banner:hover { opacity: 0.95; }
+.system-banner-icon { font-size: 2.2rem; line-height: 1; }
+.system-banner-body { display: flex; flex-direction: column; gap: 2px; }
+.system-banner-body strong { font-family: var(--font-display, inherit); font-size: 1.25rem; color: var(--gold, #ffd700); }
+.system-banner-body span { font-size: 0.92rem; opacity: 0.9; }
+.haunt-winner { margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; background: rgba(255, 215, 0, 0.14); border: 2px solid var(--gold, #ffd700); }
+.scr-haunt--ghost { opacity: 0.85; border-style: dashed; }

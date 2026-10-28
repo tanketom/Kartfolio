@@ -121,6 +121,7 @@ function hauntLogLine(array $e, array $names): string {
     switch ($e['type']) {
         case 'beat':      return "😈 <strong>$n</strong> beat their ghost in $gp — {$e['points']} against " . scoreNum($e['line']) . " · +{$e['coins']} soul coins and a bonus pack";
         case 'heart':     return "💔 <strong>$n</strong> lost a heart in $gp — {$e['points']} against a ghost of " . scoreNum($e['line']);
+        case 'ghost_coins': return "👻 <strong>$n</strong>'s ghost beat its line in $gp — {$e['points']} against " . scoreNum($e['line']) . " · +{$e['coins']} soul coin" . ($e['coins'] === 1 ? '' : 's');
         case 'safe':      return "🕯️ <strong>$n</strong> held their ghost off in $gp — {$e['points']} against " . scoreNum($e['line']);
         case 'haunted':   return "🫥 <strong>" . htmlspecialchars($names[$e['by']] ?? '?') . "</strong>'s ghost finished ahead of <strong>$n</strong> in $gp and took a heart";
         case 'died':      return !empty($e['by'])
@@ -138,6 +139,9 @@ $log = array_reverse($s['events']);
     <div class="card haunt-hero">
         <h1 class="haunt-title">👻 The Real Monster Was Yourself</h1>
         <p class="haunt-sub"><?= htmlspecialchars($seasonName) ?> · <?= $over ? 'the haunting is over' : 'day ' . $day . ($days ? ' of ' . $days : '') ?><?= $endDate !== '' && !$over ? ' · ends ' . htmlspecialchars(date('j F', strtotime($endDate))) : '' ?></p>
+        <?php if ($hb = scoringSystemBanner($pdo, $seasonId)): ?>
+            <p class="haunt-winner"><?= htmlspecialchars($hb['icon']) ?> <strong><?= htmlspecialchars($hb['title']) ?></strong> — <?= htmlspecialchars($hb['text']) ?></p>
+        <?php endif; ?>
         <p class="haunt-rules">
             Everyone starts with <strong><?= $k['hearts'] ?> hearts</strong>. Your ghost is your own career average,
             and it grows <strong><?= scoreNum($k['creep']) ?> point<?= (float)$k['creep'] === 1.0 ? '' : 's' ?></strong> stronger every day.
@@ -145,6 +149,8 @@ $log = array_reverse($s['events']);
             (rounded up, so always at least one) and a bonus sticker pack; finish <strong>up to <?= $k['margin'] ?> points under it</strong> and nothing happens;
             finish <strong>more than <?= $k['margin'] ?> under it</strong> and you lose a heart. Your two numbers for today are
             on your row below. A ghost who finishes ahead of you takes one of your hearts — once per GP, on top of your own ghost.
+            Ghosts keep earning soul coins for beating their line. The last one alive wins the house (fall together in the
+            same GP and you share it), and once it is decided, nothing raced afterwards changes it.
             Survivors need <strong><?= $threshold ?> GPs</strong> — the last one alive wins.
         </p>
     </div>
