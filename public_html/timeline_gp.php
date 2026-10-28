@@ -105,8 +105,14 @@ if (($season['scoring_system'] ?? '') === 'haunted') {
         $rid = (int)$e['rid'];
         if ($e['type'] === 'beat')   $hauntOutcome[$rid] = ['beat',  '😈 beat ghost ' . scoreNum($e['line']) . ' · +' . $e['coins'] . ' coin' . ($e['coins'] === 1 ? '' : 's')];
         if ($e['type'] === 'heart')  $hauntOutcome[$rid] = ['heart', '💔 lost a heart · ghost ' . scoreNum($e['line'])];
-        if ($e['type'] === 'died')   $hauntOutcome[$rid] = ['heart', '💀 last heart — became a ghost'];
-        if ($e['type'] === 'caught') $hauntOutcome[$rid] = ['heart', '👻 caught by ' . (racerNamesMap($pdo)[$e['by']] ?? 'a ghost')];
+        if ($e['type'] === 'haunted') {
+            $who = racerNamesMap($pdo)[$e['by']] ?? 'a ghost';
+            // Can stack with a heart lost to their own ghost in the same GP.
+            $hauntOutcome[$rid] = ($hauntOutcome[$rid][0] ?? '') === 'heart' && str_starts_with($hauntOutcome[$rid][1], '💔')
+                ? ['heart', '💔 lost 2 hearts — own ghost and ' . $who . '’s']
+                : ['heart', '🫥 ' . $who . '’s ghost took a heart'];
+        }
+        if ($e['type'] === 'died')   $hauntOutcome[$rid] = ['heart', '💀 last heart' . (!empty($e['by']) ? ' — to ' . (racerNamesMap($pdo)[$e['by']] ?? 'a ghost') . '’s ghost' : '') . ' — became a ghost'];
     }
 }
 

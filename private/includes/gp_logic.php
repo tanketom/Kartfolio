@@ -323,7 +323,7 @@ function getScoringSystemRegistry(): array {
             'description'            => fn($rules) => (hauntedKnobs((array)$rules)['margin'] > 0
                 ? 'Beat your ghost for soul coins; finish more than ' . hauntedKnobs((array)$rules)['margin'] . ' under it and lose a heart — '
                 : 'Beat your own ghost or lose a heart — ') . hauntedKnobs((array)$rules)['hearts'] . ' hearts, last one alive wins',
-            'long_description'       => "A Halloween season raced against yourself. Your ghost is your own career average from before the season, and it grows a little stronger every day. Score more than the margin below it and you lose a heart; beat it and you earn soul coins — one per point above it, rounded up, so a beat always earns at least one — plus a bonus sticker pack on top of the one you get for racing. Spend coins on more packs, or on a heart back. Run out of hearts and you become a ghost, and a ghost who finishes ahead of a living racer catches them: they become a ghost on the spot. The last racer alive wins; survivors rank by hearts, then soul coins, ghosts by how late they fell. You need the season's minimum GPs to count as a survivor — staying home is fleeing the house, not surviving it.",
+            'long_description'       => "A Halloween season raced against yourself. Your ghost is your own career average from before the season, and it grows a little stronger every day. Score more than the margin below it and you lose a heart; beat it and you earn soul coins — one per point above it, rounded up, so a beat always earns at least one — plus a bonus sticker pack on top of the one you get for racing. Spend coins on more packs, or on a heart back. Run out of hearts and you become a ghost — and a ghost who finishes ahead of a living racer takes one of their hearts (one per GP, however many ghosts beat you). The last racer alive wins; survivors rank by hearts, then soul coins, ghosts by how late they fell. You need the season's minimum GPs to count as a survivor — staying home is fleeing the house, not surviving it.",
             'calculate'              => 'calculateHauntedScore',
             'breakdown'              => 'breakdownHaunted',
             'tooltip'                => 'tooltipHaunted',
@@ -3150,7 +3150,7 @@ function tooltipForm(array $c, $score): string {
 // THE REAL MONSTER WAS YOURSELF ('haunted') — a Halloween season raced
 // against your own ghost. One chronological pass over the season, like
 // Territory: ghost lines, hearts, soul coins, deaths, the contagion (a ghost
-// who finishes ahead of a living racer turns them) and the heart purchases
+// who finishes ahead of a living racer takes one of their hearts) and the heart purchases
 // from haunt_purchases. Everything the standings, /haunted, the replay and
 // the bonus packs show comes from hauntedSeason().
 // ============================================================================
@@ -3274,19 +3274,36 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
                         $x['ghost'] = ['gpid' => $g, 'seq' => $seq, 'by' => null];
                         $events[] = ['type' => 'died', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid];
                     }
+                } else {
+                    // Inside the margin: nothing changes, but it is recorded, so
+                    // a GP where everyone held their ghost off still shows up.
+                    $events[] = ['type' => 'safe', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1)];
                 }
             }
             unset($x);
         }
-        // 2. The contagion: a ghost catches every living racer it finished ahead of.
-        foreach ($rows as $i => $r) {
-            if ($racers[$r['rid']]['ghost'] === null) continue;
-            for ($j = $i + 1; $j < count($rows); $j++) {
-                $v = $rows[$j]['rid'];
-                if ($racers[$v]['ghost'] !== null || $rows[$j]['rank'] <= $r['rank']) continue;
-                $racers[$v]['ghost'] = ['gpid' => $g, 'seq' => $seq, 'by' => $r['rid']];
-                $racers[$v]['hearts'] = 0;
-                $events[] = ['type' => 'caught', 'gpid' => $g, 'seq' => $seq, 'rid' => $v, 'by' => $r['rid']];
+        // 2. The contagion: finishing behind a ghost costs ONE heart — once per
+        //    GP however many ghosts were ahead, and on top of any heart lost to
+        //    your own ghost. The ghosts are fixed before anyone is hit (racers
+        //    who ran out of hearts in step 1 included), so a racer it kills does
+        //    not go on to hit the people behind them in the same GP. The heart
+        //    is credited to the nearest ghost ahead of you.
+        $ghostsNow = [];
+        foreach ($rows as $r) if ($racers[$r['rid']]['ghost'] !== null) $ghostsNow[] = $r;
+        if ($ghostsNow) {
+            foreach ($rows as $r) {
+                $v = $r['rid'];
+                if ($racers[$v]['ghost'] !== null) continue;
+                $by = null;
+                foreach ($ghostsNow as $gr) if ($gr['rank'] < $r['rank']) $by = $gr['rid'];   // nearest ahead wins: rows are in rank order
+                if ($by === null) continue;
+                $racers[$v]['hearts']--;
+                $events[] = ['type' => 'haunted', 'gpid' => $g, 'seq' => $seq, 'rid' => $v, 'by' => $by];
+                if ($racers[$v]['hearts'] <= 0) {
+                    $racers[$v]['hearts'] = 0;
+                    $racers[$v]['ghost'] = ['gpid' => $g, 'seq' => $seq, 'by' => $by];
+                    $events[] = ['type' => 'died', 'gpid' => $g, 'seq' => $seq, 'rid' => $v, 'by' => $by];
+                }
             }
         }
         // 3. Purchases made after this GP.
@@ -3370,7 +3387,7 @@ function breakdownHaunted($pdo, $racer_id, $season_id, $rules) {
 function tooltipHaunted(array $c, $score): string {
     if (empty($c['alive'])) {
         return sprintf('👻 Ghost since %s%s · %d soul coin%s earned',
-            strtoupper((string)($c['ghost_gp'] ?? '?')), !empty($c['caught_by']) ? ' — caught by ' . $c['caught_by'] : ' — out of hearts',
+            strtoupper((string)($c['ghost_gp'] ?? '?')), !empty($c['caught_by']) ? ' — last heart taken by ' . $c['caught_by'] . "'s ghost" : ' — out of hearts',
             $c['coins'] ?? 0, ($c['coins'] ?? 0) === 1 ? '' : 's');
     }
     return sprintf('%s alive · today %d+ beats your ghost (%s), %d or less costs a heart · %d soul coin%s (%d to spend)',

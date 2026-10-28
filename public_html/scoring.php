@@ -202,7 +202,7 @@ foreach ($racers as $racer) {
         // Each GP as the racer lived it: beat the ghost, safe, or a heart lost.
         $hs = hauntedSeason($pdo, $seasonId, $rules);
         $evs = [];
-        foreach ($hs['events'] as $e) if (($e['rid'] ?? null) === (int)$rid && in_array($e['type'], ['beat', 'heart', 'died', 'caught'], true)) $evs[$e['gpid']][] = $e;
+        foreach ($hs['events'] as $e) if (($e['rid'] ?? null) === (int)$rid && in_array($e['type'], ['beat', 'heart', 'haunted', 'died'], true)) $evs[$e['gpid']][] = $e;
         $byDate = $gps;
         usort($byDate, fn($a, $b) => strcmp($a['race_date'], $b['race_date']) ?: strnatcmp($a['gpid'], $b['gpid']));
         $entry['haunt_gps'] = [];
@@ -213,7 +213,7 @@ foreach ($racers as $racer) {
                 if ($e['type'] === 'beat')   { $kind = 'beat';  $note = '+' . $e['coins'] . ' coins'; }
                 if ($e['type'] === 'heart')  { $kind = 'heart'; $note = 'heart lost'; }
                 if ($e['type'] === 'died')   { $kind = 'heart'; $note = 'last heart'; }
-                if ($e['type'] === 'caught') { $kind = 'heart'; $note = 'caught'; }
+                if ($e['type'] === 'haunted') { $kind = 'heart'; $note = $note === 'heart lost' ? '2 hearts lost' : 'a ghost took a heart'; }
             }
             $entry['haunt_gps'][] = ['gpid' => $g['gpid'], 'pts' => (int)$g['gp_points'], 'line' => $line, 'kind' => $kind, 'note' => $note];
         }
@@ -562,7 +562,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     Today: <strong><?= $h['beat_at'] ?>+</strong> beats your ghost (<?= scoreNum($h['line']) ?>) &middot;
                     <strong><?= $h['keep_at'] - 1 ?> or less</strong> costs a heart &middot;
                 <?php else: ?>
-                    👻 A ghost since <?= htmlspecialchars(strtoupper((string)$h['ghost_gp'])) ?><?= !empty($h['caught_by']) ? ' — caught by ' . htmlspecialchars($h['caught_by']) : '' ?> &middot;
+                    👻 A ghost since <?= htmlspecialchars(strtoupper((string)$h['ghost_gp'])) ?><?= !empty($h['caught_by']) ? ' — last heart taken by ' . htmlspecialchars($h['caught_by']) . '’s ghost' : '' ?> &middot;
                 <?php endif; ?>
                 <?= (int)$h['coins'] ?> soul coin<?= (int)$h['coins'] === 1 ? '' : 's' ?> earned &middot; <?= $rb['total'] ?> GPs
             </div>

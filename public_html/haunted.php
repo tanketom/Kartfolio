@@ -121,8 +121,11 @@ function hauntLogLine(array $e, array $names): string {
     switch ($e['type']) {
         case 'beat':      return "😈 <strong>$n</strong> beat their ghost in $gp — {$e['points']} against " . scoreNum($e['line']) . " · +{$e['coins']} soul coins and a bonus pack";
         case 'heart':     return "💔 <strong>$n</strong> lost a heart in $gp — {$e['points']} against a ghost of " . scoreNum($e['line']);
-        case 'died':      return "👻 <strong>$n</strong> ran out of hearts in $gp and became a ghost";
-        case 'caught':    return "🫥 <strong>" . htmlspecialchars($names[$e['by']] ?? '?') . "</strong> finished ahead of <strong>$n</strong> in $gp and turned them into a ghost";
+        case 'safe':      return "🕯️ <strong>$n</strong> held their ghost off in $gp — {$e['points']} against " . scoreNum($e['line']);
+        case 'haunted':   return "🫥 <strong>" . htmlspecialchars($names[$e['by']] ?? '?') . "</strong>'s ghost finished ahead of <strong>$n</strong> in $gp and took a heart";
+        case 'died':      return !empty($e['by'])
+                              ? "👻 <strong>$n</strong> lost their last heart to <strong>" . htmlspecialchars($names[$e['by']] ?? '?') . "</strong>'s ghost in $gp and became one"
+                              : "👻 <strong>$n</strong> ran out of hearts in $gp and became a ghost";
         case 'buy_heart': return "❤️ <strong>$n</strong> bought a heart back for {$e['coins']} soul coins";
         case 'buy_pack':  return "🎁 <strong>$n</strong> bought a sticker pack for {$e['coins']} soul coins";
     }
@@ -141,7 +144,7 @@ $log = array_reverse($s['events']);
             Every GP is one of three things: <strong>beat your ghost</strong> (score above it) and you earn a soul coin per point above it
             (rounded up, so always at least one) and a bonus sticker pack; finish <strong>up to <?= $k['margin'] ?> points under it</strong> and nothing happens;
             finish <strong>more than <?= $k['margin'] ?> under it</strong> and you lose a heart. Your two numbers for today are
-            on your row below. A ghost who finishes ahead of you turns you into one.
+            on your row below. A ghost who finishes ahead of you takes one of your hearts — once per GP, on top of your own ghost.
             Survivors need <strong><?= $threshold ?> GPs</strong> — the last one alive wins.
         </p>
     </div>
@@ -179,7 +182,7 @@ $log = array_reverse($s['events']);
                 <li class="haunt-row haunt-row--ghost">
                     <span class="haunt-name"><a href="/racer/<?= (int)$r['id'] ?>"><?= htmlspecialchars($r['name']) ?></a></span>
                     <span class="haunt-meta">👻 since <?= htmlspecialchars(strtoupper($x['ghost']['gpid'])) ?> —
-                        <?= $by !== null ? 'caught by ' . htmlspecialchars($names[$by] ?? '?') : 'out of hearts' ?></span>
+                        <?= $by !== null ? 'last heart taken by ' . htmlspecialchars($names[$by] ?? '?') . '’s ghost' : 'out of hearts' ?></span>
                 </li>
             <?php endforeach; ?>
             </ol>
