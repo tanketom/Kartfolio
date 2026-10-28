@@ -137,9 +137,11 @@ $log = array_reverse($s['events']);
         <p class="haunt-sub"><?= htmlspecialchars($seasonName) ?> · <?= $over ? 'the haunting is over' : 'day ' . $day . ($days ? ' of ' . $days : '') ?><?= $endDate !== '' && !$over ? ' · ends ' . htmlspecialchars(date('j F', strtotime($endDate))) : '' ?></p>
         <p class="haunt-rules">
             Everyone starts with <strong><?= $k['hearts'] ?> hearts</strong>. Your ghost is your own career average,
-            and it grows <strong><?= scoreNum($k['creep']) ?> point<?= (float)$k['creep'] === 1.0 ? '' : 's' ?></strong> stronger every day. Score more than
-            <strong><?= $k['margin'] ?></strong> below it and you lose a heart; beat it and you earn a soul coin per point
-            and a bonus sticker pack. A ghost who finishes ahead of you turns you into one.
+            and it grows <strong><?= scoreNum($k['creep']) ?> point<?= (float)$k['creep'] === 1.0 ? '' : 's' ?></strong> stronger every day.
+            Every GP is one of three things: <strong>beat your ghost</strong> (score above it) and you earn a soul coin per point
+            and a bonus sticker pack; finish <strong>up to <?= $k['margin'] ?> points under it</strong> and nothing happens;
+            finish <strong>more than <?= $k['margin'] ?> under it</strong> and you lose a heart. Your two numbers for today are
+            on your row below. A ghost who finishes ahead of you turns you into one.
             Survivors need <strong><?= $threshold ?> GPs</strong> — the last one alive wins.
         </p>
     </div>
@@ -153,11 +155,16 @@ $log = array_reverse($s['events']);
             <h2 class="card-header">Still alive (<?= count($alive) ?>)</h2>
             <?php if (!$alive): ?><p class="haunt-empty">Nobody. It's ghost town.</p><?php endif; ?>
             <ol class="haunt-list">
-            <?php foreach ($alive as $r): $x = $r['h']; $need = max(0, $threshold - $x['gps']); ?>
+            <?php foreach ($alive as $r): $x = $r['h']; $need = max(0, $threshold - $x['gps']);
+                $line = hauntedLineToday($s, (int)$r['id']); $t = hauntedTargets($line, $k['margin']); ?>
                 <li class="haunt-row">
                     <span class="haunt-name"><a href="/racer/<?= (int)$r['id'] ?>"><?= htmlspecialchars($r['name']) ?></a></span>
                     <span class="haunt-hearts" aria-label="<?= $x['hearts'] ?> of <?= $k['hearts'] ?> hearts"><?= str_repeat('❤️', $x['hearts']) . str_repeat('🖤', max(0, $k['hearts'] - $x['hearts'])) ?></span>
-                    <span class="haunt-meta">ghost today <?= scoreNum(hauntedLineToday($s, (int)$r['id'])) ?> · <?= $x['coins_earned'] - $x['coins_spent'] ?> coins to spend
+                    <span class="haunt-targets" title="Your ghost today is <?= scoreNum($line) ?>. It rises <?= scoreNum($k['creep']) ?> a day until the season ends.">
+                        <span class="haunt-target haunt-target--beat">😈 <strong><?= $t['beat'] ?>+</strong> beats it</span>
+                        <span class="haunt-target haunt-target--keep">💔 <strong><?= $t['keep'] - 1 ?> or less</strong> costs a heart</span>
+                    </span>
+                    <span class="haunt-meta">ghost today <?= scoreNum($line) ?> · <?= $x['coins_earned'] - $x['coins_spent'] ?> coins to spend
                         <?= $need > 0 ? ' · <em>' . $need . ' more GP' . ($need === 1 ? '' : 's') . ' to count</em>' : '' ?></span>
                 </li>
             <?php endforeach; ?>

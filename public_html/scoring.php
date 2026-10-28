@@ -46,7 +46,11 @@ foreach ($racers as $racer) {
     $finalScore = calculateGPScore($pdo, $rid, $seasonId);
 
     $entry = [
+        'id' => (int)$rid,
         'name' => $racer['name'],
+        // A system that shows something other than a number (Haunted: hearts)
+        // says so through the registry's display fn; null = print the number.
+        'display' => scoreDisplayFor($pdo, (int)$rid, $seasonId),
         'gps' => $gps,
         'total' => $totalRaces,
         'score' => $finalScore,
@@ -194,11 +198,40 @@ foreach ($racers as $racer) {
         $entry['mh_level'] = $mh['level'] ?? null;
     }
 
+    if ($scoringSystem === 'haunted') {
+        // Each GP as the racer lived it: beat the ghost, safe, or a heart lost.
+        $hs = hauntedSeason($pdo, $seasonId, $rules);
+        $evs = [];
+        foreach ($hs['events'] as $e) if (($e['rid'] ?? null) === (int)$rid && in_array($e['type'], ['beat', 'heart', 'died', 'caught'], true)) $evs[$e['gpid']][] = $e;
+        $byDate = $gps;
+        usort($byDate, fn($a, $b) => strcmp($a['race_date'], $b['race_date']) ?: strnatcmp($a['gpid'], $b['gpid']));
+        $entry['haunt_gps'] = [];
+        foreach ($byDate as $g) {
+            $line = hauntedLineToday($hs, (int)$rid, substr((string)$g['race_date'], 0, 10));
+            $kind = 'safe'; $note = '';
+            foreach ($evs[$g['gpid']] ?? [] as $e) {
+                if ($e['type'] === 'beat')   { $kind = 'beat';  $note = '+' . $e['coins'] . ' coins'; }
+                if ($e['type'] === 'heart')  { $kind = 'heart'; $note = 'heart lost'; }
+                if ($e['type'] === 'died')   { $kind = 'heart'; $note = 'last heart'; }
+                if ($e['type'] === 'caught') { $kind = 'heart'; $note = 'caught'; }
+            }
+            $entry['haunt_gps'][] = ['gpid' => $g['gpid'], 'pts' => (int)$g['gp_points'], 'line' => $line, 'kind' => $kind, 'note' => $note];
+        }
+        $entry['haunt'] = breakdownHaunted($pdo, (int)$rid, $seasonId, $rules);
+    }
+
     $racerBreakdowns[] = $entry;
 }
 
-// Sort by score descending
-usort($racerBreakdowns, fn($a, $b) => $b['score'] <=> $a['score']);
+// The homepage's order, not a bare score sort: leaderboardRows() sorts through
+// the registry (count-back, hearts then coins, …) and sinks racers below the
+// qualification threshold. A score-only usort put ties alphabetically and
+// slotted unranked racers in among the ranked ones (§2b).
+require_once __DIR__ . '/../private/includes/leaderboard.php';
+$boardPos = [];
+foreach (leaderboardRows($pdo, $seasonId, 0, false) as $i => $row) $boardPos[(int)$row['id']] = $i;
+usort($racerBreakdowns, fn($a, $b) => ($boardPos[$a['id']] ?? PHP_INT_MAX) <=> ($boardPos[$b['id']] ?? PHP_INT_MAX)
+    ?: ($b['score'] <=> $a['score']) ?: strcmp($a['name'], $b['name']));
 
 $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
 ?>
@@ -376,7 +409,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                 <?php if (!racerQualifies($rb['total'], $rules)): ?>
                     <span class="scr-unranked">Unranked (<?= $rb['total'] ?>/<?= $minThreshold ?> GPs)</span>
                 <?php else: ?>
-                    <span class="scr-gpscore"><?= round($rb['score'], 2) ?></span>
+                    <span class="scr-gpscore"><?= $rb['display'] !== null ? htmlspecialchars($rb['display']) : round($rb['score'], 2) ?></span>
                     <?php // Label the season's real scoring system, not always "GPScore". ?>
                     <span class="scr-gpscore-label"><?= $scoringSystem === 'average_attendance'
                         ? 'GPScore' : htmlspecialchars($scoringInfo['name']) ?></span>
@@ -520,6 +553,25 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                         <span class="scr-gp-cup"><?= htmlspecialchars($gpid) ?></span>
                         <span class="scr-gp-pts"><?= $b['ladder'] ?></span>
                         <span class="scr-gp-label"><?= $b['over'] ? 'over by ' . scoreNum($b['gap']) : ($b['rank'] === 1 ? 'on the nose' : ordinal($b['rank']) . ' · ' . scoreNum($b['gap']) . ' under') ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif ($scoringSystem === 'haunted' && isset($rb['haunt'])): $h = $rb['haunt']; ?>
+            <div class="scr-summary">
+                <?php if (!empty($h['alive'])): ?>
+                    Today: <strong><?= $h['beat_at'] ?>+</strong> beats your ghost (<?= scoreNum($h['line']) ?>) &middot;
+                    <strong><?= $h['keep_at'] - 1 ?> or less</strong> costs a heart &middot;
+                <?php else: ?>
+                    👻 A ghost since <?= htmlspecialchars(strtoupper((string)$h['ghost_gp'])) ?><?= !empty($h['caught_by']) ? ' — caught by ' . htmlspecialchars($h['caught_by']) : '' ?> &middot;
+                <?php endif; ?>
+                <?= (int)$h['coins'] ?> soul coin<?= (int)$h['coins'] === 1 ? '' : 's' ?> earned &middot; <?= $rb['total'] ?> GPs
+            </div>
+            <div class="scr-gp-grid">
+                <?php foreach ($rb['haunt_gps'] as $g): ?>
+                    <div class="scr-gp-chip scr-haunt--<?= $g['kind'] ?>" title="<?= htmlspecialchars($g['gpid']) ?> — <?= $g['pts'] ?> against a ghost of <?= scoreNum($g['line']) ?>">
+                        <span class="scr-gp-cup"><?= htmlspecialchars($g['gpid']) ?></span>
+                        <span class="scr-gp-pts"><?= $g['pts'] ?></span>
+                        <span class="scr-gp-label"><?= $g['kind'] === 'beat' ? '😈 ' . $g['note'] : ($g['kind'] === 'heart' ? '💔 ' . $g['note'] : 'safe') ?> · ghost <?= scoreNum($g['line']) ?></span>
                     </div>
                 <?php endforeach; ?>
             </div>

@@ -6465,3 +6465,13 @@ th.rotate > div {
     .roster-title { font-size: 1.7rem; }
     .roster-grid { grid-template-columns: 1fr; }
 }
+
+/* Haunted — the two whole numbers each living racer plays to today */
+.haunt-targets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 2px; font-size: 0.92rem; }
+.haunt-target { white-space: nowrap; }
+.haunt-target--beat strong { color: var(--success, #2ea84f); }
+.haunt-target--keep strong { color: var(--nintendo-red, #e60012); }
+/* /scoring chips for a Haunted season */
+.scr-haunt--beat  { border-color: var(--success, #2ea84f); }
+.scr-haunt--heart { border-color: var(--nintendo-red, #e60012); }
+.scr-haunt--safe  { opacity: 0.75; }

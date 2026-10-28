@@ -3306,6 +3306,21 @@ function hauntedLineToday(array $season, int $racer_id, ?string $date = null): f
     return round($base + $season['knobs']['creep'] * $day, 1);
 }
 
+/**
+ * The ghost line as the two whole numbers a racer actually plays to. Scores
+ * are integers and the line is not (39.6), so "beat 39.6" means 40 and "more
+ * than 5 below it" means 34 or less — arithmetic nobody should have to do at
+ * the controller. 'beat' = lowest score that beats the ghost (strictly above
+ * the line); 'keep' = lowest score that keeps every heart (no further below
+ * the line than the margin). 'keep' - 1 or less costs a heart.
+ */
+function hauntedTargets(float $line, int $margin): array {
+    return [
+        'beat' => (int)floor(round($line, 4)) + 1,
+        'keep' => (int)ceil(round($line - $margin, 4)),
+    ];
+}
+
 function calculateHauntedScore($pdo, $racer_id, $season_id, $rules) {
     $x = hauntedSeason($pdo, $season_id, (array)$rules)['racers'][(int)$racer_id] ?? null;
     return ($x && $x['ghost'] === null) ? $x['hearts'] : 0;
@@ -3315,14 +3330,18 @@ function breakdownHaunted($pdo, $racer_id, $season_id, $rules) {
     $s = hauntedSeason($pdo, $season_id, (array)$rules);
     $x = $s['racers'][(int)$racer_id] ?? null;
     if (!$x) return ['alive' => true, 'hearts' => $s['knobs']['hearts'], 'max_hearts' => $s['knobs']['hearts'], 'coins' => 0, 'balance' => 0, 'line' => 0, 'gps' => 0];
-    $by = $x['ghost']['by'] ?? null;
+    $by   = $x['ghost']['by'] ?? null;
+    $line = hauntedLineToday($s, (int)$racer_id);
+    $t    = hauntedTargets($line, $s['knobs']['margin']);
     return [
         'alive'      => $x['ghost'] === null,
         'hearts'     => $x['ghost'] === null ? $x['hearts'] : 0,
         'max_hearts' => $s['knobs']['hearts'],
         'coins'      => $x['coins_earned'],
         'balance'    => $x['coins_earned'] - $x['coins_spent'],
-        'line'       => hauntedLineToday($s, (int)$racer_id),
+        'line'       => $line,
+        'beat_at'    => $t['beat'],   // score this or more to beat the ghost today
+        'keep_at'    => $t['keep'],   // score this or more to keep your hearts today
         'gps'        => $x['gps'],
         'ghost_gp'   => $x['ghost']['gpid'] ?? null,
         'ghost_seq'  => $x['ghost']['seq'] ?? null,
@@ -3337,9 +3356,9 @@ function tooltipHaunted(array $c, $score): string {
             strtoupper((string)($c['ghost_gp'] ?? '?')), !empty($c['caught_by']) ? ' — caught by ' . $c['caught_by'] : ' — out of hearts',
             $c['coins'] ?? 0, ($c['coins'] ?? 0) === 1 ? '' : 's');
     }
-    return sprintf('%s alive · %d soul coin%s (%d to spend) · your ghost today: %s',
-        str_repeat('❤️', max(0, (int)($c['hearts'] ?? 0))), $c['coins'] ?? 0, ($c['coins'] ?? 0) === 1 ? '' : 's',
-        $c['balance'] ?? 0, scoreNum($c['line'] ?? 0));
+    return sprintf('%s alive · today %d+ beats your ghost (%s), %d or less costs a heart · %d soul coin%s (%d to spend)',
+        str_repeat('❤️', max(0, (int)($c['hearts'] ?? 0))), $c['beat_at'] ?? 0, scoreNum($c['line'] ?? 0),
+        ($c['keep_at'] ?? 0) - 1, $c['coins'] ?? 0, ($c['coins'] ?? 0) === 1 ? '' : 's', $c['balance'] ?? 0);
 }
 
 /** The standings show the hearts themselves: ❤️❤️🖤 for a survivor, 👻 for a ghost. */
