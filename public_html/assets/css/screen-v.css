@@ -601,3 +601,21 @@ body {
 .ghost-body .badge-more { font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--gray-500, #6b7280); align-self: center; }
 .ghost-body .mikko-leaderboard-badge { font-size: 1.5rem; gap: 8px; padding: 4px 16px; border-radius: 18px; margin-left: 16px; }
 .ghost-body .mikko-leaderboard-rank { font-size: 1.4rem; }
+
+/* The season's announcement (scoringSystemBanner) — Haunted's last one standing. */
+.sign-crown {
+    flex: 0 0 auto;
+    margin: 24px 80px 0;
+    padding: 26px 36px;
+    display: flex; align-items: center; gap: 30px;
+    background: var(--ink, #1c1c1c); color: #fff;
+    border: 6px solid var(--gold, #ffd700); border-radius: 28px;
+    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.25);
+}
+.sign-crown-icon { font-size: 120px; line-height: 1; flex: 0 0 auto; }
+.sign-crown-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sign-crown-body b {
+    font-family: var(--font-display); font-size: 4.4rem; font-weight: 700; line-height: 1.05;
+    color: var(--gold, #ffd700); letter-spacing: -.01em;
+}
+.sign-crown-body span { font-size: 2.2rem; line-height: 1.25; opacity: .9; }

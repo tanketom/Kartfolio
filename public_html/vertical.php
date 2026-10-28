@@ -146,6 +146,18 @@ while($row = $newsStmt->fetch()) {
         </section>
         <?php endif; ?>
 
+        <?php /* The season's own announcement (Haunted: the last one standing) —
+                 the same scoringSystemBanner() the homepage prints. */
+              if ($sysBanner = scoringSystemBanner($pdo, $seasonId)): ?>
+        <section class="sign-crown">
+            <span class="sign-crown-icon"><?= htmlspecialchars($sysBanner['icon']) ?></span>
+            <div class="sign-crown-body">
+                <b><?= htmlspecialchars($sysBanner['title']) ?></b>
+                <span><?= htmlspecialchars($sysBanner['text']) ?></span>
+            </div>
+        </section>
+        <?php endif; ?>
+
         <?php if ($newTonight): ?>
         <section class="sign-tonight">
             <span class="sign-tonight-label">Earned tonight</span>
