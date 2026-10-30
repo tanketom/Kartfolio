@@ -3321,12 +3321,18 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
         }
         // 2. The contagion: finishing behind a ghost costs ONE heart — once per
         //    GP however many ghosts were ahead, and on top of any heart lost to
-        //    your own ghost. The ghosts are fixed before anyone is hit (racers
-        //    who ran out of hearts in step 1 included), so a racer it kills does
-        //    not go on to hit the people behind them in the same GP. The heart
-        //    is credited to the nearest ghost ahead of you.
+        //    your own ghost. Only racers who were ALREADY ghosts when this GP
+        //    started can haunt in it: running out of hearts here makes you a
+        //    ghost from the next GP on, not a hunter in the race you died in
+        //    (S06GP11: Zahra fell and her brand-new ghost took a heart from
+        //    Alexander in the same GP). And a racer a ghost kills does not go
+        //    on to hit the people behind them. The heart is credited to the
+        //    nearest ghost ahead of you.
         $ghostsNow = [];
-        foreach ($rows as $r) if ($racers[$r['rid']]['ghost'] !== null) $ghostsNow[] = $r;
+        foreach ($rows as $r) {
+            $gh = $racers[$r['rid']]['ghost'];
+            if ($gh !== null && $gh['seq'] < $seq) $ghostsNow[] = $r;
+        }
         if ($ghostsNow) {
             foreach ($rows as $r) {
                 $v = $r['rid'];
