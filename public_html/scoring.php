@@ -202,15 +202,17 @@ foreach ($racers as $racer) {
         // Each GP as the racer lived it: beat the ghost, safe, or a heart lost.
         $hs = hauntedSeason($pdo, $seasonId, $rules);
         $evs = [];
-        foreach ($hs['events'] as $e) if (($e['rid'] ?? null) === (int)$rid && in_array($e['type'], ['beat', 'heart', 'haunted', 'died', 'ghost_coins'], true)) $evs[$e['gpid']][] = $e;
+        foreach ($hs['events'] as $e) if (($e['rid'] ?? null) === (int)$rid && in_array($e['type'], ['beat', 'heart', 'haunted', 'died', 'ghost_coins', 'debut'], true)) $evs[$e['gpid']][] = $e;
         $byDate = $gps;
         usort($byDate, fn($a, $b) => strcmp($a['race_date'], $b['race_date']) ?: strnatcmp($a['gpid'], $b['gpid']));
         $entry['haunt_gps'] = [];
         foreach ($byDate as $g) {
-            $line = hauntedLineToday($hs, (int)$rid, substr((string)$g['race_date'], 0, 10));
+            // The exact line played that GP — a newcomer's ghost moves within a night.
+            $line = hauntedLineAt($hs, (int)$rid, $g['gpid']) ?? hauntedLineToday($hs, (int)$rid, substr((string)$g['race_date'], 0, 10));
             $wasGhost = ($hs['racers'][(int)$rid]['ghost']['seq'] ?? PHP_INT_MAX) < ($hs['gps'][$g['gpid']] ?? 0);
             $kind = $wasGhost ? 'ghost' : 'safe'; $note = $wasGhost ? 'no coins' : '';
             foreach ($evs[$g['gpid']] ?? [] as $e) {
+                if ($e['type'] === 'debut')  { $kind = 'debut'; $note = 'debut'; $line = (float)$e['points']; }
                 if ($e['type'] === 'beat')   { $kind = 'beat';  $note = '+' . $e['coins'] . ' coins'; }
                 if ($e['type'] === 'ghost_coins') { $kind = 'ghost'; $note = '+' . $e['coins'] . ' coins'; }
                 if ($e['type'] === 'heart')  { $kind = 'heart'; $note = 'heart lost'; }
@@ -573,7 +575,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                     <div class="scr-gp-chip scr-haunt--<?= $g['kind'] ?>" title="<?= htmlspecialchars($g['gpid']) ?> — <?= $g['pts'] ?> against a ghost of <?= scoreNum($g['line']) ?>">
                         <span class="scr-gp-cup"><?= htmlspecialchars($g['gpid']) ?></span>
                         <span class="scr-gp-pts"><?= $g['pts'] ?></span>
-                        <span class="scr-gp-label"><?= $g['kind'] === 'beat' ? '😈 ' . $g['note'] : ($g['kind'] === 'heart' ? '💔 ' . $g['note'] : ($g['kind'] === 'ghost' ? '👻 ' . $g['note'] : 'safe')) ?> · ghost <?= scoreNum($g['line']) ?></span>
+                        <span class="scr-gp-label"><?= $g['kind'] === 'debut' ? '✨ debut — the ghost is born' : ($g['kind'] === 'beat' ? '😈 ' . $g['note'] : ($g['kind'] === 'heart' ? '💔 ' . $g['note'] : ($g['kind'] === 'ghost' ? '👻 ' . $g['note'] : 'safe')) . ' · ghost ' . scoreNum($g['line'])) ?></span>
                     </div>
                 <?php endforeach; ?>
             </div>

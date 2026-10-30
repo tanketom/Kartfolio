@@ -6475,3 +6475,4 @@ th.rotate > div {
 .scr-haunt--beat  { border-color: var(--success, #2ea84f); }
 .scr-haunt--heart { border-color: var(--nintendo-red, #e60012); }
 .scr-haunt--safe  { opacity: 0.75; }
+.scr-haunt--debut { border-color: var(--gold, #ffd700); }

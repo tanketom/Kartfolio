@@ -122,6 +122,7 @@ function hauntLogLine(array $e, array $names): string {
         case 'beat':      return "😈 <strong>$n</strong> beat their ghost in $gp — {$e['points']} against " . scoreNum($e['line']) . " · +{$e['coins']} soul coins and a bonus pack";
         case 'heart':     return "💔 <strong>$n</strong> lost a heart in $gp — {$e['points']} against a ghost of " . scoreNum($e['line']);
         case 'ghost_coins': return "👻 <strong>$n</strong>'s ghost beat its line in $gp — {$e['points']} against " . scoreNum($e['line']) . " · +{$e['coins']} soul coin" . ($e['coins'] === 1 ? '' : 's');
+        case 'debut':     return "✨ <strong>$n</strong> raced their first GP ever in $gp — {$e['points']} points, and a ghost is born";
         case 'safe':      return "🕯️ <strong>$n</strong> held their ghost off in $gp — {$e['points']} against " . scoreNum($e['line']);
         case 'haunted':   return "🫥 <strong>" . htmlspecialchars($names[$e['by']] ?? '?') . "</strong>'s ghost finished ahead of <strong>$n</strong> in $gp and took a heart";
         case 'died':      return !empty($e['by'])

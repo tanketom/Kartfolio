@@ -94,7 +94,8 @@ if (($season['scoring_system'] ?? '') === 'haunted') {
     $gpDate = substr((string)$gpHeader['race_date'], 0, 10);
     foreach ($results as $row) {
         $rid = (int)$row['racer_id'];
-        $line = hauntedLineToday($hs, $rid, $gpDate);
+        // The exact line played this GP (a newcomer's ghost moves within a night).
+        $line = hauntedLineAt($hs, $rid, $gpid) ?? hauntedLineToday($hs, $rid, $gpDate);
         $ghostSince = $hs['racers'][$rid]['ghost']['seq'] ?? null;
         $hauntOutcome[$rid] = ($ghostSince !== null && $ghostSince < ($hs['gps'][$gpid] ?? 0))
             ? ['ghost', '👻 already a ghost']
@@ -103,6 +104,7 @@ if (($season['scoring_system'] ?? '') === 'haunted') {
     foreach ($hs['events'] as $e) {
         if (($e['gpid'] ?? '') !== $gpid) continue;
         $rid = (int)$e['rid'];
+        if ($e['type'] === 'debut')  $hauntOutcome[$rid] = ['safe', '✨ debut — the ghost is born at ' . (int)$e['points']];
         if ($e['type'] === 'ghost_coins') $hauntOutcome[$rid] = ['ghost', '👻 ghost beat its line ' . scoreNum($e['line']) . ' · +' . $e['coins'] . ' coin' . ($e['coins'] === 1 ? '' : 's')];
         if ($e['type'] === 'beat')   $hauntOutcome[$rid] = ['beat',  '😈 beat ghost ' . scoreNum($e['line']) . ' · +' . $e['coins'] . ' coin' . ($e['coins'] === 1 ? '' : 's')];
         if ($e['type'] === 'heart')  $hauntOutcome[$rid] = ['heart', '💔 lost a heart · ghost ' . scoreNum($e['line'])];

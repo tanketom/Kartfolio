@@ -3181,8 +3181,11 @@ function hauntedKnobs(array $rules): array {
 
 /**
  * Each racer's ghost: their average GP score over every season BEFORE this
- * one, and the league's average over the same rows for racers with no history.
- * Fixed at the season's start, so nothing raced this week moves it.
+ * one, fixed at the season's start so nothing raced this week moves it.
+ * 'league' (the same average over everyone) is only a display fallback: a
+ * racer with no history is a NEWCOMER, whose debut is free and whose ghost is
+ * then their own running average this season — see hauntedSeason(). Measuring
+ * a debut against the league cost Alexander a heart in his first GP ever.
  */
 function hauntedGhostBase(PDO $pdo, string $season_id): array {
     static $cache = [];
@@ -3249,8 +3252,13 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
     $racers = []; $events = []; $frames = []; $seqOf = [];
     $touch = function (int $rid) use (&$racers, $base, $k) {
         if (!isset($racers[$rid])) {
+            $isNew = !isset($base['per'][$rid]);
             $racers[$rid] = ['hearts' => $k['hearts'], 'coins_earned' => 0, 'coins_spent' => 0, 'gps' => 0,
-                             'ghost' => null, 'base' => $base['per'][$rid] ?? $base['league'], 'beat' => []];
+                             'ghost' => null, 'base' => $isNew ? null : $base['per'][$rid], 'beat' => [],
+                             // A newcomer's ghost is their own running average this season.
+                             'new' => $isNew, 'own' => [], 'born' => null,   // born = a newcomer's debut date
+                             // gpid => the exact line this racer played against, for the GP pages.
+                             'lines' => []];
         }
     };
     $buy = function (array $p, string $g, int $seq) use (&$racers, &$events, $touch, $k) {
@@ -3286,11 +3294,28 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
         // 1. Every racer against their own ghost line. The living play for
         //    coins and hearts; a ghost has no hearts left but still earns soul
         //    coins for beating its line (no bonus pack — that is the living's).
+        $debutNow = [];
         foreach ($rows as $r) {
             $rid = $r['rid']; $touch($rid);
             $x = &$racers[$rid];
             $x['gps']++;
-            $line = $x['base'] + $k['creep'] * $day;
+            if ($x['new'] && !$x['own']) {
+                // A newcomer's first GP ever is free — no ghost exists yet to
+                // beat or to lose to. It becomes their ghost.
+                $x['own'][] = $r['points'];
+                $x['base'] = (float)$r['points'];
+                $x['born'] = $date;
+                $debutNow[$rid] = true;
+                $events[] = ['type' => 'debut', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points']];
+                unset($x);
+                continue;
+            }
+            // Everyone's ghost grows from the season's start — a newcomer's from
+            // the day it was born, or a debut that evening would already face
+            // several days of growth on top of the score it was born at.
+            $grow = $x['born'] !== null ? max(0, (int)floor((strtotime($date) - strtotime($x['born'])) / 86400)) : $day;
+            $line = $x['base'] + $k['creep'] * $grow;
+            $x['lines'][$g] = $line;
             if ($x['ghost'] !== null) {
                 if ($r['points'] > $line) {
                     $c = max(1, (int)ceil(round($r['points'] - $line, 6)));
@@ -3317,6 +3342,10 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
                     $events[] = ['type' => 'safe', 'gpid' => $g, 'seq' => $seq, 'rid' => $rid, 'points' => $r['points'], 'line' => round($line, 1), 'raw' => $line];
                 }
             }
+            if ($x['new']) {   // the newcomer's ghost moves with them
+                $x['own'][] = $r['points'];
+                $x['base'] = array_sum($x['own']) / count($x['own']);
+            }
             unset($x);
         }
         // 2. The contagion: finishing behind a ghost costs ONE heart — once per
@@ -3336,7 +3365,7 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
         if ($ghostsNow) {
             foreach ($rows as $r) {
                 $v = $r['rid'];
-                if ($racers[$v]['ghost'] !== null) continue;
+                if ($racers[$v]['ghost'] !== null || isset($debutNow[$v])) continue;   // the debut is free of ghosts too
                 $by = null;
                 foreach ($ghostsNow as $gr) if ($gr['rank'] < $r['rank']) $by = $gr['rid'];   // nearest ahead wins: rows are in rank order
                 if ($by === null) continue;
@@ -3411,11 +3440,23 @@ function hauntedSeason(PDO $pdo, string $season_id, array $rules): array {
  */
 function hauntedLineRaw(array $season, int $racer_id, ?string $date = null): float {
     $x = $season['racers'][$racer_id] ?? null;
-    $base = $x ? $x['base'] : 0.0;
+    $base = (float)($x['base'] ?? 0.0);
     $date = $date ?? date('Y-m-d');
     if ($season['end'] !== null && $date > $season['end']) $date = $season['end'];
-    $day = max(0, (int)floor((strtotime($date) - strtotime($season['start'])) / 86400));
+    $from = $x['born'] ?? $season['start'];   // a newcomer's ghost grows from its debut
+    $day = max(0, (int)floor((strtotime($date) - strtotime($from)) / 86400));
     return $base + $season['knobs']['creep'] * $day;
+}
+
+/**
+ * The exact line a racer played against in one GP, or null when there was
+ * none (their debut). Pages showing a past GP read this rather than
+ * rebuilding the line from the date: a newcomer's ghost moves between GPs on
+ * the same night.
+ */
+function hauntedLineAt(array $season, int $racer_id, string $gpid): ?float {
+    $l = $season['racers'][$racer_id]['lines'][$gpid] ?? null;
+    return $l === null ? null : round((float)$l, 1);
 }
 
 /** The ghost line for display (one decimal). Targets come from hauntedLineRaw(). */
