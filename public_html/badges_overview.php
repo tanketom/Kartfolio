@@ -549,7 +549,7 @@ function hasBadge($badges, $title) {
 
     <?php foreach ($allBadgeDefinitions as $categoryName => $badges): ?>
         <div class="badge-category">
-            <h2><?= ucfirst($categoryName) ?> Badges</h2>
+            <h2><?= htmlspecialchars(['monster_hunt' => 'MONSTER HUNT', 'team_season' => 'Team season'][$categoryName] ?? ucfirst($categoryName)) ?> Badges</h2>
 
             <?php foreach ($badges as $badgeDef): ?>
                 <div class="badge-card">

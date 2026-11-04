@@ -2758,6 +2758,96 @@ function seasonTitleHolders(PDO $pdo): array {
     return $cache;
 }
 
+/**
+ * The team-season badges, pure: racer_id => [badge key => true].
+ *
+ * Traded and Full House can land during the season. Full House waits for the
+ * week to end, because a teammate racing on Sunday without beating their number
+ * would otherwise take it away again. The rest describe a whole season, so they
+ * wait until it is over: mid-season every racer who beat their number in week
+ * one would be a Cameo, and everyone would be Present.
+ *
+ * Present counts the weeks anyone raced, not the calendar: a week the whole league
+ * skipped (Christmas, say) cannot be held against anybody.
+ *
+ * $table is the sorted team table, $champions [rid => name], $today Y-m-d.
+ */
+function rollCallBadgeFacts(array $rc, array $stints, array $table, array $champions, bool $over, string $today): array {
+    $out = [];
+
+    foreach ($stints as $rid => $list) {
+        foreach ($list as $st) if (($st['reason'] ?? '') === 'swap') $out[$rid]['team_traded'] = true;
+    }
+
+    foreach ($rc['weeks'] as $wk) {
+        $sunday = date('Y-m-d', strtotime($wk . ' +6 days'));
+        if (!$over && $sunday >= $today) continue;
+        $raced = [];
+        foreach ($rc['racers'] as $rid => $x) {
+            if (!isset($x['by_week'][$wk])) continue;
+            $team = rollCallTeamInWeek($stints[$rid] ?? [], $wk);
+            if ($team !== null) $raced[$team][] = $x['by_week'][$wk]['beat'];
+        }
+        foreach ($raced as $team => $beats) {
+            if (count($beats) < 3 || in_array(false, $beats, true)) continue;
+            // The whole team that week, whoever raced: it is the one you earn
+            // together. Someone who only joined later was not on it yet.
+            foreach ($stints as $rid => $list) {
+                if ($list && $list[0]['from'] <= $sunday && rollCallTeamInWeek($list, $wk) === $team) $out[$rid]['team_full_house'] = true;
+            }
+        }
+    }
+
+    if (!$over) return $out;
+
+    $weeksRaced = count($rc['weeks']);
+    $top = null;
+    foreach ($rc['racers'] as $rid => $x) {
+        if ($weeksRaced >= 2 && $x['weeks'] === 1 && $x['beats'] === 1) $out[$rid]['team_cameo'] = true;
+        if ($x['weeks'] >= 4 && $x['beats'] === $x['weeks']) $out[$rid]['team_by_the_numbers'] = true;
+        if ($weeksRaced >= 2 && $x['weeks'] === $weeksRaced) $out[$rid]['team_present'] = true;
+        $key = [$x['points'], $x['beats']];
+        if ($x['points'] > 0 && ($top === null || $key > $top)) $top = $key;
+    }
+    // Level on points and beats is the individual table's last real tie-break, so they share it.
+    foreach ($rc['racers'] as $rid => $x) {
+        if ($top !== null && [$x['points'], $x['beats']] === $top) $out[$rid]['team_top_scorer'] = true;
+    }
+
+    foreach (array_keys($champions) as $rid) {
+        foreach ($stints[$rid] ?? [] as $st) if (($st['reason'] ?? '') === 'join') $out[$rid]['team_walk_on'] = true;
+    }
+
+    if (count($table) >= 2 && $rc['weeks'] && $champions) {
+        $margin = $table[0]['score'] - $table[1]['score'];
+        $last = end($rc['weeks']);
+        foreach (array_keys($champions) as $rid) {
+            $w = $rc['racers'][$rid]['by_week'][$last] ?? null;
+            if ($w && $w['pts'] > 0 && $w['pts'] >= $margin && rollCallTeamInWeek($stints[$rid] ?? [], $last) === $table[0]['id']) $out[$rid]['team_decider'] = true;
+        }
+    }
+    return $out;
+}
+
+/** rollCallBadgeFacts() for a real season, or [] off a team season. */
+function teamSeasonBadgeFacts(PDO $pdo, string $season_id): array {
+    if (!isTeamSeason($pdo, $season_id)) return [];
+    $table = getTeamStandings($pdo, $season_id);
+    if (!$table) return [];
+    $rules = getSeasonRules($pdo, $season_id);
+    $today = date('Y-m-d');
+    $end = substr((string)($rules['end_date'] ?? ''), 0, 10);
+    $over = ($rules['status'] ?? '') === 'archived' || ($end !== '' && $end < $today);
+    return rollCallBadgeFacts(
+        rollCallSeason($pdo, $season_id, $rules),
+        rollCallStints($pdo, $season_id, substr((string)($rules['start_date'] ?? ''), 0, 10)),
+        $table,
+        $over ? teamSeasonChampions($pdo, $season_id) : [],
+        $over,
+        $today
+    );
+}
+
 /** The racers moved by the halfway swap, or [] before it has happened. */
 function rollCallSwapMoves(PDO $pdo, string $season_id): array {
     try {

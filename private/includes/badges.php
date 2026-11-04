@@ -555,6 +555,9 @@ function badgeSeasonContext($pdo, $season_id) {
     // — Haunted-season honours (only on a Haunted season), one pass. —
     $haunted = ($scoringSystem === 'haunted') ? hauntedSeasonFacts($pdo, $season_id) : [];
 
+    // — Team-season honours, one pass over the scored season. —
+    $teamFacts = teamSeasonBadgeFacts($pdo, $season_id);
+
     // Promoted: leads the sub-league AND finished in the top half of the main
     // standings. seasonPlacements() is the qualifier-gated ranking, so this
     // agrees with what the standings themselves say.
@@ -662,7 +665,7 @@ function badgeSeasonContext($pdo, $season_id) {
 
     return $cache[$season_id] = $career + compact(
         'highestAttendance', 'firstGpId', 'firstGpRacers', 'leaderId', 'beatLeader', 'scoringSystem', 'bbLeaderId', 'mikkoLeaderId', 'mikko', 'mikkoPromoted', 'territoryHeld', 'territoryTakeovers', 'territoryFortress', 'territorySquats', 'bingoFull', 'deadHeat', 'seasonGpTotal', 'questmaster',
-        'photoFinish', 'woodenSpoon', 'duelist', 'haunted'
+        'photoFinish', 'woodenSpoon', 'duelist', 'haunted', 'teamFacts'
     );
 }
 
@@ -793,6 +796,13 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
     if (!empty($ctx['haunted'][$racer_id])) {
         foreach (array_keys(badgeCatalog()) as $key) {
             if (!empty($ctx['haunted'][$racer_id][$key])) $badges[] = badgeDef($key);
+        }
+    }
+    // 📣 Team-season honours. Before the gate too: 🎟️ Cameo is for someone who
+    // raced one week, which may be one GP.
+    if (!empty($ctx['teamFacts'][$racer_id])) {
+        foreach (array_keys(badgeCatalog()) as $key) {
+            if (!empty($ctx['teamFacts'][$racer_id][$key])) $badges[] = badgeDef($key);
         }
     }
     // 🏘️ Landlord — 5+ cups held at once.

@@ -63,6 +63,40 @@ $ok('every racer on the top team who raced is a champion', $rcChamps && count($r
 $ok('the champions finish joint first, and the next racer after them', !array_diff_key($rcChamps, array_filter($rcPlace, fn($p) => $p === 1)) && count(array_keys($rcPlace, 1, true)) === count($rcChamps) && (count($rcPlace) === count($rcChamps) || min(array_diff($rcPlace, [1])) === count($rcChamps) + 1));
 $ok('the season title holders are the racers, not the team', (seasonTitleHolders($pdo)['s04'] ?? []) === array_values($rcChamps));
 
+echo "team badges\n";
+$tbRc = rollCallFromRows([
+    // Week 1 (2 Nov): 1, 2, 3 on team 7 all beat. Week 2 (9 Nov): 1 and 2 beat, 3 misses. Week 3 (16 Nov): 1 beats, 4 on team 8 beats.
+    $rcRow(1, 1, 50, '2026-11-03'), $rcRow(2, 1, 50, '2026-11-03'), $rcRow(3, 1, 50, '2026-11-03'),
+    $rcRow(1, 2, 50, '2026-11-10'), $rcRow(2, 2, 50, '2026-11-10'), $rcRow(3, 2, 10, '2026-11-10'),
+    $rcRow(1, 3, 50, '2026-11-17'), $rcRow(4, 3, 50, '2026-11-17'),
+    $rcRow(5, 3, 50, '2026-11-17'),                                  // a newcomer's single race, on team 8
+    $rcRow(1, 4, 50, '2026-11-24'), $rcRow(6, 4, 10, '2026-11-24'),  // week 4: 1 on team 7 again; 6 raced once and missed, team 8
+], [1 => 40.0, 2 => 40.0, 3 => 40.0, 4 => 40.0, 6 => 40.0], $rcK);
+$tbStints = [
+    1 => [['from' => '2026-11-02', 'team' => 7, 'reason' => 'draw']],
+    2 => [['from' => '2026-11-02', 'team' => 7, 'reason' => 'draw']],
+    3 => [['from' => '2026-11-02', 'team' => 7, 'reason' => 'draw']],
+    4 => [['from' => '2026-11-02', 'team' => 8, 'reason' => 'draw'], ['from' => '2026-11-16', 'team' => 7, 'reason' => 'swap']],
+    5 => [['from' => '2026-11-17', 'team' => 7, 'reason' => 'join']],
+    6 => [['from' => '2026-11-24', 'team' => 8, 'reason' => 'join']],
+];
+$tbTable = rollCallTeamTotals($tbRc, $tbStints, [7, 8]);
+$tbSorted = [['id' => 7, 'score' => $tbTable[7]['score']], ['id' => 8, 'score' => $tbTable[8]['score']]];
+$tbLive = rollCallBadgeFacts($tbRc, $tbStints, $tbSorted, [], false, '2026-11-05');
+$ok('mid-season: only Traded and finished Full Houses', isset($tbLive[4]['team_traded']) && !isset($tbLive[1]['team_full_house']) && !isset($tbLive[5]['team_cameo']) && !isset($tbLive[1]['team_present']));
+$tbMid = rollCallBadgeFacts($tbRc, $tbStints, $tbSorted, [], false, '2026-11-09');
+$ok('Full House lands once the week has ended, for the team that week', isset($tbMid[1]['team_full_house'], $tbMid[2]['team_full_house'], $tbMid[3]['team_full_house']) && !isset($tbMid[5]['team_full_house']) && !isset($tbMid[4]['team_full_house']));
+$tbEnd = rollCallBadgeFacts($tbRc, $tbStints, $tbSorted, [1 => 'A', 2 => 'B', 3 => 'C', 4 => 'D', 5 => 'E'], true, '2026-12-01');
+$ok('Cameo: one week, beat the number (a newcomer counts, a miss does not)', isset($tbEnd[5]['team_cameo']) && !isset($tbEnd[6]['team_cameo']));
+$ok('By the Numbers needs four weeks, all beaten', isset($tbEnd[1]['team_by_the_numbers']) && !isset($tbEnd[2]['team_by_the_numbers']));
+$ok('Present is every week anyone raced', isset($tbEnd[1]['team_present']) && !isset($tbEnd[2]['team_present']));
+$ok('Top Scorer is the most points, alone', isset($tbEnd[1]['team_top_scorer']) && count(array_filter($tbEnd, fn($b) => isset($b['team_top_scorer']))) === 1);
+$ok('Walk-On: joined by racing, on the winning team', isset($tbEnd[5]['team_walk_on']) && !isset($tbEnd[1]['team_walk_on']) && !isset($tbEnd[6]['team_walk_on']));
+$tbClose = [['id' => 7, 'score' => 20], ['id' => 8, 'score' => 17]];
+$tbTight = rollCallBadgeFacts($tbRc, $tbStints, $tbClose, [1 => 'A'], true, '2026-12-01');
+$tbWide  = rollCallBadgeFacts($tbRc, $tbStints, [['id' => 7, 'score' => 20], ['id' => 8, 'score' => 16]], [1 => 'A'], true, '2026-12-01');
+$ok('The Decider: final-week points at least the margin', isset($tbTight[1]['team_decider']) && !isset($tbWide[1]['team_decider']));
+
 echo "the computer\n";
 $cpu = cpuAheadFromRows([
     ['gpid' => 's09gp01', 'racer_id' => 1, 'rank' => 1], ['gpid' => 's09gp01', 'racer_id' => 2, 'rank' => 4],   // 2 CPUs between them

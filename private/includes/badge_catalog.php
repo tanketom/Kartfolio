@@ -9,7 +9,7 @@
  */
 
 function badgeCategoryOrder(): array {
-    return ['performance', 'playstyle', 'volatility', 'progression', 'special', 'attendance', 'cups', 'characters', 'streaks', 'career', 'elo', 'monster_hunt', 'haunted', 'collection', 'honours', 'territory', 'legacy'];
+    return ['performance', 'playstyle', 'volatility', 'progression', 'special', 'attendance', 'cups', 'characters', 'streaks', 'career', 'elo', 'monster_hunt', 'haunted', 'team_season', 'collection', 'honours', 'territory', 'legacy'];
 }
 
 /** key => ['icon','title','desc' (earned text),'criteria' (short rule for the overview),'category'] */
@@ -131,6 +131,15 @@ function badgeCatalog(): array {
         'centurion' => ['icon' => '💯', 'title' => 'Centurion', 'desc' => 'Won one hundred career Grand Prix.', 'criteria' => 'Won 100 career Grand Prix', 'category' => 'career'],
         'dream_debut' => ['icon' => '🎬', 'title' => 'Dream Debut', 'desc' => 'Reached the podium in their very first career Grand Prix.', 'criteria' => 'Podium in first-ever career GP', 'category' => 'career'],
         'locked_in' => ['icon' => '🔒', 'title' => 'Locked In', 'desc' => 'Landed a maximum-confidence "lock" fantasy bet.', 'criteria' => 'Hit a confidence-3 lock fantasy bet', 'category' => 'honours'],
+        // ── Team seasons (Roll Call) ──
+        'team_traded' => ['icon' => '🔀', 'title' => 'Traded', 'desc' => 'Moved to another team in the halfway swap.', 'criteria' => 'Moved in the halfway swap of a team season', 'category' => 'team_season'],
+        'team_full_house' => ['icon' => '🙌', 'title' => 'Full House', 'desc' => 'On a team where at least three racers raced in one week and every one of them beat their number.', 'criteria' => 'Three or more teammates raced in a week and all beat their numbers', 'category' => 'team_season'],
+        'team_cameo' => ['icon' => '🎟️', 'title' => 'Cameo', 'desc' => 'Raced in only one week of a team season, and beat their number.', 'criteria' => 'Raced one week of a team season and beat their number', 'category' => 'team_season'],
+        'team_walk_on' => ['icon' => '🚌', 'title' => 'Walk-On', 'desc' => 'Was not in the draw, joined on their first race, and finished a champion.', 'criteria' => 'Joined by racing and won the team title', 'category' => 'team_season'],
+        'team_by_the_numbers' => ['icon' => '🧮', 'title' => 'By the Numbers', 'desc' => 'Beat their number in every week they raced, over at least four weeks.', 'criteria' => 'Beat their number every week raced, four weeks or more', 'category' => 'team_season'],
+        'team_present' => ['icon' => '📣', 'title' => 'Present', 'desc' => 'Raced in every week the league raced in a team season.', 'criteria' => 'Raced every week of a team season', 'category' => 'team_season'],
+        'team_decider' => ['icon' => '🛟', 'title' => 'The Decider', 'desc' => 'Their team won the title by no more than the points they earned in the final week.', 'criteria' => 'Final-week points were at least the winning margin', 'category' => 'team_season'],
+        'team_top_scorer' => ['icon' => '🏟️', 'title' => 'Top Scorer', 'desc' => 'Earned the most points of anyone in a team season.', 'criteria' => 'Most points in a team season', 'category' => 'team_season'],
         // ── Haunted seasons (The Real Monster Was Yourself) ──
         'haunt_last_one' => ['icon' => '🏚️', 'title' => 'Last One in the House', 'desc' => 'Won the haunted house — the last one standing, or one of the last to fall together.', 'criteria' => 'Won a Haunted season (alone or shared)', 'category' => 'haunted'],
         'haunt_patient_zero' => ['icon' => '🪦', 'title' => 'Patient Zero', 'desc' => 'The first racer of the season to become a ghost.', 'criteria' => 'First to become a ghost in a Haunted season', 'category' => 'haunted'],

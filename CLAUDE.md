@@ -1028,6 +1028,13 @@ Cross-reference if you find half-implemented work:
   `archived`): mid-season the leading team would all read 1st on their profiles. `season_meta.champion_name` holds one string, the TEAM's on
   these seasons: anything counting a racer's titles reads `seasonTitleHolders()`,
   never that column. The Lounge sign gets a team panel in the map's slot
+- **Eight team-season badges** (`team_season` category) — `rollCallBadgeFacts()`,
+  pure, emitted before the racing gate because 🎟️ Cameo may be a single GP. 🔀 Traded
+  and 🙌 Full House land mid-season, Full House once the week has ended so a late
+  miss cannot take it back. 🎟️ Cameo, 🚌 Walk-On, 🧮 By the Numbers, 📣 Present,
+  🛟 The Decider and 🏟️ Top Scorer describe a whole season and wait until it is over.
+  Present counts the weeks anyone raced, so a week the whole league skipped costs
+  nobody the badge
 - **This looks wrong** — a box on every GP page writes to `result_flags` (POST +
   CSRF + `throttleAllow('result_flag', 5, 10)`, no name or IP stored). Open flags
   lead `/admin/audit`, count beside it in the Admin menu, and are closed there. The
