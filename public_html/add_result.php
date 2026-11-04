@@ -170,6 +170,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/../private/includes/team_season.php';
             teamSeasonSync($pdo, preg_replace('/gp\d+$/', '', $gpid));
         } catch (Throwable $e) { error_log('team season: ' . $e->getMessage()); }
+        // OMKredits: pay the race weeks and settle any bribes this GP used up.
+        try {
+            require_once __DIR__ . '/../private/includes/settings.php';
+            if (moduleEnabled($pdo, 'omk')) {
+                require_once __DIR__ . '/../private/includes/omk.php';
+                omkAfterGpSaved($pdo, $gpid);
+            }
+        } catch (Throwable $e) { error_log('omk: ' . $e->getMessage()); }
         // Badge sightings for "new this week" on the homepage — never lets a
         // badge hiccup break result entry.
         try {

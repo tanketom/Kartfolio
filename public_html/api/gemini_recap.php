@@ -619,6 +619,20 @@ foreach ($order as $name) {
     if (!empty($sections[$name])) $dataContext .= $sections[$name];
 }
 
+// 8a. A PAID SPONSOR. Not a diet section: every show reads the ad it was sold.
+$omkSponsor = null; $omkAd = '';
+try {
+    if (moduleEnabled($pdo, 'omk')) {
+        require_once __DIR__ . '/../../private/includes/omk.php';
+        if ($omkSponsor = omkNextSponsorship($pdo)) {
+            $omkShow = trim((string)preg_replace('/^[^\p{L}]+/u', '', (string)($persona['name'] ?? '')));
+            if ($omkShow === '') $omkShow = 'This broadcast';
+            $omkAd = omkAdLine($omkShow, $omkSponsor['name'], $omkSponsor['catchphrase'] ?? '');
+            $dataContext .= omkSponsorBrief($omkAd);
+        }
+    }
+} catch (Throwable $e) { error_log('recap sponsor: ' . $e->getMessage()); $omkSponsor = null; }
+
 // 8b. FETCH LAST 2 BROADCASTS FOR THIS SHOW (For Continuity)
 $previousBroadcasts = "";
 try {
@@ -707,6 +721,7 @@ if (preg_match('/^QUOTE:\s*(.*)$/m', $rawText, $matches)) {
     $bodyText = str_replace($matches[0], '', $bodyText);
 }
 $bodyText = trim($bodyText);
+if ($omkSponsor) $bodyText = omkEnsureAdRead($bodyText, $omkSponsor['name'], $omkAd);
 
 // Prepare Linked IDs string (e.g., "s01g04,s01g05")
 $linkedIDsString = implode(',', $gpidList);
@@ -722,5 +737,9 @@ $save = $pdo->prepare("
 $save->execute([$currentSeason, $bodyText, $headline, $quote, $pKey, $linkedIDsString, $asDraft ? 'draft' : 'published', $modelUsed]);
 
 $newId = $pdo->lastInsertId();
+if ($omkSponsor) {
+    // Attached rather than spent: delete a rejected draft and the slot goes to the next newscast.
+    $pdo->prepare("UPDATE omk_sponsorships SET recap_id = ? WHERE id = ?")->execute([$newId, $omkSponsor['id']]);
+}
 header($asDraft ? "Location: /admin/news?open=$newId" : "Location: /view-recap/$newId");
 exit;

@@ -28,6 +28,7 @@ INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, catego
     ('enable_stickers', '1', 'boolean', 'features', 'Sticker album module'),
     ('enable_mikkoliiga', '1', 'boolean', 'features', 'Mikkoliiga sub-league module'),
     ('enable_teams', '1', 'boolean', 'features', 'Teams (constructor scoring) module'),
+    ('enable_omk', '1', 'boolean', 'features', 'OMK Exchange Counter (OMKredits) module'),
     ('enable_cards', '1', 'boolean', 'features', 'Trading cards module'),
     ('enable_wrapped', '1', 'boolean', 'features', 'Wrapped year-in-review module'),
     ('enable_underground', '1', 'boolean', 'features', 'Underground betting den module'),

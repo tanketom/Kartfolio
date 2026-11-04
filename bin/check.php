@@ -97,6 +97,72 @@ $tbTight = rollCallBadgeFacts($tbRc, $tbStints, $tbClose, [1 => 'A'], true, '202
 $tbWide  = rollCallBadgeFacts($tbRc, $tbStints, [['id' => 7, 'score' => 20], ['id' => 8, 'score' => 16]], [1 => 'A'], true, '2026-12-01');
 $ok('The Decider: final-week points at least the margin', isset($tbTight[1]['team_decider']) && !isset($tbWide[1]['team_decider']));
 
+echo "omkredits\n";
+// A require behind a try/catch fails silently, so a wrong path never shows up as a broken page.
+$badRequires = [];
+foreach (array_merge(glob("$root/public_html/*.php"), glob("$root/public_html/*/*.php"), glob("$root/private/includes/*.php"), glob("$root/private/templates/*.php")) as $phpFile) {
+    if (preg_match_all("/require(?:_once)?\\s+__DIR__\\s*\\.\\s*'([^']+)'/", (string)file_get_contents($phpFile), $reqs)) {
+        foreach ($reqs[1] as $req) if (!is_file(dirname($phpFile) . $req)) $badRequires[] = str_replace("$root/", '', $phpFile) . ' -> ' . $req;
+    }
+}
+$ok('every require points at a file that exists', !$badRequires, implode(', ', array_slice($badRequires, 0, 3)));
+require_once "$root/private/includes/omk.php";
+$omkR = (int)$pdo->query("SELECT id FROM racers ORDER BY id LIMIT 1")->fetchColumn();
+$omkR2 = (int)$pdo->query("SELECT id FROM racers ORDER BY id LIMIT 1 OFFSET 1")->fetchColumn();
+$omkKeys = stickerByKey($pdo); $omkFoil = null; $omkPlain = null;
+foreach ($omkKeys as $k => $s) { if ($s['rarity'] === 'foil') $omkFoil ??= $k; elseif ($s['rarity'] === 'common') $omkPlain ??= $k; }
+$omkSave = $pdo->prepare("INSERT OR REPLACE INTO racer_stickers (racer_id, sticker_key, count) VALUES (?, ?, ?)");
+$omkSave->execute([$omkR, $omkPlain, 4]); $omkSave->execute([$omkR, $omkFoil, 2]);
+$omkRefused = function (callable $fn) { try { $fn(); return false; } catch (OmkRefused $e) { return true; } };
+$ok('a duplicate is worth 1, a foil 3', omkDupeValue('common') === 1 && omkDupeValue('rare') === 1 && omkDupeValue('foil') === 3);
+$ok('you cannot trade your last copy', $omkRefused(fn() => omkTradeIn($pdo, $omkR, [$omkPlain => 4])) && omkBalance($pdo, $omkR) === 0);
+$omkT = omkTradeIn($pdo, $omkR, [$omkPlain => 2, $omkFoil => 1]);
+$omkLeft = $pdo->prepare("SELECT count FROM racer_stickers WHERE racer_id = ? AND sticker_key = ?"); $omkLeft->execute([$omkR, $omkPlain]);
+$ok('trade individual copies: 2 plain and a foil pay 5, and 2 are left', $omkT === ['copies' => 3, 'credits' => 5] && omkBalance($pdo, $omkR) === 5 && (int)$omkLeft->fetchColumn() === 2);
+$ok('a trade of nothing is refused', $omkRefused(fn() => omkTradeIn($pdo, $omkR, [$omkPlain => 0])));
+$ok('you cannot spend what you do not have', $omkRefused(fn() => omkBuySponsor($pdo, $omkR)) && omkBalance($pdo, $omkR) === 5 && !omkSponsorQueue($pdo));
+omkEntry($pdo, $omkR, 100, 'test', 'test'); omkEntry($pdo, $omkR2, 100, 'test', 'test');
+$omkFav = omkBuyBribe($pdo, $omkR);
+$omkFavCheck = $pdo->prepare("SELECT cup_name FROM results WHERE racer_id = ? AND gpid LIKE 's%' GROUP BY cup_name HAVING COUNT(*) >= 3 ORDER BY AVG(gp_points) DESC, COUNT(*) DESC, cup_name ASC LIMIT 1"); $omkFavCheck->execute([$omkR]);
+$ok("a bribe goes on the briber's best cup, and one at a time", $omkFav['cup'] === $omkFavCheck->fetchColumn() && $omkRefused(fn() => omkBuyBribe($pdo, $omkR)) && omkBalance($pdo, $omkR) === 95);
+$omkOpen = omkOpenBribes($pdo);
+$ok('a bribe triples its cup only in a draw the briber is in', omkApplyBribes([$omkFav['cup'] => 2, 'Other' => 2], $omkOpen, [$omkR])[$omkFav['cup']] === 6 && omkApplyBribes([$omkFav['cup'] => 2], $omkOpen, [$omkR2])[$omkFav['cup']] === 2);
+$ok('he admits it when it lands, and keeps the money when it does not', str_contains((string)omkBribeLine($omkOpen, $omkFav['cup'], [$omkR]), "I'm suggesting") && str_contains((string)omkBribeLine($omkOpen, '__other__', [$omkR]), 'keeping the money') && omkBribeLine($omkOpen, $omkFav['cup'], [$omkR2]) === null);
+$ok('you cannot counter yourself', $omkRefused(fn() => omkBuyCounter($pdo, $omkR, (int)$omkOpen[0]['id'])));
+$omkG = $pdo->prepare("SELECT gpid FROM results WHERE racer_id = ? AND gpid LIKE 's%' LIMIT 1"); $omkG->execute([$omkR]); $omkGp = (string)$omkG->fetchColumn();
+$omkG = $pdo->prepare("SELECT gpid FROM results WHERE gpid LIKE 's%' AND gpid NOT IN (SELECT gpid FROM results WHERE racer_id = ?) LIMIT 1"); $omkG->execute([$omkR]); $omkElse = (string)$omkG->fetchColumn();
+if ($omkElse !== '') omkAfterGpSaved($pdo, $omkElse);
+$ok('a GP the briber did not race leaves the bribe alone', count(array_filter(omkOpenBribes($pdo), fn($b) => $b['status'] === 'pending')) === 1);
+omkAfterGpSaved($pdo, $omkGp);
+$ok('a GP the briber raced uses it up', !omkOpenBribes($pdo));
+omkBuyBribe($pdo, $omkR);
+omkBuyCounter($pdo, $omkR2, (int)omkOpenBribes($pdo)[0]['id']);
+$omkOpen = omkOpenBribes($pdo);
+$ok('a counter-bribe cancels it, costs both, and he keeps both', $omkOpen[0]['status'] === 'countered' && omkApplyBribes(['X' => 1, $omkOpen[0]['cup_name'] => 2], $omkOpen, [$omkR])[$omkOpen[0]['cup_name']] === 2 && str_contains((string)omkBribeLine($omkOpen, 'X', [$omkR]), 'keeping both') && omkBalance($pdo, $omkR2) === 85);
+omkAfterGpSaved($pdo, $omkGp);
+$ok('a countered bribe closes with the next GP', !omkOpenBribes($pdo));
+omkBuySponsor($pdo, $omkR);
+$ok('one sponsorship at a time, queued for the next newscast', $omkRefused(fn() => omkBuySponsor($pdo, $omkR)) && (int)(omkNextSponsorship($pdo)['racer_id'] ?? 0) === $omkR);
+$pdo->exec("INSERT INTO recap_archive (season_id, recap_text, headline, status) VALUES ('s01', 'x', 'x', 'draft')"); $omkRecap = (int)$pdo->lastInsertId();
+$pdo->prepare("UPDATE omk_sponsorships SET recap_id = ?")->execute([$omkRecap]);
+$ok('a used sponsorship leaves the queue', omkNextSponsorship($pdo) === null);
+$pdo->exec("DELETE FROM recap_archive WHERE id = $omkRecap");
+$ok('deleting the draft frees it for the next newscast', (int)(omkNextSponsorship($pdo)['racer_id'] ?? 0) === $omkR);
+$omkAd = omkAdLine('Kart Core Team', 'Hanna', 'Honk honk!');
+$ok('the ad read', $omkAd === 'Kart Core Team is brought to you by Hanna. Honk honk!');
+$ok('the ad is appended only if the writer left it out, bold or not', omkEnsureAdRead('Racing.', 'Hanna', $omkAd) === "Racing.\n\n$omkAd" && omkEnsureAdRead('Now, brought to you by **Hanna**!', 'Hanna', $omkAd) === 'Now, brought to you by **Hanna**!');
+// Race weeks, on a clean ledger.
+$pdo->exec("DELETE FROM omk_ledger");
+$pdo->exec("INSERT OR REPLACE INTO settings (setting_key, setting_value) VALUES ('omk_epoch', '" . date('Y-m-d', strtotime('-110 days')) . "')");
+settingsMap($pdo, true);
+$omkFirst = omkGrantRaceWeeks($pdo); $omkSecond = omkGrantRaceWeeks($pdo);
+$omkMax = (int)$pdo->query("SELECT MAX(n) FROM (SELECT COUNT(*) AS n FROM omk_ledger WHERE kind = 'race_week' GROUP BY racer_id, ref)")->fetchColumn();
+$ok('a race week pays 2, once, however many GPs', $omkFirst > 0 && $omkSecond === 0 && $omkMax === 1 && (int)$pdo->query("SELECT MIN(amount) FROM omk_ledger")->fetchColumn() === 2 && (int)$pdo->query("SELECT MAX(amount) FROM omk_ledger")->fetchColumn() === 2);
+foreach (['omk_ledger', 'omk_bribes', 'omk_sponsorships'] as $omkT2) $pdo->exec("DELETE FROM $omkT2");
+$pdo->prepare("DELETE FROM racer_stickers WHERE racer_id = ? AND sticker_key IN (?, ?)")->execute([$omkR, $omkPlain, $omkFoil]);
+$pdo->exec("DELETE FROM settings WHERE setting_key = 'omk_epoch'");
+settingsMap($pdo, true);
+
 echo "the computer\n";
 $cpu = cpuAheadFromRows([
     ['gpid' => 's09gp01', 'racer_id' => 1, 'rank' => 1], ['gpid' => 's09gp01', 'racer_id' => 2, 'rank' => 4],   // 2 CPUs between them

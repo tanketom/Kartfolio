@@ -21,6 +21,8 @@
 require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/mk_data.php';
+require_once __DIR__ . '/../private/includes/settings.php';
+require_once __DIR__ . '/../private/includes/omk.php';
 
 header('Content-Type: application/json');
 
@@ -151,6 +153,14 @@ foreach ($eligible as $cup) {
 
     $weights[$cup] = $weight;
     $totalWeight  += $weight;
+}
+
+// Bribes. Paid for at the OMK Exchange Counter, and he says so below.
+$openBribes = [];
+if (function_exists('moduleEnabled') && moduleEnabled($pdo, 'omk')) {
+    $openBribes = omkOpenBribes($pdo);
+    $weights = omkApplyBribes($weights, $openBribes, $racerIds);
+    $totalWeight = array_sum($weights);
 }
 
 $rand         = mt_rand(1, max(1, $totalWeight));
@@ -454,5 +464,6 @@ $response['host'] = kartificialLine($selectedCup, [
 ]);
 $pick = kartificialPick($pdo, $selectedCup, $racerIds, $names);
 if ($pick) $response['pick'] = $pick;
+if ($openBribes && ($bribeLine = omkBribeLine($openBribes, $selectedCup, $racerIds))) $response['bribe'] = ['line' => $bribeLine];
 
 echo json_encode($response);

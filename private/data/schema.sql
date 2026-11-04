@@ -490,3 +490,32 @@ CREATE TABLE IF NOT EXISTS result_flags (
     status TEXT NOT NULL DEFAULT 'open',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS omk_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    racer_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    ref TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_omk_ledger_racer ON omk_ledger(racer_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_omk_race_week ON omk_ledger(racer_id, ref) WHERE kind = 'race_week';
+
+CREATE TABLE IF NOT EXISTS omk_bribes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    racer_id INTEGER NOT NULL,
+    cup_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    countered_by INTEGER,
+    settled_gpid TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS omk_sponsorships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    racer_id INTEGER NOT NULL,
+    recap_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

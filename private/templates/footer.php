@@ -104,6 +104,7 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
             <img src="/assets/img/kartificial.png" class="cup-stage-img" alt="Kartificial" onerror="this.style.visibility='hidden'">
             <div class="cup-host-bubble" id="cup-host-line"></div>
         </div>
+        <?php if (isset($pdo) && moduleEnabled($pdo, 'omk')): ?><a href="/omk-exchange" class="cup-bribe-link">✉️ He takes bribes</a><?php endif; ?>
         <div class="cup-wheel-result" id="cup-result"></div>
         <div class="cup-wheel-stats" id="cup-stats"></div>
         <div class="cup-context" id="cup-context"></div>
@@ -254,6 +255,8 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
     padding-top: 6px;
     border-top: 2px dashed rgba(0, 0, 0, 0.15);
 }
+.cup-host-bribe { font-weight: 700; }
+.cup-bribe-link { display: block; text-align: center; font-size: 0.78rem; margin-top: 6px; color: inherit; opacity: 0.75; }
 .cup-stage--grumpy .cup-host-bubble { background: #fdf0e8; }
 .cup-stage--excited .cup-host-bubble { background: #fff6dc; }
 
@@ -992,6 +995,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         p.className = 'cup-host-pick';
                         p.textContent = data.pick.line;
                         cupHostLine.appendChild(p);
+                    }
+                    // What he has been paid to say, on its own line. Same reasons for textContent.
+                    if (data.bribe && data.bribe.line) {
+                        const b = document.createElement('span');
+                        b.className = 'cup-host-pick cup-host-bribe';
+                        b.textContent = data.bribe.line;
+                        cupHostLine.appendChild(b);
                     }
                     if (data.allCups) cupAllCups = data.allCups;
 

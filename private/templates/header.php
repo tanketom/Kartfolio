@@ -109,6 +109,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                     <?php if (moduleEnabled($pdo, 'mikkoliiga')): ?><a href="/mikkoliiga">🌟 Mikkoliiga</a><?php endif; ?>
                     <?php if (moduleEnabled($pdo, 'teams')): ?><a href="/teams">🤝 Teams</a><?php endif; ?>
                     <a href="/league-in-numbers">📊 League in numbers</a>
+                    <?php if (moduleEnabled($pdo, 'omk')): ?><a href="/omk-exchange">Ω OMK Exchange</a><?php endif; ?>
 
                 </div>
             </div>

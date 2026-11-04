@@ -1028,6 +1028,23 @@ Cross-reference if you find half-implemented work:
   `archived`): mid-season the leading team would all read 1st on their profiles. `season_meta.champion_name` holds one string, the TEAM's on
   these seasons: anything counting a racer's titles reads `seasonTitleHolders()`,
   never that column. The Lounge sign gets a team panel in the map's slot
+- **OMKredits (Ω) and the Exchange Counter** — `/omk-exchange`, rules in
+  `private/includes/omk.php`, proposals in the OMK Microtransactions doc. A balance is
+  only ever `SUM(omk_ledger.amount)`. Earned two ways: 2Ω per week raced
+  (`omkGrantRaceWeeks()`, a partial unique index means a week pays once, from
+  `omk_epoch`), and trading in duplicates card by card (1Ω, foil 3Ω, always keeping one).
+  Soul coins do not convert. Whale and Stuck With Dupes count copies HELD, so trading
+  can cost those badges: deliberate, and the page warns first. Spent, through the
+  profile code with POST + CSRF + throttle + `BEGIN IMMEDIATE`, on a bribe (10Ω, triple
+  weight in What cup? for the buyer's best-average cup with 3+ GPs, never a free
+  choice; only in draws they are in, used up by the next GP they race), a counter-bribe
+  (15Ω) and a broadcast sponsorship (20Ω). No free text anywhere, so no approval queue.
+  A sponsorship goes through the briefing, `omkEnsureAdRead()` appends the line if the
+  writer dropped it, and it is attached rather than spent: deleting a rejected draft
+  frees it. Test the broadcast path without paying by running with
+  `KARTFOLIO_BRIEFING_DUMP` and `-d disable_functions=curl_exec,curl_multi_exec`. A
+  wrong require path inside its try/catch failed silently here until an end-to-end run
+  caught it, so check.php now verifies every `require __DIR__` target exists
 - **Eight team-season badges** (`team_season` category) — `rollCallBadgeFacts()`,
   pure, emitted before the racing gate because 🎟️ Cameo may be a single GP. 🔀 Traded
   and 🙌 Full House land mid-season, Full House once the week has ended so a late

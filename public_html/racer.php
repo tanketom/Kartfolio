@@ -675,6 +675,11 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
             $stkEpoch = getSetting($pdo, 'stickers_epoch', '2026-06-21') ?: '2026-06-21';
             $stkLive  = date('Y-m-d') >= $stkEpoch;
             if (($stkLive || $isAdminViewer) && moduleEnabled($pdo, 'stickers')): ?>
+                <?php if (moduleEnabled($pdo, 'omk')):
+                    $omkSt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM omk_ledger WHERE racer_id = ?");
+                    $omkSt->execute([(int)$racerId]); ?>
+                <a href="/omk-exchange?racer=<?= (int)$racerId ?>" class="stk-profile-chip">Ω <?= number_format((int)$omkSt->fetchColumn()) ?> OMKredits →</a>
+                <?php endif; ?>
                 <a href="/stickers/<?= (int)$racerId ?>" class="stk-profile-chip">
                     🩹 Sticker album →
                     <?php if (!$stkLive): ?><span class="racer-wrapped-preview">admin preview</span><?php endif; ?>

@@ -109,6 +109,7 @@ include __DIR__ . '/../private/templates/header.php';
     <header class="stk-hero">
         <div>
             <h1 class="page-title">🩹 <?= htmlspecialchars($racer['name']) ?>'s Album</h1>
+            <?php if (moduleEnabled($pdo, 'omk')): ?><p class="page-subtitle"><a href="/omk-exchange?racer=<?= (int)$racer['id'] ?>">Trade duplicates for OMKredits →</a></p><?php endif; ?>
             <p class="page-subtitle">
                 <?= $prog['_album']['owned'] ?> / <?= $prog['_album']['total'] ?> STICKERS ·
                 <?= $prog['_album']['total'] ? (int)round($prog['_album']['owned'] / $prog['_album']['total'] * 100) : 0 ?>% COMPLETE

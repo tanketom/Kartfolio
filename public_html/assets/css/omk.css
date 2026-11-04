@@ -1,0 +1,47 @@
+/* The OMK Exchange Counter. */
+.omk-sigil { font-family: 'DM Mono', monospace; color: var(--nintendo-red); }
+.omk-flash { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-weight: 600; background: var(--gray-50); border: 1px solid var(--gray-300); }
+.omk-flash.is-ok { background: var(--success-bg); color: var(--success-text); }
+.omk-flash.is-no { background: var(--error-bg); color: var(--error-text); }
+.omk-card { background: var(--gray-50); border: 2.5px solid var(--dark-bg, #1a1a1a); border-radius: 14px; box-shadow: var(--shadow-card); padding: 18px 22px; margin-bottom: 18px; min-width: 0; }
+.omk-h { font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 1.15rem; font-weight: 700; margin: 0 0 12px; }
+.omk-h2 { margin-top: 20px; }
+.omk-note { color: var(--gray-600); font-size: 0.88rem; margin: 0; }
+.omk-rules { margin: 0 0 14px; padding-left: 20px; line-height: 1.6; font-size: 0.92rem; }
+.omk-who { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.omk-who label { font-weight: 700; }
+.omk-root select, .omk-root input[type=text], .omk-root input[type=number] { background: var(--gray-50); color: var(--gray-900); border: 1px solid var(--gray-400); padding: 7px 10px; border-radius: 6px; font: inherit; max-width: 100%; }
+.omk-account { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+.omk-balance { font-family: 'DM Mono', monospace; font-size: 2.4rem; line-height: 1.1; }
+.omk-code { flex: 0 1 320px; min-width: 200px; }
+.omk-code label { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 5px; }
+.omk-code input { width: 100%; box-sizing: border-box; }
+.omk-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.omk-item { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px; min-width: 0; }
+.omk-item h3 { margin: 0; font-size: 1rem; width: 100%; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.omk-item p { margin: 0; font-size: 0.86rem; flex: 1 0 auto; }
+.omk-item select { width: 100%; }
+.omk-price { font-family: 'DM Mono', monospace; font-weight: 500; color: var(--nintendo-red); white-space: nowrap; }
+.omk-trade-tools { display: flex; gap: 8px; margin: 10px 0; }
+.omk-table-wrap { overflow-x: auto; }
+.omk-dupes { width: 100%; }
+.omk-dupes input { width: 64px; text-align: right; }
+.omk-foil { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; background: #ffe9a8; color: #3a2c00; padding: 1px 6px; border-radius: 999px; }
+.omk-warn { margin: 12px 0 0; padding: 8px 12px; border-radius: 6px; background: var(--error-bg); color: var(--error-text); font-weight: 600; font-size: 0.88rem; }
+.omk-trade-go { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 12px; }
+.omk-trade-go strong { font-family: 'DM Mono', monospace; font-size: 1.3rem; font-weight: 500; }
+.omk-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.omk-list { list-style: none; margin: 0; padding: 0; font-size: 0.9rem; }
+.omk-list li { padding: 6px 0; border-top: 1px solid var(--gray-200); }
+.omk-list li:first-child { border-top: 0; }
+.omk-balances li, .omk-ledger li { display: flex; justify-content: space-between; gap: 12px; }
+.omk-balances span, .omk-ledger li > span:last-child { font-family: 'DM Mono', monospace; white-space: nowrap; }
+.omk-balances a { color: inherit; font-weight: 700; text-decoration: none; }
+.omk-balances a:hover { text-decoration: underline; }
+.omk-ledger small { color: var(--gray-500); margin-left: 4px; }
+.omk-ledger .is-in { color: var(--success-text); }
+.omk-ledger .is-out { color: var(--error-text); }
+@media (max-width: 900px) {
+    .omk-items, .omk-two { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .omk-two { gap: 0; }
+}

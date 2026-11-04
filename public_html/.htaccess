@@ -81,6 +81,7 @@ RewriteRule ^elo-trends$ elo_trends.php [L,QSA]
 RewriteRule ^timeline$ timeline.php [L,QSA]
 RewriteRule ^league-in-numbers$ league_in_numbers.php [L,QSA]
 RewriteRule ^feed$ feed.php [L]
+RewriteRule ^omk-exchange$ omk_exchange.php [L,QSA]
 RewriteRule ^cards$ cards.php [L,QSA]
 RewriteRule ^rank-graphic$ rank_graphic.php [L,QSA]
 # The bar-chart race is a view on /season-chart now.
