@@ -177,6 +177,40 @@ function wrappedAssignments(PDO $pdo, int $year, array $roster): array {
 const WRAPPED_MIN_GPS = 6;
 
 /**
+ * An aura colour darkened until light text reads on it: same hue, luminance
+ * capped at WRAPPED_TINT_LUM. Auras are vivid (Rookie Fire runs red to yellow)
+ * and every slide's text is light, so painting slides with the raw colour put
+ * white text on yellow at 1.5:1. Slides use this tint; the raw colour stays
+ * for things with no text on them — the orb, the climb bars, the intro stripe.
+ * Scaled in linear light, which keeps the hue. A colour already darker than
+ * the cap is left alone. bin/check.php holds every aura to 4.5:1.
+ */
+const WRAPPED_TINT_LUM = 0.055;
+
+/** Relative luminance (WCAG) of a #rrggbb colour. */
+function wrappedLuminance(string $hex): float {
+    $lin = array_map(function ($h) {
+        $v = hexdec($h) / 255;
+        return $v <= 0.03928 ? $v / 12.92 : pow(($v + 0.055) / 1.055, 2.4);
+    }, str_split(ltrim($hex, '#'), 2));
+    return 0.2126 * $lin[0] + 0.7152 * $lin[1] + 0.0722 * $lin[2];
+}
+
+function wrappedTint(string $hex): string {
+    $lum = wrappedLuminance($hex);
+    if ($lum <= WRAPPED_TINT_LUM) return $hex;
+    $k = WRAPPED_TINT_LUM / $lum;
+    $out = '#';
+    foreach (str_split(ltrim($hex, '#'), 2) as $h) {
+        $v = hexdec($h) / 255;
+        $l = ($v <= 0.03928 ? $v / 12.92 : pow(($v + 0.055) / 1.055, 2.4)) * $k;
+        $s = $l <= 0.0031308 ? $l * 12.92 : 1.055 * pow($l, 1 / 2.4) - 0.055;
+        $out .= sprintf('%02x', (int)round($s * 255));
+    }
+    return $out;
+}
+
+/**
  * ~22 Auras, in priority order. Performance auras are gated behind
  * WRAPPED_MIN_GPS and front-loaded by distinctiveness so the field spreads
  * out (the biggest winner takes Pure Gold, the biggest climber Ascendant,

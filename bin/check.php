@@ -38,6 +38,17 @@ $cat = badgeCatalog();
 $icons = array_column($cat, 'icon');
 $ok('every badge icon is unique (' . count($cat) . ' badges)', count($icons) === count(array_unique($icons)), implode(' ', array_keys(array_filter(array_count_values($icons), fn($n) => $n > 1))));
 $ok('every catalogue category is in the category order', !array_diff(array_unique(array_column($cat, 'category')), badgeCategoryOrder()));
+
+// /wrapped: light text on an aura's tint must stay readable, whatever colours
+// an aura uses. Raw auras painted behind the text gave white on yellow at 1.5:1.
+require_once "$root/private/includes/wrapped_personas.php";
+$wrText = ['#ffffff', '#FFD700', '#bba6ff', '#e8e3ff', '#c4bbe6', '#b9aee0', '#cbb9ff', '#ffe9a8', '#4fd67a', '#ff9c9c'];
+$wrWorst = 99.0; $wrAt = '';
+foreach (wrappedAuras() as $a) foreach ($a['grad'] as $c) foreach ($wrText as $t) {
+    $cr = (wrappedLuminance($t) + 0.05) / (wrappedLuminance(wrappedTint($c)) + 0.05);
+    if ($cr < $wrWorst) { $wrWorst = $cr; $wrAt = "{$a['label']} $c with $t"; }
+}
+$ok('every /wrapped aura tint keeps slide text at 4.5:1 (worst ' . round($wrWorst, 2) . ')', $wrWorst >= 4.5, $wrAt);
 $emitted = [];
 foreach (['s01', 's02'] as $s) foreach (array_keys(getSeasonResultsByRacer($pdo, $s)) as $rid) foreach (getRacerBadges($pdo, (int)$rid, $s) as $b) $emitted[$b['title']] = true;
 $ok('badge emitters produce catalogue titles only', !array_diff(array_keys($emitted), array_column($cat, 'title')), implode(', ', array_diff(array_keys($emitted), array_column($cat, 'title'))));

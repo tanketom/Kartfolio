@@ -357,12 +357,13 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
 </div>
 <?php endif; ?>
 
-<div class="wr-deck" id="wr-deck" style="--aura1:<?= $aura['grad'][0] ?>;--aura2:<?= $aura['grad'][1] ?>;">
+<div class="wr-deck" id="wr-deck" style="--aura1:<?= $aura['grad'][0] ?>;--aura2:<?= $aura['grad'][1] ?>;--tint1:<?= wrappedTint($aura['grad'][0]) ?>;--tint2:<?= wrappedTint($aura['grad'][1]) ?>;">
 
     <!-- 1. Intro -->
     <section class="wr-slide wr-intro">
         <div class="wr-kicker"><?= htmlspecialchars($year) ?> WRAPPED</div>
         <div class="wr-big"><?= htmlspecialchars($name) ?>,</div>
+        <div class="wr-intro-stripe"></div>
         <div class="wr-lead">here's your year in karts.</div>
         <div class="wr-hint">tap / scroll ↓</div>
     </section>
@@ -634,32 +635,34 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
     height: calc(100vh - 60px);
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     text-align: center; padding: 24px 28px; color: #fff; gap: 14px;
-    background: radial-gradient(circle at 50% 35%, var(--aura1, #2a2150) -10%, #0a0a0a 70%);
+    background: radial-gradient(circle at 50% 35%, var(--tint1, #2a2150) -10%, #0a0a0a 70%);
 }
-.wr-intro { background: linear-gradient(160deg, var(--aura1,#241a48), var(--aura2,#120c28) 60%, #0a0a0a); }
+.wr-intro { background: linear-gradient(160deg, var(--tint1,#241a48), var(--tint2,#120c28) 60%, #0a0a0a); }
+/* The aura's real colours, where no text sits on them. */
+.wr-intro-stripe { width: min(320px, 70vw); height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--aura1), var(--aura2)); }
 .wr-kicker { font-size: .8rem; letter-spacing: 4px; font-weight: 800; color: #bba6ff; text-transform: uppercase; }
 .wr-big  { font-size: clamp(2.4rem, 9vw, 4.2rem); font-weight: 900; line-height: 1.02; text-transform: uppercase; letter-spacing: -1px; }
 .wr-huge { font-size: clamp(4rem, 22vw, 9rem); font-weight: 900; line-height: .9; color: #FFD700; }
 .wr-accent { color: #FFD700; }
 .wr-lead { font-size: 1.15rem; color: #e8e3ff; max-width: 30ch; line-height: 1.4; }
-.wr-sub  { font-size: .9rem; color: #a99ed0; }
-.wr-hint { position: absolute; bottom: 28px; font-size: .8rem; color: #8a7bc0; animation: wrbob 1.6s ease-in-out infinite; }
-@keyframes wrbob { 0%,100%{transform:translateY(0);opacity:.6} 50%{transform:translateY(5px);opacity:1} }
+.wr-sub  { font-size: .9rem; color: #c4bbe6; }
+.wr-hint { position: absolute; bottom: 28px; font-size: .8rem; color: #b9aee0; animation: wrbob 1.6s ease-in-out infinite; }
+@keyframes wrbob { 0%,100%{transform:translateY(0);opacity:.85} 50%{transform:translateY(5px);opacity:1} }
 .wr-portrait { width: 150px; height: 150px; object-fit: contain; filter: drop-shadow(0 8px 20px rgba(0,0,0,.6)); }
 .wr-emoji { font-size: 5rem; }
 .wr-list { list-style: none; padding: 0; margin: 0; width: min(420px, 90vw); }
 .wr-list li { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 1.3rem; }
 .wr-list-rank { font-weight: 900; color: #FFD700; width: 1.4em; }
 .wr-list-name { flex: 1; text-align: left; font-weight: 700; }
-.wr-list-val { color: #a99ed0; font-size: 1rem; }
+.wr-list-val { color: #c4bbe6; font-size: 1rem; }
 .wr-phases { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .wr-phase { font-size: clamp(1.3rem,6vw,2.2rem); font-weight: 900; text-transform: uppercase; }
 .wr-arrow { color: #FFD700; font-size: 1.6rem; }
 .wr-climb { display: flex; align-items: flex-end; gap: 8px; height: 130px; margin-bottom: 6px; }
 .wr-climb-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .wr-climb-bar { width: 26px; border-radius: 5px 5px 0 0; background: linear-gradient(to top, var(--aura2,#1f6feb), #FFD700); }
-.wr-climb-m { font-size: .7rem; color: #a99ed0; }
-.wr-delta.pos { color: #2EBD59; } .wr-delta.neg { color: #ff6b6b; }
+.wr-climb-m { font-size: .7rem; color: #c4bbe6; }
+.wr-delta.pos { color: #4fd67a; } .wr-delta.neg { color: #ff9c9c; }
 .wr-aura-orb {
     width: 160px; height: 160px; border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, var(--aura1), var(--aura2));
@@ -672,7 +675,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
 .wr-firsts li { display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.1); text-align: left; }
 .wr-firsts-icon { font-size: 1.5rem; }
 .wr-firsts-label { font-weight: 800; font-size: 1.1rem; }
-.wr-firsts-when { color: #a99ed0; font-size: .85rem; white-space: nowrap; }
+.wr-firsts-when { color: #c4bbe6; font-size: .85rem; white-space: nowrap; }
 /* Wardrobe portrait strip */
 .wr-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 0; max-width: 520px; }
 .wr-strip-img { width: 64px; height: 64px; object-fit: contain; margin: 0 -8px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.6)); animation: wrpop .5s ease-out both; animation-delay: calc(var(--i, 0) * 60ms); }
@@ -682,17 +685,17 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
 .wr-vs-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .wr-vs-emoji { font-size: 3.2rem; }
 .wr-vs-name { font-weight: 900; font-size: 1.25rem; text-transform: uppercase; }
-.wr-vs-tag { color: #a99ed0; font-size: .75rem; }
+.wr-vs-tag { color: #c4bbe6; font-size: .75rem; }
 .wr-vs-mid { color: #FFD700; font-weight: 900; font-size: 1.4rem; }
 .wr-quote { max-width: 34ch; font-style: italic; color: #cbb9ff; font-size: .95rem; line-height: 1.4; }
-.wr-quote span { display: block; font-style: normal; color: #8a7bc0; font-size: .75rem; margin-top: 4px; }
+.wr-quote span { display: block; font-style: normal; color: #b9aee0; font-size: .75rem; margin-top: 4px; }
 .wr-badge { background: rgba(255,215,0,.12); border: 1px solid rgba(255,215,0,.3); color: #ffe9a8; border-radius: 999px; padding: 3px 10px; font-size: .78rem; }
 .wr-progress { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 50; }
 .wr-progress span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.25); transition: background .2s, transform .2s; }
 .wr-progress span.on { background: #FFD700; transform: scale(1.3); }
 
 /* Summary card (also the downloadable artifact) */
-.wr-summary-slide { background: linear-gradient(160deg, var(--aura1,#241a48), #0a0a0a 70%); }
+.wr-summary-slide { background: linear-gradient(160deg, var(--tint1,#241a48), #0a0a0a 70%); }
 .wr-card { width: min(420px, 92vw); background: linear-gradient(160deg, #241a48, #120c28 55%, #0a0a0a); border: 1px solid #3a2d70; border-radius: 18px; padding: 22px 24px; box-shadow: 0 12px 40px rgba(80,40,160,.3); text-align: left; }
 .wr-card-top { display: flex; justify-content: space-between; align-items: baseline; }
 .wr-year { font-size: 1.8rem; font-weight: 900; color: #FFD700; }
@@ -708,8 +711,8 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
 .wr-card-rows { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
 .wr-card-rows div { display: flex; justify-content: space-between; font-size: .9rem; border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 6px; }
 .wr-card-rows span { color: #b6a8e0; } .wr-card-rows b { color: #fff; }
-.wr-card-foot { text-align: center; color: #8a7bc0; font-size: .75rem; border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px; }
-.wr-restart { margin-top: 10px; } .wr-restart a { color: #8a7bc0; font-size: .85rem; text-decoration: none; }
+.wr-card-foot { text-align: center; color: #b9aee0; font-size: .75rem; border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px; }
+.wr-restart { margin-top: 10px; } .wr-restart a { color: #b9aee0; font-size: .85rem; text-decoration: none; }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
