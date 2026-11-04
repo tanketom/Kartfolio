@@ -2142,7 +2142,7 @@ function getCharacterGroups() {
         'og_stars'   => ['Mario', 'Luigi', 'Peach', 'Daisy'],
         'royals'     => ['Peach', 'Daisy', 'Rosalina'],
         'fungi'      => ['Toad', 'Toadette', 'Peachette'],
-        'humans'     => ['Mii', 'Inkling Boy', 'Inkling Girl', 'Villager', 'Villager (M)', 'Villager (F)'],
+        'humans'     => ['Mii', 'Inkling Boy', 'Inkling Girl', 'Villager', 'Villager (M)', 'Villager (F)', 'Villager (Male)', 'Villager (Female)'],
         'furry'      => ['Tanooki Mario', 'Cat Peach'],
         'koopa_clan' => ['Bowser', 'Dry Bowser', 'Bowser Jr.', 'Koopa Troopa', 'Lakitu', 'Larry', 'Roy', 'Wendy', 'Ludwig', 'Iggy', 'Morton', 'Lemmy', 'Kamek', 'Dry Bones'],
         'reptiles'   => ['Yoshi', 'Birdo', 'Koopa Troopa', 'Dry Bones', 'Lakitu',
