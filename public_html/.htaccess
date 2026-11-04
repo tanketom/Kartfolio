@@ -167,6 +167,7 @@ RewriteRule ^api/gp-story$ api/generate_gp_story.php [L]
 # Admin routes - cleaner admin URLs
 RewriteRule ^admin/racers$ admin/racers.php [L]
 RewriteRule ^admin/seasons$ admin/seasons.php [L]
+RewriteRule ^admin/teams$ admin/teams.php [L,QSA]
 RewriteRule ^admin/results$ admin/results_manage.php [L]
 RewriteRule ^admin/edit-recap$ admin/edit_recap.php [L,QSA]
 RewriteRule ^admin/settings$ admin/settings.php [L,QSA]
