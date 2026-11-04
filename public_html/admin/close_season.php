@@ -206,6 +206,7 @@ $characters = getMKCharacters();
 $seasonLabel = $season['season_name'] ?: strtoupper($seasonId);
 
 // Champion pre-fill
+if ($championTeam = teamSeasonChampionTeam($pdo, $seasonId)) $leader = ['name' => $championTeam];   // the team is the champion
 $championName = $season['champion_name'] ?: ($leader ? $leader['name'] : '');
 $championChar = $season['champion_char'] ?: 'Mii';
 

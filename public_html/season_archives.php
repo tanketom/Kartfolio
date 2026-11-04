@@ -61,9 +61,11 @@ $tournaments = $tournamentsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <h2 class="archive-champion-name">
                         <?= htmlspecialchars($s['champion_name'] ?: 'The Ghost') ?>
                     </h2>
+                    <?php $archiveTeam = teamSeasonChampions($pdo, $s['season_id']); ?>
                     <span class="archive-champion-label">
-                        Season Champion
+                        <?= $archiveTeam ? 'Season Champions' : 'Season Champion' ?>
                     </span>
+                    <?php if ($archiveTeam): ?><span class="archive-champion-label" style="display:block;margin-top:6px;"><?= htmlspecialchars(implode(', ', $archiveTeam)) ?></span><?php endif; ?>
                 </div>
 
                 <div class="archive-card-bottom">

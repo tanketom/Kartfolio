@@ -50,6 +50,13 @@ $ranked = array_values(array_filter($rows, fn($r) => $r['rank'] !== null));
 $winner     = $ranked[0] ?? null;
 $winnerName = $winner['name'] ?? 'The Ghost';
 $winnerChar = ($winner['char'] ?? '') ?: 'Mii';
+$winnerLine = $winnerName;
+// A team season's champion is the team. Its portrait is its own top scorer's.
+if ($teamChamps = teamSeasonChampions($pdo, $seasonId)) {
+    $winnerName = teamSeasonChampionTeam($pdo, $seasonId);
+    $winnerLine = "the team $winnerName, and every racer on it is a season champion: " . implode(', ', $teamChamps);
+    foreach ($ranked as $r) if (isset($teamChamps[$r['id']])) { $winnerChar = ($r['char'] ?? '') ?: 'Mii'; break; }
+}
 
 // 3. The briefing. Each line carries the scoring system's own account of the
 //    number (scoringTooltipFromBreakdown, §2a). It used to say "(88.0 pts)"
@@ -94,7 +101,7 @@ $systemPrompt = "Act as a Mushroom Kingdom sports historian writing the archival
               . "Output the report only — no preamble, no notes about the briefing.";
 
 $userPrompt = "Write the archival report for Season " . strtoupper($seasonId) . ($seasonName !== '' ? " — \"{$seasonName}\"" : '') . ".\n"
-            . "The champion is $winnerName.\n\n"
+            . "The champion is $winnerLine.\n\n"
             . "This season was scored under {$scoringInfo['name']} {$scoringInfo['icon']} — {$scoringInfo['long_description']}\n\n"
             . "$qualLine\n\n"
             . "Final Standings:\n$standingsText";

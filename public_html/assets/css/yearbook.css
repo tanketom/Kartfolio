@@ -154,3 +154,6 @@
 .yb-feature-head strong { font-weight: 700; }
 .yb-lede .yb-feature-head { font-size: 1.05rem; margin: 14px 0 6px; }
 .yb-pull { margin: 22px 0 0; padding: 16px 0 16px 20px; border-left: 5px solid var(--nintendo-red, #E60012); font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 1.28rem; line-height: 1.34; color: #2a262f; text-wrap: balance; }
+
+/* A team season's champions, under the team's name. */
+.yb-champ-team { margin-top: 6px; font-size: 1rem; font-weight: 700; }

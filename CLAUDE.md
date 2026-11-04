@@ -1020,9 +1020,13 @@ Cross-reference if you find half-implemented work:
   someone between teams. A registry system with `team_standings` owns
   `getTeamStandings()`, so badges, honours, /teams and the API all agree; with
   `team_season` the team table leads the homepage and is the ceremony's last
-  envelope (`isTeamSeason()`). The Constructor badge and the team-title honour go
-  to the winners' FINAL roster, so a racer swapped off the winning team gets
-  neither. The Lounge sign gets a team panel in the map's slot
+  envelope (`isTeamSeason()`). **Every racer on the top team's final roster who
+  raced is a season champion** (`teamSeasonChampions()`), so one swapped off the
+  winning team is not. They finish joint first in `seasonPlacements()`, which is
+  what reaches the medals, the all-time ledger and the cards, and the next racer
+  is placed after them. `season_meta.champion_name` holds one string, the TEAM's on
+  these seasons: anything counting a racer's titles reads `seasonTitleHolders()`,
+  never that column. The Lounge sign gets a team panel in the map's slot
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),

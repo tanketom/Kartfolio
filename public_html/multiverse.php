@@ -34,7 +34,7 @@ foreach ($seasons as $s) {
         if ($r['top']) { $decided++; $n = $r['top'][0]['name']; $counts[$n] = ($counts[$n] ?? 0) + 1; $wins[$n][$sid] = ($wins[$n][$sid] ?? 0) + 1; }
     }
     arsort($counts);
-    $perSeason[$sid] = ['real_system' => $s['scoring_system'], 'real_champion' => trim((string)$s['champion_name']), 'counts' => $counts, 'decided' => $decided];
+    $perSeason[$sid] = ['real_system' => $s['scoring_system'], 'real_champion' => isTeamSeason($pdo, $sid) ? '' : trim((string)$s['champion_name']), 'counts' => $counts, 'decided' => $decided];
 }
 $seasonIds = array_keys($universe);
 $totalUniverses = array_sum(array_column($perSeason, 'decided'));

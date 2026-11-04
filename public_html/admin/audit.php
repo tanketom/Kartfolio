@@ -58,7 +58,8 @@ foreach ($q("SELECT m.season_id FROM season_meta m WHERE m.status = 'archived' A
 foreach ($q("SELECT season_id FROM season_meta WHERE status = 'archived' AND scoring_system = 'territory' AND season_id NOT IN (SELECT season_id FROM season_maps)") as $r)
     $rows[] = [strtoupper($r['season_id']), 'Territory season archived without a frozen map', '/admin/close-season', 'Close Season'];
 foreach ($q("SELECT m.season_id, m.champion_name FROM season_meta m WHERE m.status = 'archived' AND m.champion_name IS NOT NULL AND TRIM(m.champion_name) != '' AND TRIM(m.champion_name) NOT IN (SELECT name FROM racers)") as $r)
-    $rows[] = [strtoupper($r['season_id']), "champion \"{$r['champion_name']}\" is not a racer name", '/admin/seasons', 'Seasons'];
+    if (!isTeamSeason($pdo, $r['season_id']))   // there the champion is the team
+        $rows[] = [strtoupper($r['season_id']), "champion \"{$r['champion_name']}\" is not a racer name", '/admin/seasons', 'Seasons'];
 $active = $q("SELECT season_id FROM season_meta WHERE status = 'active'");
 if (count($active) > 1) $rows[] = [implode(', ', array_map('strtoupper', array_column($active, 'season_id'))), 'more than one season is active', '/admin/seasons', 'Seasons'];
 if (count($active) === 0) {

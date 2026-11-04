@@ -164,6 +164,8 @@ usort($standings, function ($a, $b) {
 });
 $champion     = $season['champion_name'] ?: ($standings[0]['name'] ?? '—');
 $championChar = $season['champion_char'] ?: ($standings[0]['char'] ?? 'Mii');
+$championTeam = teamSeasonChampions($pdo, $sid);   // [] unless the title is a team's
+if ($championTeam) $champion = teamSeasonChampionTeam($pdo, $sid);
 
 // ── Superlatives: one pass over the season cache ───────────────────────────
 $agg = [];
@@ -269,8 +271,9 @@ include __DIR__ . '/../private/templates/header.php';
                 <div class="yb-dates"><?= htmlspecialchars($dateRange) ?></div>
                 <div class="yb-champ">
                     <img src="/assets/img/<?= rawurlencode($championChar) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="" class="yb-champ-img">
-                    <div class="yb-champ-label">Champion</div>
+                    <div class="yb-champ-label"><?= $championTeam ? 'Champions' : 'Champion' ?></div>
                     <div class="yb-champ-name"><?= htmlspecialchars($champion) ?></div>
+                    <?php if ($championTeam): ?><div class="yb-champ-team"><?= htmlspecialchars(implode(', ', $championTeam)) ?></div><?php endif; ?>
                 </div>
             </div>
             <div class="yb-cover-facts">
@@ -478,9 +481,9 @@ include __DIR__ . '/../private/templates/header.php';
             <div class="yb-back-champ">
                 <img src="/assets/img/<?= rawurlencode($championChar) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="" class="yb-back-champ-img">
                 <div>
-                    <div class="yb-champ-label">Season champion</div>
+                    <div class="yb-champ-label"><?= $championTeam ? 'Season champions' : 'Season champion' ?></div>
                     <div class="yb-back-champ-name"><?= htmlspecialchars($champion) ?></div>
-                    <div class="yb-back-champ-sub"><?= (int)($standings[0]['gps'] ?? 0) ?> Grands Prix · <?= (int)($standings[0]['wins'] ?? 0) ?> wins</div>
+                    <div class="yb-back-champ-sub"><?php if ($championTeam): ?><?= htmlspecialchars(implode(', ', $championTeam)) ?><?php else: ?><?= (int)($standings[0]['gps'] ?? 0) ?> Grands Prix · <?= (int)($standings[0]['wins'] ?? 0) ?> wins<?php endif; ?></div>
                 </div>
             </div>
             <div class="yb-colophon">

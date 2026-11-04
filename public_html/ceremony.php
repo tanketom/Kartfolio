@@ -106,7 +106,7 @@ $teamWinner = null;
 try {
     $teamTable = moduleEnabled($pdo, 'teams') ? getTeamStandings($pdo, $seasonId) : [];
     if ($teamTable && (float)$teamTable[0]['score'] > 0) {
-        $teamWinner = ['category' => 'Team Champions', 'winner' => $teamTable[0]['name'], 'sub' => (int)$teamTable[0]['score'] . ' points · ' . implode(', ', $teamTable[0]['members'])];
+        $teamWinner = ['category' => 'Team Champions', 'winner' => $teamTable[0]['name'], 'sub' => (int)$teamTable[0]['score'] . ' points · ' . implode(', ', teamSeasonChampions($pdo, $seasonId) ?: $teamTable[0]['members'])];
     }
 } catch (Throwable $e) {}
 if ($teamWinner && !$teamSeason) $honours[] = $teamWinner;

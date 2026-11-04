@@ -342,7 +342,7 @@ function getScoringSystemRegistry(): array {
             'name'                   => 'Roll Call',
             'icon'                   => '📣',
             'description'            => fn($rules) => 'A team season: ' . rollCallKnobs((array)$rules)['show'] . ' for racing in a week, ' . rollCallKnobs((array)$rules)['beat'] . ' for beating your own average',
-            'long_description'       => "A team season built for a league nobody can schedule. Each week you race, your team gets a point; if any of your GPs that week beats your own number, it gets three instead. Your number is your career average from before the season, so a beginner and a veteran are each racing themselves. A newcomer's first GP counts as a beat, and after that their number is their own running average. Racing five times in a week earns no more than racing once, and staying home costs nothing. Last season's most active racers are drawn into the teams from pots; everyone else joins on their first race, on the team that has the fewest racers so far. At the halfway point the most-present team's second most-present racer swaps with the least-present team's least-present racer, and points stay with the team that earned them. The title is the team's; the individual table shows who has contributed most.",
+            'long_description'       => "A team season built for a league nobody can schedule. Each week you race, your team gets a point; if any of your GPs that week beats your own number, it gets three instead. Your number is your career average from before the season, so a beginner and a veteran are each racing themselves. A newcomer's first GP counts as a beat, and after that their number is their own running average. Racing five times in a week earns no more than racing once, and staying home costs nothing. Last season's most active racers are drawn into the teams from pots; everyone else joins on their first race, on the team that has the fewest racers so far. At the halfway point the most-present team's second most-present racer swaps with the least-present team's least-present racer, and points stay with the team that earned them. The title is the team's: everyone on the top team at the end who has raced is a season champion. The individual table shows who has contributed most.",
             'calculate'              => 'calculateRollCallScore',
             'breakdown'              => 'breakdownRollCall',
             'tooltip'                => 'tooltipRollCall',
@@ -2708,6 +2708,43 @@ function rollCallTeamStandings(PDO $pdo, string $season_id): array {
     return $out;
 }
 
+/**
+ * Who holds a team season's title: everyone on the top team's final roster who
+ * raced that season. [racer_id => name]; [] off a team season, or before a team
+ * has a point. Someone drawn who never turned up is on the roster but did not
+ * win anything, and the swap can put exactly that racer on the winning team.
+ */
+function teamSeasonChampions(PDO $pdo, string $season_id): array {
+    if (!isTeamSeason($pdo, $season_id)) return [];
+    $table = getTeamStandings($pdo, $season_id);
+    if (!$table || $table[0]['score'] <= 0) return [];
+    return array_intersect_key($table[0]['members'], getSeasonResultsByRacer($pdo, $season_id));
+}
+
+/** The name a team season's champion goes by (the team's), or null off a team season. */
+function teamSeasonChampionTeam(PDO $pdo, string $season_id): ?string {
+    if (!teamSeasonChampions($pdo, $season_id)) return null;
+    return getTeamStandings($pdo, $season_id)[0]['name'];
+}
+
+/**
+ * Every archived season's title holders, as racer names, in season order:
+ * [season_id => [names]]. season_meta.champion_name holds one name, which on a
+ * team season is the team's, so anything counting a RACER's titles reads this
+ * instead of that column.
+ */
+function seasonTitleHolders(PDO $pdo): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = [];
+    foreach ($pdo->query("SELECT season_id, champion_name FROM season_meta WHERE status = 'archived' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_ASSOC) as $s) {
+        $team = teamSeasonChampions($pdo, $s['season_id']);
+        $one  = trim((string)$s['champion_name']);
+        $cache[$s['season_id']] = $team ? array_values($team) : ($one !== '' ? [$one] : []);
+    }
+    return $cache;
+}
+
 /** The racers moved by the halfway swap, or [] before it has happened. */
 function rollCallSwapMoves(PDO $pdo, string $season_id): array {
     try {
@@ -2786,7 +2823,7 @@ function teamBriefingText(PDO $pdo, string $season_id): string {
     if (!$table) return '';
     $team = isTeamSeason($pdo, $season_id);
     $out = "*** THE TEAMS" . ($team ? ' — THIS IS WHAT THE SEASON IS PLAYED FOR' : '') . " ***\n" . teamScoringLine($pdo, $season_id) . ".\n";
-    if ($team) $out .= "Each racer's number is their own average: they are racing that, not each other. Nobody loses points for staying home. The individual table is who has contributed most; the title is the team's.\n";
+    if ($team) $out .= "Each racer's number is their own average: they are racing that, not each other. Nobody loses points for staying home. The individual table is who has contributed most; the title is the team's, and every racer on the winning team is a season champion.\n";
     foreach ($table as $i => $t) {
         $out .= ($i + 1) . ". {$t['name']} — {$t['score']} pts — " . ($t['members'] ? implode(', ', $t['members']) : 'no members') . "\n";
     }
@@ -4031,8 +4068,14 @@ function seasonPlacements(PDO $pdo, string $season_id): array {
         $rows[] = ['id' => (int)$rid, 'name' => (string)($names[$rid] ?? ''), 'score' => calculateGPScore($pdo, (int)$rid, $season_id)];
     }
     sortStandingsByScoring($rows, $rules['scoring_system'] ?? 'average_attendance', $pdo, $season_id);
-    $place = [];
-    foreach ($rows as $i => $r) $place[$r['id']] = $i + 1;
+    // On a team season the whole winning team finishes joint first, and the next
+    // racer is placed after them, as with any tie: five champions, then 6th. That
+    // is what makes them champions everywhere a place is read (medals, the
+    // all-time ledger, trading cards). The standings still rank individuals.
+    $champs = teamSeasonChampions($pdo, $season_id);
+    $place = []; $next = 1;
+    foreach ($rows as $r) if (isset($champs[$r['id']])) { $place[$r['id']] = 1; $next++; }
+    foreach ($rows as $r) if (!isset($champs[$r['id']])) $place[$r['id']] = $next++;
     return $cache[$season_id] = ['place' => $place, 'field' => count($rows)];
 }
 

@@ -82,7 +82,8 @@ function careerHonours(PDO $pdo, int $racerId, string $racerName): array {
             if (!in_array($ts, $archived, true)) continue;
             $st = getTeamStandings($pdo, (string)$ts);
             if (empty($st) || ($st[0]['score'] ?? 0) <= 0) continue;
-            if (isset($st[0]['members'][$racerId])) $teams[] = strtoupper((string)$ts);
+            $winners = teamSeasonChampions($pdo, (string)$ts) ?: $st[0]['members'];
+            if (isset($winners[$racerId])) $teams[] = strtoupper((string)$ts);
         }
     } catch (Throwable $e) { $teams = []; }
     $add('🏗️', 'Team titles', $teams, 'Seasons won with a team');

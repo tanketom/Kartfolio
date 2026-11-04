@@ -126,13 +126,16 @@ function badgeCareerContext($pdo) {
         }
     }
 
-    // ── Dynasty: longest run of consecutive archived-season titles, by champion name ──
-    $dynastyRun = []; $run = 0; $prevChamp = null;
-    foreach ($pdo->query("SELECT season_id, champion_name FROM season_meta WHERE status = 'archived' AND champion_name IS NOT NULL AND champion_name != '' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_ASSOC) as $c) {
-        $n = trim((string)$c['champion_name']);
-        $run = ($n === $prevChamp) ? $run + 1 : 1;
-        $prevChamp = $n;
-        $dynastyRun[$n] = max($dynastyRun[$n] ?? 0, $run);
+    // ── Dynasty: longest run of consecutive archived-season titles, by holder ──
+    $dynastyRun = []; $runNow = [];
+    foreach (seasonTitleHolders($pdo) as $holders) {
+        if (!$holders) continue;   // a season nobody was named champion of breaks no run
+        $next = [];
+        foreach ($holders as $n) {
+            $next[$n] = ($runNow[$n] ?? 0) + 1;
+            $dynastyRun[$n] = max($dynastyRun[$n] ?? 0, $next[$n]);
+        }
+        $runNow = $next;   // a season without you ends your run
     }
 
     // ── Career placements across ARCHIVED seasons, in season order —
@@ -148,7 +151,7 @@ function badgeCareerContext($pdo) {
             if (!in_array($ts, $archivedSeasons, true)) continue;   // live seasons are provisional
             $st = getTeamStandings($pdo, $ts);
             if (empty($st) || ($st[0]['score'] ?? 0) <= 0) continue;
-            foreach (array_keys($st[0]['members']) as $rid) $constructorWinners[(int)$rid] = true;
+            foreach (array_keys(teamSeasonChampions($pdo, $ts) ?: $st[0]['members']) as $rid) $constructorWinners[(int)$rid] = true;
         }
     } catch (PDOException $e) { /* teams tables absent */ }
 

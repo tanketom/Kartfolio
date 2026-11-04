@@ -53,6 +53,12 @@ $rcSum = 0; foreach (rollCallSeason($pdo, 's04', getSeasonRules($pdo, 's04'))['r
 $ok('every point in the fixture season reached a team', count($rcTable) === 3 && array_sum(array_column($rcTable, 'score')) === $rcSum, array_sum(array_column($rcTable, 'score')) . " of $rcSum");
 $ok('nobody who raced is left without a team', !array_diff(array_keys(getSeasonResultsByRacer($pdo, 's04')), array_merge(...array_map(fn($t) => array_keys($t['members']), $rcTable))));
 
+$rcChamps = teamSeasonChampions($pdo, 's04');
+$rcPlace = seasonPlacements($pdo, 's04')['place'];
+$ok('every racer on the top team who raced is a champion', $rcChamps && count($rcChamps) === count(array_intersect_key($rcTable[0]['members'], getSeasonResultsByRacer($pdo, 's04'))));
+$ok('the champions finish joint first, and the next racer after them', !array_diff_key($rcChamps, array_filter($rcPlace, fn($p) => $p === 1)) && count(array_keys($rcPlace, 1, true)) === count($rcChamps) && (count($rcPlace) === count($rcChamps) || min(array_diff($rcPlace, [1])) === count($rcChamps) + 1));
+$ok('the season title holders are the racers, not the team', (seasonTitleHolders($pdo)['s04'] ?? []) === array_values($rcChamps));
+
 // ── registry shape ──
 echo "registry\n";
 foreach (getScoringSystemRegistry() as $key => $def) {

@@ -72,8 +72,8 @@ usort($milestones, function ($a, $b) {
 });
 
 // 2. Fetch "Season Wins" (Count how many times they were Champion)
-$champsStmt = $pdo->query("SELECT champion_name, COUNT(*) as titles FROM season_meta WHERE status = 'archived' GROUP BY champion_name");
-$titles = $champsStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+$titles = [];
+foreach (seasonTitleHolders($pdo) as $holders) foreach ($holders as $champ) $titles[$champ] = ($titles[$champ] ?? 0) + 1;
 
 // 3. Fetch Tournament Wins
 $tournamentWinsStmt = $pdo->query("
@@ -124,15 +124,9 @@ foreach (array_slice($careerStats, 0, 8) as $row) {
                 <tbody>
                     <?php
                     // Fetch detailed season and tournament win information
-                    $seasonDetailsStmt = $pdo->query("
-                        SELECT champion_name, season_id
-                        FROM season_meta
-                        WHERE status = 'archived'
-                        ORDER BY season_id ASC
-                    ");
                     $seasonDetails = [];
-                    foreach ($seasonDetailsStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                        $seasonDetails[$row['champion_name']][] = 'Season ' . strtoupper($row['season_id']);
+                    foreach (seasonTitleHolders($pdo) as $sid => $holders) {
+                        foreach ($holders as $champ) $seasonDetails[$champ][] = 'Season ' . strtoupper($sid);
                     }
 
                     $tournamentDetailsStmt = $pdo->query("

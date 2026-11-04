@@ -46,10 +46,9 @@ foreach ($pdo->query("
     $character[(int)$c['racer_id']] ??= $c['character_used'];
 }
 
-// Season titles, from the champion frozen into each archived season.
+// Season titles, from each archived season's holders (a whole team, on a team season).
 $titles = [];
-foreach ($pdo->query("SELECT champion_name FROM season_meta WHERE status = 'archived' AND champion_name IS NOT NULL AND champion_name != ''")
-             ->fetchAll(PDO::FETCH_COLUMN) as $champ) {
+foreach (seasonTitleHolders($pdo) as $holders) foreach ($holders as $champ) {
     $titles[mb_strtolower($champ)] = ($titles[mb_strtolower($champ)] ?? 0) + 1;
 }
 
