@@ -53,6 +53,8 @@ $rcSum = 0; foreach (rollCallSeason($pdo, 's04', getSeasonRules($pdo, 's04'))['r
 $ok('every point in the fixture season reached a team', count($rcTable) === 3 && array_sum(array_column($rcTable, 'score')) === $rcSum, array_sum(array_column($rcTable, 'score')) . " of $rcSum");
 $ok('nobody who raced is left without a team', !array_diff(array_keys(getSeasonResultsByRacer($pdo, 's04')), array_merge(...array_map(fn($t) => array_keys($t['members']), $rcTable))));
 
+$ok('a draw can come from one season, the last three, or all', teamSeasonRefSeasons($pdo, 's04', 's01') === ['s01'] && teamSeasonRefSeasons($pdo, 's04', 'all') === ['s03', 's02', 's01'] && teamSeasonRefSeasons($pdo, 's04', 'last3') === ['s03', 's02', 's01'] && teamSeasonRefSeasons($pdo, 's03', 'last3') === ['s02', 's01'] && teamSeasonRefSeasons($pdo, 's04', 'nonsense') === []);
+$ok('pots from several seasons respect the size asked for', count(array_merge(...teamSeasonPots($pdo, 's04', 'all', 3, 2))) === 6);
 $rcChamps = teamSeasonChampions($pdo, 's04');
 $rcPlace = seasonPlacements($pdo, 's04')['place'];
 $ok('every racer on the top team who raced is a champion', $rcChamps && count($rcChamps) === count(array_intersect_key($rcTable[0]['members'], getSeasonResultsByRacer($pdo, 's04'))));

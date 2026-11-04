@@ -14,18 +14,38 @@ require_once __DIR__ . '/gp_logic.php';
 const TEAM_SEASON_COLOURS = ['#e60012', '#0a84ff', '#2fb344', '#ffb400', '#9b59b6', '#00a3a3'];
 
 /**
- * The racers a draw would use: the most active of $refSeason (weeks raced, then
- * GPs), retired racers excluded, split into pots of one per team. Pot 1 is the
- * most active. [[['id','name','weeks','gps'], …], …]
+ * The racers a draw would use: the most active of $ref (weeks raced, then GPs),
+ * retired racers excluded, split into pots of one per team. Pot 1 is the most
+ * active. [[['id','name','weeks','gps'], …], …]
+ *
+ * $ref is a season id, 'last3' or 'all' (see teamSeasonRefSeasons).
  */
-function teamSeasonPots(PDO $pdo, string $refSeason, int $teams, int $perTeam): array {
+function teamSeasonPots(PDO $pdo, string $season_id, string $ref, int $teams, int $perTeam): array {
     $teams = max(1, $teams);
+    $from  = teamSeasonRefSeasons($pdo, $season_id, $ref);
+    if (!$from) return [];
     $st = $pdo->prepare("SELECT r.id, r.name, COUNT(DISTINCT strftime('%Y-%W', x.race_date)) AS weeks, COUNT(*) AS gps
                          FROM results x JOIN racers r ON r.id = x.racer_id
-                         WHERE x.gpid LIKE ? AND COALESCE(r.is_retired, 0) = 0
+                         WHERE x.gpid LIKE 's%' AND substr(x.gpid, 1, 3) IN (" . implode(',', array_fill(0, count($from), '?')) . ")
+                           AND COALESCE(r.is_retired, 0) = 0
                          GROUP BY r.id ORDER BY weeks DESC, gps DESC, r.name ASC LIMIT " . (int)($teams * max(1, $perTeam)));
-    $st->execute([$refSeason . '%']);
+    $st->execute($from);
     return array_chunk($st->fetchAll(PDO::FETCH_ASSOC), $teams);
+}
+
+/** The seasons a draw reference covers: one season, the last three before this one, or all before it. */
+function teamSeasonRefSeasons(PDO $pdo, string $season_id, string $ref): array {
+    if (preg_match('/^s[0-9]{2}$/', $ref)) return [$ref];
+    if ($ref !== 'all' && $ref !== 'last3') return [];
+    $st = $pdo->prepare("SELECT DISTINCT substr(gpid, 1, 3) FROM results WHERE gpid LIKE 's%' AND substr(gpid, 1, 3) < ? ORDER BY 1 DESC");
+    $st->execute([$season_id]);
+    $all = $st->fetchAll(PDO::FETCH_COLUMN);
+    return $ref === 'last3' ? array_slice($all, 0, 3) : $all;
+}
+
+/** A draw reference in words, for the flash message. */
+function teamSeasonRefLabel(string $ref): string {
+    return ['all' => 'all seasons', 'last3' => 'the last 3 seasons'][$ref] ?? strtoupper($ref);
 }
 
 /** The default season to draw from: the latest before this one with at least four weeks of racing. */
@@ -52,7 +72,7 @@ function teamSeasonRacedMembers(PDO $pdo, string $season_id): int {
  * teams if the season has none. Refused once a drawn racer has raced — by then
  * the teams are real. Returns [team name => [racer names]].
  */
-function teamSeasonDraw(PDO $pdo, string $season_id, string $refSeason, int $teamCount, int $perTeam): array {
+function teamSeasonDraw(PDO $pdo, string $season_id, string $ref, int $teamCount, int $perTeam): array {
     if (teamSeasonRacedMembers($pdo, $season_id) > 0) {
         throw new RuntimeException('Racers on these teams have already raced, so the draw is closed. Move people by hand below.');
     }
@@ -75,7 +95,7 @@ function teamSeasonDraw(PDO $pdo, string $season_id, string $refSeason, int $tea
         $pdo->prepare("DELETE FROM team_stints WHERE season_id = ?")->execute([$season_id]);
 
         $size = array_fill_keys($teams, 0);
-        foreach (teamSeasonPots($pdo, $refSeason, count($teams), $perTeam) as $pot) {
+        foreach (teamSeasonPots($pdo, $season_id, $ref, count($teams), $perTeam) as $pot) {
             shuffle($pot);
             // Shuffled, then smallest first: a short last pot must not all land on the same teams.
             $order = $teams; shuffle($order);

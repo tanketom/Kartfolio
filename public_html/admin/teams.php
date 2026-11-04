@@ -45,12 +45,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
     } elseif ($action === 'draw_teams') {
         $ref = strtolower((string)($_POST['ref_season'] ?? ''));
-        if (!preg_match('/^s[0-9]{2}$/', $ref)) {
+        if (!preg_match('/^(s[0-9]{2}|all|last3)$/', $ref)) {
             $message = "Pick a season to draw from.";
         } else {
             try {
                 $drawn = teamSeasonDraw($pdo, $season, $ref, max(2, min(6, (int)($_POST['team_count'] ?? 3))), max(1, min(10, (int)($_POST['per_team'] ?? 3))));
-                $message = "Drawn from " . strtoupper($ref) . ". " . implode(' · ', array_map(fn($n, $m) => "$n: " . implode(', ', $m), array_keys($drawn), $drawn));
+                $message = "Drawn from " . teamSeasonRefLabel($ref) . ". " . implode(' · ', array_map(fn($n, $m) => "$n: " . implode(', ', $m), array_keys($drawn), $drawn));
             } catch (Throwable $e) {
                 $message = $e->getMessage();
             }
@@ -128,10 +128,11 @@ foreach ($pool as $id => $name) $racers[] = ['id' => $id, 'name' => $name];
 
 // The draw: what the pots would be, shown before anyone presses the button.
 $drawOpen = $teamSeason && teamSeasonRacedMembers($pdo, $selectedSeason) === 0;
-$refSeason = strtolower((string)($_GET['ref'] ?? '')) ?: teamSeasonDefaultReference($pdo, $selectedSeason);
+$refSeason = strtolower((string)($_GET['ref'] ?? ''));
+if (!preg_match('/^(s[0-9]{2}|all|last3)$/', $refSeason)) $refSeason = teamSeasonDefaultReference($pdo, $selectedSeason);
 $teamCount = $teams ? count($teams) : max(2, min(6, (int)($_GET['n'] ?? 3)));
 $perTeam   = max(1, min(10, (int)($_GET['per'] ?? 3)));
-$drawPots  = ($drawOpen && $refSeason) ? teamSeasonPots($pdo, $refSeason, $teamCount, $perTeam) : [];
+$drawPots  = ($drawOpen && $refSeason) ? teamSeasonPots($pdo, $selectedSeason, $refSeason, $teamCount, $perTeam) : [];
 $swapDate  = $teamSeason ? rollCallSwapDate(getSeasonRules($pdo, $selectedSeason)) : null;
 $swapMoves = $teamSeason ? rollCallSwapMoves($pdo, $selectedSeason) : [];
 
@@ -177,6 +178,8 @@ include __DIR__ . '/../../private/templates/header.php';
                 <input type="hidden" name="season" value="<?= htmlspecialchars($selectedSeason) ?>">
                 <label>Most active in
                     <select name="ref" onchange="this.form.submit()">
+                        <option value="last3" <?= $refSeason === 'last3' ? 'selected' : '' ?>>Last 3 seasons</option>
+                        <option value="all" <?= $refSeason === 'all' ? 'selected' : '' ?>>All seasons</option>
                         <?php foreach ($seasons as $s): if ($s >= $selectedSeason) continue; ?>
                             <option value="<?= htmlspecialchars($s) ?>" <?= $s === $refSeason ? 'selected' : '' ?>><?= strtoupper(htmlspecialchars($s)) ?></option>
                         <?php endforeach; ?>
@@ -315,7 +318,8 @@ include __DIR__ . '/../../private/templates/header.php';
 .tm-team-edit input[type=text] { flex:1; min-width:140px; background:var(--gray-50); color:var(--gray-900); border:1px solid #333; padding:5px 8px; border-radius:4px; font-weight:800; }
 .tm-team-edit input[type=color] { width:36px; height:30px; border:1px solid #333; background:transparent; border-radius:4px; padding:0; }
 .tm-draw-opts { display:flex; gap:16px; flex-wrap:wrap; align-items:center; margin:12px 0; }
-.tm-draw-opts select, .tm-draw-opts input { background:var(--gray-50); color:var(--gray-900); border:1px solid #333; padding:5px 8px; border-radius:4px; margin-left:6px; width:auto; max-width:90px; }
+.tm-draw-opts select, .tm-draw-opts input { background:var(--gray-50); color:var(--gray-900); border:1px solid #333; padding:5px 8px; border-radius:4px; margin-left:6px; width:auto; }
+.tm-draw-opts input { max-width:90px; }
 .tm-pots { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; margin-bottom:14px; }
 .tm-pot { background:var(--gray-200); border:1px solid #222; border-radius:8px; padding:10px 14px; }
 .tm-pot-h { font-weight:800; margin-bottom:6px; }
