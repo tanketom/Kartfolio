@@ -43,6 +43,11 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
+# The character list offers two Villagers and there is one portrait. Without
+# this the image 404s and every page's onerror shows the Mii instead. A real
+# "Villager (Female).png" still wins, because of the file check above.
+RewriteRule "^assets/img/Villager \((Male|Female)\)\.png$" assets/img/Villager.png [L]
+
 # Standardize underscore URLs to hyphens (301 permanent redirect)
 RewriteRule ^add_result(.*)$ /add-result$1 [R=301,L]
 RewriteRule ^view_recap(.*)$ /view-recap$1 [R=301,L]

@@ -103,7 +103,7 @@ include __DIR__ . '/../private/templates/header.php';
                         <span class="pwr-movement pwr-flat">&ndash;</span>
                     <?php endif; ?>
                 </div>
-                <img class="pwr-portrait" src="/assets/img/<?= urlencode($r['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="<?= htmlspecialchars($r['char']) ?>">
+                <img class="pwr-portrait" src="/assets/img/<?= rawurlencode($r['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'" alt="<?= htmlspecialchars($r['char']) ?>">
                 <div class="pwr-info">
                     <div class="pwr-name"><?= htmlspecialchars($r['name']) ?></div>
                     <div class="pwr-meta">

@@ -10,6 +10,8 @@ $uri  = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 $root = __DIR__ . '/../public_html';
 $decoded = rawurldecode($uri);   // character art has spaces in its filenames
 if ($uri !== '/' && (is_file($root . $uri) || is_file($root . $decoded))) return false;            // static asset or explicit .php
+// One portrait for both Villagers, as in .htaccess.
+if (preg_match('#^/assets/img/Villager \((Male|Female)\)\.png$#', $decoded) && is_file($root . '/assets/img/Villager.png')) { header('Content-Type: image/png'); readfile($root . '/assets/img/Villager.png'); return true; }
 if ($uri === '/') { require $root . '/index.php'; return true; }
 if (preg_match('#^/season/([a-z0-9]+)$#', $uri, $m)) { $_GET['season'] = $m[1]; require $root . '/index.php'; return true; }
 // Pages that merged into another; the live .htaccess 301s these too.
