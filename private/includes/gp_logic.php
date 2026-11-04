@@ -2460,7 +2460,7 @@ function getTeamConfig(PDO $pdo, string $season_id): array {
 function getTeamStandings(PDO $pdo, string $season_id): array {
     // A system that scores its own teams says so in the registry (Roll Call).
     $own = getScoringSystemDef(getSeasonRules($pdo, $season_id)['scoring_system'] ?? 'average_attendance')['team_standings'] ?? null;
-    if ($own !== null) return $own($pdo, $season_id);
+    if ($own !== null) return teamStandingRanks($own($pdo, $season_id));
 
     $teams = getTeamConfig($pdo, $season_id);
     if (empty($teams)) return [];
@@ -2495,7 +2495,20 @@ function getTeamStandings(PDO $pdo, string $season_id): array {
     }
 
     usort($standings, fn($a, $b) => ($b['score'] <=> $a['score']) ?: strcmp($a['name'], $b['name']));
-    return $standings;
+    return teamStandingRanks($standings);
+}
+
+/**
+ * Adds 'rank' to a sorted team table: teams on the same score share a rank and
+ * the next team skips it (1, 1, 3). Every surface prints this, not its row
+ * number, or three teams on 0 points get gold, silver and bronze.
+ */
+function teamStandingRanks(array $table): array {
+    foreach ($table as $i => &$t) {
+        $t['rank'] = ($i > 0 && $t['score'] == $table[$i - 1]['score']) ? $table[$i - 1]['rank'] : $i + 1;
+    }
+    unset($t);
+    return $table;
 }
 
 // ============================================================================
@@ -2824,8 +2837,8 @@ function teamBriefingText(PDO $pdo, string $season_id): string {
     $team = isTeamSeason($pdo, $season_id);
     $out = "*** THE TEAMS" . ($team ? ' — THIS IS WHAT THE SEASON IS PLAYED FOR' : '') . " ***\n" . teamScoringLine($pdo, $season_id) . ".\n";
     if ($team) $out .= "Each racer's number is their own average: they are racing that, not each other. Nobody loses points for staying home. The individual table is who has contributed most; the title is the team's, and every racer on the winning team is a season champion.\n";
-    foreach ($table as $i => $t) {
-        $out .= ($i + 1) . ". {$t['name']} — {$t['score']} pts — " . ($t['members'] ? implode(', ', $t['members']) : 'no members') . "\n";
+    foreach ($table as $t) {
+        $out .= "{$t['rank']}. {$t['name']} — {$t['score']} pts — " . ($t['members'] ? implode(', ', $t['members']) : 'no members') . "\n";
     }
     if ($team && ($moves = rollCallSwapMoves($pdo, $season_id))) {
         $out .= 'The halfway swap moved: ' . implode(', ', array_map(fn($m) => "{$m['racer']} to {$m['team']}", $moves)) . ". Points earned before it stayed with the old team.\n";

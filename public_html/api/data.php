@@ -133,7 +133,7 @@ switch ($resource) {
         $out = [];
         foreach (getTeamStandings($pdo, $season) as $i => $t) {
             $out[] = [
-                'rank'    => $i + 1,
+                'rank'    => $t['rank'],
                 'name'    => $t['name'],
                 'color'   => $t['color'],
                 'score'   => (int)$t['score'],

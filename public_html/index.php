@@ -249,7 +249,7 @@ $liveFormatLabels = [
             ?>
             <a href="/teams?season=<?= htmlspecialchars($seasonId) ?>" class="team-home-card" style="--team-color: <?= htmlspecialchars($t['color']) ?>;">
                 <div class="team-home-top">
-                    <span class="team-home-medal"><?= $tMedals[$tIdx] ?? ('#' . ($tIdx + 1)) ?></span>
+                    <span class="team-home-medal"><?= $tMedals[$t['rank'] - 1] ?? ('#' . $t['rank']) ?></span>
                     <span class="team-home-name"><?= htmlspecialchars($t['name']) ?></span>
                     <span class="team-home-score"><?= (int)$t['score'] ?></span>
                 </div>

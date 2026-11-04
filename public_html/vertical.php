@@ -109,7 +109,7 @@ while($row = $newsStmt->fetch()) {
             <?php foreach ($signTeams as $i => $t): ?>
             <div class="sp-team" style="--team-color: <?= htmlspecialchars($t['color']) ?>">
                 <div class="sp-team-head">
-                    <span class="sp-team-rank"><?= $i + 1 ?></span>
+                    <span class="sp-team-rank"><?= (int)$t['rank'] ?></span>
                     <span class="sp-team-name"><?= htmlspecialchars($t['name']) ?></span>
                     <span class="sp-team-score"><?= (int)$t['score'] ?></span>
                 </div>

@@ -92,7 +92,7 @@ include __DIR__ . '/../private/templates/header.php';
     <?php else: ?>
         <div class="teams-standings">
             <?php foreach ($standings as $idx => $t):
-                $rank = $idx + 1;
+                $rank = $t['rank'];
                 $medal = $rank === 1 ? '🥇' : ($rank === 2 ? '🥈' : ($rank === 3 ? '🥉' : ''));
             ?>
                 <div class="team-row" style="border-left-color: <?= htmlspecialchars($t['color']) ?>;">
