@@ -1024,9 +1024,33 @@ Cross-reference if you find half-implemented work:
   raced is a season champion** (`teamSeasonChampions()`), so one swapped off the
   winning team is not. They finish joint first in `seasonPlacements()`, which is
   what reaches the medals, the all-time ledger and the cards, and the next racer
-  is placed after them. `season_meta.champion_name` holds one string, the TEAM's on
+  is placed after them. Only once the season is over (`$final`, or status
+  `archived`): mid-season the leading team would all read 1st on their profiles. `season_meta.champion_name` holds one string, the TEAM's on
   these seasons: anything counting a racer's titles reads `seasonTitleHolders()`,
   never that column. The Lounge sign gets a team panel in the map's slot
+- **This looks wrong** — a box on every GP page writes to `result_flags` (POST +
+  CSRF + `throttleAllow('result_flag', 5, 10)`, no name or IP stored). Open flags
+  lead `/admin/audit`, count beside it in the Admin menu, and are closed there. The
+  note is never shown publicly and never reaches a writer
+- **Link previews** — `header.php` prints Open Graph tags on every page; a page can
+  set `$ogTitle`, `$ogDescription`, `$ogImage` (a site path) before including it.
+  `siteUrl()` makes URLs absolute from the request host, never from source. A page
+  that includes the header before its data is ready has to compute the preview
+  above the include, as index.php and racer.php do
+- **RSS** — `/feed` (`feed.php`, `rssFeedXml()` in `includes/feed.php`). Published
+  broadcasts only, newest first and not pinned first. No lexicon links: they are
+  relative
+- **Beaten by the computer** — `cpuAheadStats()` (place − 1 − humans ahead), a table
+  on /stats and a line on the profile. **s00 stored ranks among the humans only**, so
+  a season with 20+ GPs where 75%+ read exactly 1..n has no CPUs to count and is left
+  out; real seasons here top out at 38%. Anything reading `results.rank` as a grid
+  place across all seasons has the same trap
+- **League in numbers** — `/league-in-numbers`: totals, a calendar of race days, GPs
+  and racers per month, weekdays. One pass over `results`. Blue and orange are the
+  dataviz reference palette, checked with its validator
+- **`/admin/teams` had no `.htaccess` rule for its whole life**, because
+  `bin/dev_router.php` falls back to any matching file: a page that works on the dev
+  server proves nothing about its route. A new page needs its RewriteRule
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),

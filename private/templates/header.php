@@ -37,6 +37,22 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($leagueName) ?> League <?= $currentSeasonTag ?></title>
+    <?php
+    // What a link to this page looks like when pasted into a chat. A page can set
+    // $ogTitle, $ogDescription and $ogImage (a site path) before including this
+    // header; anything it leaves out falls back to the league's own.
+    $ogTitleOut = trim((string)($ogTitle ?? html_entity_decode((string)($pageTitle ?? ''), ENT_QUOTES))) ?: $leagueName;
+    $ogDescOut  = trim((string)($ogDescription ?? '')) ?: "$leagueName: standings, results and news from the league.";
+    ?>
+    <meta property="og:site_name" content="<?= htmlspecialchars($leagueName) ?>">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="<?= htmlspecialchars($ogTitleOut) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars($ogDescOut) ?>">
+    <meta property="og:url" content="<?= htmlspecialchars(siteUrl((string)($_SERVER['REQUEST_URI'] ?? '/'))) ?>">
+    <meta property="og:image" content="<?= htmlspecialchars(siteUrl($ogImage ?? '/assets/img/omk-favicon-512.png')) ?>">
+    <meta name="twitter:card" content="summary">
+    <meta name="description" content="<?= htmlspecialchars($ogDescOut) ?>">
+    <?php if (moduleEnabled($pdo, 'broadcasts')): ?><link rel="alternate" type="application/rss+xml" title="<?= htmlspecialchars($leagueName) ?> news" href="/feed"><?php endif; ?>
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/omk-favicon-32.png">
     <link rel="icon" type="image/png" sizes="64x64" href="/assets/img/omk-favicon-64.png">
     <link rel="icon" type="image/png" sizes="512x512" href="/assets/img/omk-favicon-512.png">
@@ -92,6 +108,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                     <a href="/track-favourites">🏁 Track Favourites</a>
                     <?php if (moduleEnabled($pdo, 'mikkoliiga')): ?><a href="/mikkoliiga">🌟 Mikkoliiga</a><?php endif; ?>
                     <?php if (moduleEnabled($pdo, 'teams')): ?><a href="/teams">🤝 Teams</a><?php endif; ?>
+                    <a href="/league-in-numbers">📊 League in numbers</a>
 
                 </div>
             </div>
@@ -113,7 +130,10 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                             <a href="/admin/results">Results</a>
                             <a href="/admin/commissioner-desk">🗒️ Commissioner's Desk</a>
                             <a href="/admin/news">📰 News desk</a>
-                            <a href="/admin/audit">🔎 Data audit</a>
+                            <a href="/admin/audit">🔎 Data audit<?php
+                                // The only nudge a flagged result gets, so nobody has to remember to look.
+                                $openFlags = (int)$pdo->query("SELECT COUNT(*) FROM result_flags WHERE status = 'open'")->fetchColumn();
+                                if ($openFlags > 0) echo ' <strong>(' . $openFlags . ')</strong>'; ?></a>
                             <a href="/admin/modules">🧩 Modules</a>
                             <a href="/admin/uml">🗂️ System UML</a>
                             <a href="/admin/settings">⚙️ Settings</a>

@@ -9,6 +9,21 @@ require_once __DIR__ . '/../private/includes/badges.php';
 require_once __DIR__ . '/../private/includes/leaderboard.php';
 
 $pageTitle = "Leaderboard - Kartfolio";
+// The link preview: the current season's table, in a line.
+require_once __DIR__ . '/../private/includes/settings.php';
+$ogSeason = getCurrentSeasonNumber();
+$ogSeasonName = trim((string)(getSeasonRules($pdo, $ogSeason)['season_name'] ?? ''));
+$ogTitle = getSetting($pdo, 'league_name', 'Kartfolio') . ' · ' . ($ogSeasonName !== '' ? $ogSeasonName : strtoupper($ogSeason));
+$ogBits = [];
+if (isTeamSeason($pdo, $ogSeason)) {
+    foreach (getTeamStandings($pdo, $ogSeason) as $t) $ogBits[] = "{$t['rank']}. {$t['name']} {$t['score']}";
+}
+if (!$ogBits) {
+    foreach (array_slice(leaderboardRows($pdo, $ogSeason, 0, false), 0, 3) as $r) {
+        if ($r['rank'] !== null) $ogBits[] = "{$r['rank']}. {$r['name']} " . ($r['display'] ?? scoreNum($r['score']));
+    }
+}
+if ($ogBits) $ogDescription = implode(' · ', $ogBits);
 include __DIR__ . '/../private/templates/header.php';
 
 // Honour ?season= — this is what the /season/<id> rewrite in .htaccess maps

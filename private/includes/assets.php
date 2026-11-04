@@ -26,3 +26,21 @@ function assetUrl(string $path): string {
 function versionAssetTags(string $html): string {
     return preg_replace_callback('#\b(href|src)="(/assets/[^"?]+)"#', fn($m) => $m[1] . '="' . assetUrl($m[2]) . '"', $html);
 }
+
+/**
+ * An absolute URL on this site. Chat apps and feed readers cannot follow a
+ * relative link. Host comes from the request, never from source: there is one
+ * codebase and every league has its own address.
+ */
+function siteUrl(string $path = '/'): string {
+    $https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    return ($https ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $path;
+}
+
+/** A character's portrait for a link preview, falling back to the Mii when there is no art. */
+function previewPortrait(?string $character): string {
+    $character = (string)$character;
+    $exists = $character !== '' && is_file(__DIR__ . '/../../public_html/assets/img/' . basename($character) . '.png');
+    return '/assets/img/' . rawurlencode($exists ? basename($character) : 'Mii') . '.png';
+}

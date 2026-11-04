@@ -86,6 +86,16 @@ $date = date('F j, Y', strtotime($recap['created_at']));
 
 $pageTitle = $h;
 $extraCss = '<link rel="stylesheet" href="/assets/css/pages.css">';
+// The link preview: never for a draft, which only an admin can see anyway.
+if (!$isDraft) {
+    require_once __DIR__ . '/../private/includes/programs.php';
+    $ogTitle = trim((string)($recap['headline'] ?? '')) ?: (getProgramInfo($recap['program_key'] ?? '')['name'] ?? 'League news');
+    $ogDescription = trim((string)($recap['key_quote'] ?? ''));
+    if ($ogDescription === '') {
+        $ogPlain = trim((string)preg_replace('/\s+/', ' ', str_replace('**', '', (string)$recap['recap_text'])));
+        $ogDescription = mb_strlen($ogPlain) > 200 ? rtrim(mb_substr($ogPlain, 0, 197)) . '…' : $ogPlain;
+    }
+}
 include __DIR__ . '/../private/templates/header.php';
 ?>
 

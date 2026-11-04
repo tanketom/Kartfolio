@@ -1010,3 +1010,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Beaten by the computer, under the career numbers. */
+.career-cpu-line { margin: 12px 0 0; font-size: 0.9rem; color: var(--gray-600); }

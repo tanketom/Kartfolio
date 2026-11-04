@@ -1,0 +1,85 @@
+/* League in numbers. Blue carries the single series and the calendar's one-hue
+   ramp; orange is the second series. Checked with the palette validator on this
+   surface. Text stays in the site's ink, never the series colour. */
+.ln-root {
+    --ln-s1: #2a78d6;
+    --ln-s2: #eb6834;
+    --ln-h0: var(--gray-200);
+    --ln-h1: #cde2fb;
+    --ln-h2: #86b6ef;
+    --ln-h3: #2a78d6;
+    --ln-h4: #104281;
+}
+.ln-note { color: var(--gray-600); }
+.ln-card { background: var(--gray-50); border: 2.5px solid var(--dark-bg, #1a1a1a); border-radius: 14px; box-shadow: var(--shadow-card); padding: 18px 22px; margin-bottom: 18px; min-width: 0; }
+.ln-h { font-family: var(--font-display, 'Fredoka'), sans-serif; font-size: 1.15rem; font-weight: 700; margin: 0 0 14px; }
+.ln-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 0; }
+.ln-scroll { overflow-x: auto; }
+
+/* Totals */
+.ln-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.ln-tile { background: var(--gray-50); border: 2.5px solid var(--dark-bg, #1a1a1a); border-radius: 14px; box-shadow: var(--shadow-card); padding: 14px 10px; text-align: center; min-width: 0; }
+.ln-tile-value { font-family: 'DM Mono', monospace; font-size: 1.7rem; font-weight: 500; line-height: 1.1; }
+.ln-tile-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-600); margin-top: 6px; }
+
+/* Calendar */
+.ln-cal { display: grid; grid-template-rows: 16px repeat(7, 13px); gap: 2px; width: max-content; padding-bottom: 4px; }
+.ln-cell { display: block; width: 13px; height: 13px; border-radius: 3px; }
+.ln-h0 { background: var(--ln-h0); }
+.ln-h1 { background: var(--ln-h1); }
+.ln-h2 { background: var(--ln-h2); }
+.ln-h3 { background: var(--ln-h3); }
+.ln-h4 { background: var(--ln-h4); }
+.ln-cal-month { font-size: 0.68rem; color: var(--gray-600); white-space: nowrap; line-height: 16px; }
+.ln-cal-day { font-size: 0.65rem; color: var(--gray-600); line-height: 13px; }
+
+/* Legends */
+.ln-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 10px; font-size: 0.78rem; color: var(--gray-600); }
+.ln-key { display: inline-flex; align-items: center; gap: 5px; }
+.ln-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+
+/* Month bars: the whole column is the hit target, not the thin bar. */
+.ln-bars { display: grid; grid-template-columns: repeat(var(--ln-cols), minmax(16px, 1fr)); gap: 2px; align-items: end; }
+.ln-col { min-width: 0; border-radius: 4px; outline-offset: 1px; }
+.ln-col:hover { background: var(--gray-100); }
+.ln-plot { position: relative; height: 180px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-bottom: 1px solid var(--gray-300); }
+.ln-bar { display: block; width: min(100%, 22px); border-radius: 4px 4px 0 0; }
+.ln-s1 { background: var(--ln-s1); }
+.ln-s2 { background: var(--ln-s2); }
+.ln-stack { width: min(100%, 22px); display: flex; flex-direction: column; gap: 2px; }
+.ln-seg { display: block; min-height: 2px; }
+.ln-seg:first-child { border-radius: 4px 4px 0 0; }
+.ln-peak { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--gray-800); margin-bottom: 2px; }
+.ln-x { height: 18px; font-size: 0.65rem; color: var(--gray-600); white-space: nowrap; text-align: center; line-height: 18px; overflow: visible; }
+
+/* Weekdays */
+.ln-wd { display: grid; grid-template-columns: 84px 1fr 34px; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.85rem; }
+.ln-wd-track { display: block; height: 12px; }
+.ln-wd-bar { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.ln-wd-value { font-family: 'DM Mono', monospace; text-align: right; }
+
+/* Facts */
+.ln-facts { margin: 0; }
+.ln-facts > div { display: grid; grid-template-columns: 150px 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--gray-200); font-size: 0.88rem; }
+.ln-facts > div:first-child { border-top: 0; }
+.ln-facts dt { color: var(--gray-600); }
+.ln-facts dd { margin: 0; }
+.ln-facts dd span { color: var(--gray-600); }
+
+.ln-table-wrap summary { cursor: pointer; margin: 0; }
+.ln-table-wrap[open] summary { margin-bottom: 14px; }
+
+.ln-tip { position: fixed; z-index: 1000; pointer-events: none; background: var(--gray-900); color: #fff; font-size: 0.78rem; font-weight: 600; padding: 5px 9px; border-radius: 6px; white-space: nowrap; }
+
+@media (max-width: 900px) {
+    .ln-two { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .ln-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+    .ln-x-odd { visibility: hidden; }   /* every other month: the labels are wider than the bars */
+}
+@media (max-width: 480px) {
+    .ln-tile-value { font-size: 1.3rem; }
+    .ln-card { padding: 14px 14px; }
+    .ln-facts > div { grid-template-columns: 1fr; gap: 2px; }
+}

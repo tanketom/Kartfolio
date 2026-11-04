@@ -482,3 +482,11 @@ CREATE TABLE IF NOT EXISTS team_stints (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (season_id, racer_id, from_date)
 );
+
+CREATE TABLE IF NOT EXISTS result_flags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gpid TEXT NOT NULL,
+    note TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

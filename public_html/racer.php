@@ -33,6 +33,23 @@ if (!$racer) {
 }
 
 $pageTitle = htmlspecialchars($racer['name']) . " - Racer Profile";
+// The link preview: who they are, where they stand, and their face.
+$ogSt = $pdo->prepare("SELECT COUNT(*) AS gps, SUM(rank = 1) AS wins, MAX(gp_points) AS best FROM results WHERE racer_id = ? AND gpid LIKE 's%'");
+$ogSt->execute([(int)$racer['id']]);
+$ogCareer = $ogSt->fetch(PDO::FETCH_ASSOC);
+$ogSt = $pdo->prepare("SELECT character_used FROM results WHERE racer_id = ? AND gpid LIKE 's%' AND character_used IS NOT NULL AND character_used != ''
+                       GROUP BY character_used ORDER BY COUNT(*) DESC, character_used ASC LIMIT 1");
+$ogSt->execute([(int)$racer['id']]);
+require_once __DIR__ . '/../private/includes/assets.php';
+$ogImage = previewPortrait($ogSt->fetchColumn() ?: 'Mii');
+$ogTitle = $racer['name'] . (trim((string)$racer['nickname']) !== '' ? ' “' . trim((string)$racer['nickname']) . '”' : '');
+$ogSeason = getCurrentSeasonNumber();
+$ogPlace = seasonPlacements($pdo, $ogSeason)['place'][(int)$racer['id']] ?? null;
+$ogDescription = implode(' · ', array_filter([
+    $ogPlace ? '#' . $ogPlace . ' in ' . strtoupper($ogSeason) : '',
+    (int)$ogCareer['gps'] ? (int)$ogCareer['gps'] . ' GPs, ' . (int)$ogCareer['wins'] . ' wins, best ' . (int)$ogCareer['best'] : 'Yet to race',
+    trim((string)$racer['catchphrase']),
+]));
 $extraCss = '<link rel="stylesheet" href="/assets/css/racer.css"><link rel="stylesheet" href="/assets/css/card.css">';
 include __DIR__ . '/../private/templates/header.php';
 
@@ -765,6 +782,9 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="stat-value stat-value--lg"><?= number_format($careerStats['avg_finish'], 1) ?></div>
                 </div>
             </div>
+            <?php $cpuCareer = cpuAheadStats($pdo)['racers'][(int)$racer['id']] ?? null; if ($cpuCareer): ?>
+            <p class="career-cpu-line">🤖 Beat every CPU kart in <strong><?= round(100 * $cpuCareer['clean'] / $cpuCareer['gps']) ?>%</strong> of <?= (int)$cpuCareer['gps'] ?> GPs, with <strong><?= number_format($cpuCareer['ahead'] / $cpuCareer['gps'], 2) ?></strong> ahead per GP</p>
+            <?php endif; ?>
             <?php endif; ?>
             <div class="career-accolades" title="Final placements in archived seasons">
                 <div class="career-accolades-label">Season accolades<?= $accoladeSeasons ? ' <small>' . $accoladeSeasons . ' season' . ($accoladeSeasons === 1 ? '' : 's') . ' completed</small>' : '' ?></div>

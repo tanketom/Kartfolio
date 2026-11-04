@@ -291,6 +291,46 @@ foreach ($chart_series as $name => $dataPoints) {
     </section>
     <?php endif; ?>
 
+    <?php
+    // Fewest CPU karts ahead first. Three GPs minimum, or one good night tops it.
+    $cpuView = cpuAheadStats($pdo, $currentSeason === 'all' ? null : $currentSeason);
+    $cpuNames = racerNamesMap($pdo);
+    $cpuRows = array_filter($cpuView['racers'], fn($c) => $c['gps'] >= 3);
+    uasort($cpuRows, fn($a, $b) => ($a['ahead'] / $a['gps'] <=> $b['ahead'] / $b['gps']) ?: ($b['gps'] <=> $a['gps']));
+    if ($cpuRows): ?>
+    <section class="racer-card stats-section-card stats-section-card--top">
+        <h2 class="stats-section-heading">🤖 Beaten by the Computer</h2>
+        <p class="stats-section-sub">How many CPU karts finish ahead of you in a GP, on average, and how often you beat all of them. At least 3 GPs.<?= $cpuView['skipped'] && $currentSeason === 'all' ? ' Leaves out ' . htmlspecialchars(strtoupper(implode(', ', $cpuView['skipped']))) . ', which only recorded places among the humans.' : '' ?></p>
+        <table class="clean-table">
+            <thead>
+                <tr>
+                    <th>Racer</th>
+                    <th class="txt-center">CPUs ahead per GP</th>
+                    <th class="txt-center">Beat every CPU</th>
+                    <th class="txt-center">Worst GP</th>
+                    <th class="txt-right">GPs</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($cpuRows as $rid => $c): ?>
+                <tr>
+                    <td><strong><a href="/racer/<?= (int)$rid ?>" class="racer-link"><?= htmlspecialchars($cpuNames[$rid] ?? '?') ?></a></strong></td>
+                    <td class="txt-center stats-highlight-val"><?= number_format($c['ahead'] / $c['gps'], 2) ?></td>
+                    <td class="txt-center stats-muted-val"><?= round(100 * $c['clean'] / $c['gps']) ?>%</td>
+                    <td class="txt-center stats-muted-val"><?= (int)$c['worst'] ?> ahead</td>
+                    <td class="txt-right stats-muted-val"><?= (int)$c['gps'] ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </section>
+    <?php elseif ($cpuView['skipped']): ?>
+    <section class="racer-card stats-section-card stats-section-card--top">
+        <h2 class="stats-section-heading">🤖 Beaten by the Computer</h2>
+        <p class="stats-section-sub">This season only recorded places among the humans, so there are no CPU karts to count.</p>
+    </section>
+    <?php endif; ?>
+
     <section class="racer-card stats-section-card stats-section-card--top">
         <h2 class="stats-section-heading">📈 Current Form Rankings</h2>
         <p class="stats-section-sub">Ranked by average performance over the last 5 GPs.</p>

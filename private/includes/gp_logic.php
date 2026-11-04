@@ -2848,6 +2848,68 @@ function teamBriefingText(PDO $pdo, string $season_id): string {
     return $out . "\n";
 }
 
+// ============================================================================
+// BEATEN BY THE COMPUTER
+// ============================================================================
+
+/**
+ * How many CPU karts finished ahead of each racer, pure so it can be tested.
+ * A kart ahead of you that is not a human is a CPU, so that is your place on the
+ * 12-kart grid, minus 1, minus the humans ahead of you.
+ *
+ * A season that stored ranks among the humans only (s00 here: 25 of 30 GPs read
+ * exactly 1..n) has no CPUs to count and is left out, or its racers look as if
+ * they never lost to one. Real grids run to 38% at most on this data. Under 20
+ * GPs there is too little to tell, so a young season counts.
+ *
+ * $rows: gpid, racer_id, rank. Returns ['racers' => [rid => gps, ahead (total),
+ * clean (GPs ahead of every CPU), worst], 'skipped' => [season ids]].
+ */
+function cpuAheadFromRows(array $rows): array {
+    $byGp = [];
+    foreach ($rows as $r) $byGp[(string)$r['gpid']][(int)$r['racer_id']] = (int)$r['rank'];
+
+    $gapless = []; $count = [];
+    foreach ($byGp as $g => $ranks) {
+        $s = substr($g, 0, 3);
+        $count[$s] = ($count[$s] ?? 0) + 1;
+        $sorted = array_values($ranks); sort($sorted);
+        if ($sorted === range(1, count($sorted))) $gapless[$s] = ($gapless[$s] ?? 0) + 1;
+    }
+    $skipped = [];
+    foreach ($count as $s => $n) if ($n >= 20 && ($gapless[$s] ?? 0) / $n >= 0.75) $skipped[] = $s;
+
+    $out = [];
+    foreach ($byGp as $g => $ranks) {
+        if (in_array(substr($g, 0, 3), $skipped, true)) continue;
+        foreach ($ranks as $rid => $rank) {
+            $humansAhead = 0;
+            foreach ($ranks as $other) if ($other < $rank) $humansAhead++;
+            $cpus = max(0, $rank - 1 - $humansAhead);
+            $out[$rid] ??= ['gps' => 0, 'ahead' => 0, 'clean' => 0, 'worst' => 0];
+            $out[$rid]['gps']++;
+            $out[$rid]['ahead'] += $cpus;
+            $out[$rid]['clean'] += $cpus === 0 ? 1 : 0;
+            $out[$rid]['worst'] = max($out[$rid]['worst'], $cpus);
+        }
+    }
+    return ['racers' => $out, 'skipped' => $skipped];
+}
+
+/** cpuAheadFromRows() for one season, or for the whole league with null. Once per request. */
+function cpuAheadStats(PDO $pdo, ?string $season_id = null): array {
+    static $all = null;
+    // The human-ranks test reads a whole season at a time, so a one-season view
+    // is a slice of the all-seasons pass rather than a pass of its own.
+    if ($all === null) {
+        $rows = $pdo->query("SELECT gpid, racer_id, rank FROM results WHERE gpid LIKE 's%'")->fetchAll(PDO::FETCH_ASSOC);
+        $all = ['league' => cpuAheadFromRows($rows), 'rows' => $rows];
+    }
+    if ($season_id === null) return $all['league'];
+    if (in_array($season_id, $all['league']['skipped'], true)) return ['racers' => [], 'skipped' => [$season_id]];
+    return ['racers' => cpuAheadFromRows(array_filter($all['rows'], fn($r) => substr($r['gpid'], 0, 3) === $season_id))['racers'], 'skipped' => []];
+}
+
 /**
  * Rich per-racer season stat bag, computed from the cached season rows (plus
  * the cached Elo changelog for the season delta). Shared by the
@@ -4069,11 +4131,17 @@ function multiverseTop(PDO $pdo, string $season_id, string $system): array {
     return ['top' => $top, 'field' => count($rows)];
 }
 
-/** ['place' => [racer_id => 1-based placement among qualifiers], 'field' => qualifier count] */
-function seasonPlacements(PDO $pdo, string $season_id): array {
+/**
+ * ['place' => [racer_id => 1-based placement among qualifiers], 'field' => qualifier count]
+ * $final: treat the season as over even if this request read it before it was
+ * archived (the snapshot, called right after the status changes).
+ */
+function seasonPlacements(PDO $pdo, string $season_id, bool $final = false): array {
     static $cache = [];
-    if (isset($cache[$season_id])) return $cache[$season_id];
     $rules = getSeasonRules($pdo, $season_id);
+    $final = $final || ($rules['status'] ?? '') === 'archived';
+    $key = $season_id . ($final ? '|final' : '');
+    if (isset($cache[$key])) return $cache[$key];
     $names = racerNamesMap($pdo);
     $rows  = [];
     foreach (getSeasonResultsByRacer($pdo, $season_id) as $rid => $rrows) {
@@ -4084,12 +4152,14 @@ function seasonPlacements(PDO $pdo, string $season_id): array {
     // On a team season the whole winning team finishes joint first, and the next
     // racer is placed after them, as with any tie: five champions, then 6th. That
     // is what makes them champions everywhere a place is read (medals, the
-    // all-time ledger, trading cards). The standings still rank individuals.
-    $champs = teamSeasonChampions($pdo, $season_id);
+    // all-time ledger, trading cards). The standings still rank individuals. Only
+    // once the season is over: mid-season the leading team has won nothing yet,
+    // and every one of them would show as 1st on their profile.
+    $champs = $final ? teamSeasonChampions($pdo, $season_id) : [];
     $place = []; $next = 1;
     foreach ($rows as $r) if (isset($champs[$r['id']])) { $place[$r['id']] = 1; $next++; }
     foreach ($rows as $r) if (!isset($champs[$r['id']])) $place[$r['id']] = $next++;
-    return $cache[$season_id] = ['place' => $place, 'field' => count($rows)];
+    return $cache[$key] = ['place' => $place, 'field' => count($rows)];
 }
 
 /**
@@ -4098,7 +4168,7 @@ function seasonPlacements(PDO $pdo, string $season_id): array {
  * rows, so re-opening and re-archiving recomputes. Returns rows written.
  */
 function snapshotSeasonPlacements(PDO $pdo, string $season_id): int {
-    $sp = seasonPlacements($pdo, $season_id);
+    $sp = seasonPlacements($pdo, $season_id, true);
     $pdo->prepare("DELETE FROM season_placements WHERE season_id = ?")->execute([$season_id]);
     $ins = $pdo->prepare("INSERT INTO season_placements (season_id, racer_id, place, field) VALUES (?, ?, ?, ?)");
     foreach ($sp['place'] as $rid => $p) $ins->execute([$season_id, (int)$rid, (int)$p, (int)$sp['field']]);

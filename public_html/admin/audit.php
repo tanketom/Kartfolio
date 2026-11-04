@@ -1,7 +1,7 @@
 <?php
 /**
  * Data audit — every anomaly the pages would otherwise trip over, with a
- * link to the place that fixes it. Read-only; nothing here writes.
+ * link to the place that fixes it. The one write is closing a result flag.
  *
  * Path: /cdnmk/public_html/admin/audit.php   (clean URL: /admin/audit)
  */
@@ -11,10 +11,23 @@ require_once __DIR__ . '/../../private/includes/gp_logic.php';
 require_once __DIR__ . '/../../private/includes/settings.php';
 require_admin();
 
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'close_flag') {
+    verify_csrf();
+    $pdo->prepare("UPDATE result_flags SET status = 'closed' WHERE id = ?")->execute([(int)($_POST['flag_id'] ?? 0)]);
+    header('Location: /admin/audit', true, 303);
+    exit;
+}
+
 $q = fn(string $sql, array $args = []) => (function () use ($pdo, $sql, $args) { $st = $pdo->prepare($sql); $st->execute($args); return $st->fetchAll(PDO::FETCH_ASSOC); })();
 $names = racerNamesMap($pdo);
 $sections = [];   // [title, severity, rows[[label, detail, link, linkText]], blurb]
 $add = function (string $title, string $severity, array $rows, string $blurb) use (&$sections) { $sections[] = compact('title', 'severity', 'rows', 'blurb'); };
+
+// ── Flagged by racers: what a person noticed, ahead of what a query can ──
+$rows = [];
+foreach ($q("SELECT id, gpid, note, created_at FROM result_flags WHERE status = 'open' ORDER BY created_at DESC, id DESC") as $r)
+    $rows[] = [$r['gpid'], $r['note'] . ' (' . date('j M', strtotime($r['created_at'])) . ')', "/admin/results?search=" . urlencode($r['gpid']), 'Results', (int)$r['id']];
+$add('Flagged by racers', 'bad', $rows, 'Someone pressed "This looks wrong" on the GP page. Fix it in Results if they are right, then close the flag either way.');
 
 // ── Results ────────────────────────────────────────────────────────────────
 $rows = [];
@@ -123,11 +136,13 @@ include __DIR__ . '/../../private/templates/header.php';
         <?php if ($n): ?>
         <table class="admin-table audit-table">
             <tbody>
-            <?php foreach ($s['rows'] as [$label, $detail, $link, $linkText]): ?>
+            <?php foreach ($s['rows'] as $auditRow): [$label, $detail, $link, $linkText] = $auditRow; $flagId = $auditRow[4] ?? null; ?>
                 <tr>
                     <td class="audit-label"><?= htmlspecialchars($label) ?></td>
                     <td><?= htmlspecialchars($detail) ?></td>
-                    <td class="audit-fix"><?php if ($link): ?><a href="<?= htmlspecialchars($link) ?>" class="btn-secondary btn-sm"><?= htmlspecialchars($linkText) ?> →</a><?php endif; ?></td>
+                    <td class="audit-fix"><?php if ($link): ?><a href="<?= htmlspecialchars($link) ?>" class="btn-secondary btn-sm"><?= htmlspecialchars($linkText) ?> →</a><?php endif; ?><?php if ($flagId): ?>
+                        <form method="POST" style="display:inline;"><?= csrf_field() ?><input type="hidden" name="action" value="close_flag"><input type="hidden" name="flag_id" value="<?= (int)$flagId ?>"><button type="submit" class="btn-secondary">Close</button></form>
+                    <?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

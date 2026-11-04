@@ -193,6 +193,7 @@ include __DIR__ . '/../private/templates/header.php';
             <div class="about-cta-buttons">
                 <a href="/" class="btn btn-primary about-cta-btn">View Leaderboard</a>
                 <a href="/archive" class="btn btn-secondary about-cta-btn">Browse Broadcasts</a>
+                <a href="/league-in-numbers" class="btn btn-secondary about-cta-btn">League in numbers</a>
             </div>
         </section>
     </div>

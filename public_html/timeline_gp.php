@@ -14,6 +14,10 @@ require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/mk_data.php';
 require_once __DIR__ . '/../private/includes/elo_engine.php';
+require_once __DIR__ . '/../private/includes/session.php';
+require_once __DIR__ . '/../private/includes/csrf.php';
+require_once __DIR__ . '/../private/includes/throttle.php';
+if (session_status() === PHP_SESSION_NONE) kartfolioSessionStart();
 
 $gpid = trim((string)($_GET['gp'] ?? ''));
 
@@ -42,6 +46,26 @@ if ((int)$existsStmt->fetchColumn() === 0) {
     echo '<a href="/timeline">Back to timeline</a>.</p></div>';
     include __DIR__ . '/../private/templates/footer.php';
     exit;
+}
+
+// ── "This looks wrong" ───────────────────────────────────
+// Anyone can flag a result; it lands on /admin/audit and nowhere else. The note
+// is never shown publicly and never reaches a broadcast. Stored with newlines and
+// control characters collapsed, as every other public text box here is.
+$flagged = isset($_GET['flagged']);
+$flagError = '';
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'flag_result') {
+    verify_csrf();
+    $note = trim((string)preg_replace('/[\x00-\x1F\x7F]+/u', ' ', (string)($_POST['note'] ?? '')));
+    if ($note === '') {
+        $flagError = 'Say what looks wrong, so we know what to check.';
+    } elseif (!throttleAllow($pdo, 'result_flag', 5, 10)) {
+        $flagError = "That's a lot of flags in a short time. Try again in a few minutes.";
+    } else {
+        $pdo->prepare("INSERT INTO result_flags (gpid, note) VALUES (?, ?)")->execute([$gpid, mb_substr($note, 0, 500)]);
+        header('Location: /timeline/' . rawurlencode($gpid) . '?flagged=1#flag', true, 303);
+        exit;
+    }
 }
 
 // ── 1. GP-level header info ────────────────────────────────────────────
@@ -151,6 +175,14 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $pageTitle = strtoupper($gpid) . " — " . htmlspecialchars($season['season_name']);
 $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
+// The link preview: the podium, and the winner's face.
+$ogTitle = strtoupper($gpid) . ($gpHeader['cup_name'] ? ' · ' . $gpHeader['cup_name'] . ' Cup' : '');
+$ogBits = [];
+foreach (array_slice($results, 0, 3) as $i => $r) $ogBits[] = ($i + 1) . '. ' . $r['name'] . ' ' . (int)$r['gp_points'];
+$ogDescription = implode(' · ', $ogBits) . ' · ' . date('j M Y', strtotime((string)$gpHeader['race_date']));
+require_once __DIR__ . '/../private/includes/assets.php';
+$ogImage = previewPortrait($results[0]['character_used'] ?? null);
+
 include __DIR__ . '/../private/templates/header.php';
 ?>
 
@@ -256,6 +288,21 @@ include __DIR__ . '/../private/templates/header.php';
                 <?php endforeach; ?>
             </tbody>
         </table>
+        <details class="gp-flag" id="flag" <?= ($flagged || $flagError) ? 'open' : '' ?>>
+            <summary>This looks wrong</summary>
+            <?php if ($flagged): ?>
+                <p class="gp-flag-done">Thanks. It's on the commissioners' list to check.</p>
+            <?php else: ?>
+                <form method="POST" action="/timeline/<?= htmlspecialchars($gpid) ?>#flag">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="flag_result">
+                    <label for="flag-note">What's wrong with this result?</label>
+                    <textarea id="flag-note" name="note" rows="2" maxlength="500" required placeholder="Tom and Tegan's points are the wrong way round"><?= htmlspecialchars((string)($_POST['note'] ?? '')) ?></textarea>
+                    <?php if ($flagError): ?><p class="gp-flag-error"><?= htmlspecialchars($flagError) ?></p><?php endif; ?>
+                    <button type="submit" class="btn btn-secondary btn-sm">Send to the commissioners</button>
+                </form>
+            <?php endif; ?>
+        </details>
     </section>
 
     <!-- MH Chronicles -->
@@ -425,6 +472,12 @@ include __DIR__ . '/../private/templates/header.php';
     color: var(--gray-900);
     text-decoration: none;
 }
+.gp-flag { margin-top: 12px; font-size: 0.85rem; color: var(--gray-600); }
+.gp-flag summary { cursor: pointer; width: fit-content; }
+.gp-flag form { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 10px; max-width: 520px; }
+.gp-flag textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; border: 1px solid var(--gray-400); border-radius: 6px; background: var(--gray-50); color: var(--gray-900); }
+.gp-flag-done { margin: 8px 0 0; color: var(--success-text); font-weight: 600; }
+.gp-flag-error { margin: 0; color: var(--error-text); font-weight: 600; }
 .gp-news-item:hover { border-color: var(--nintendo-red); }
 .gp-news-headline { font-weight: 900; color: var(--nintendo-red); font-size: 0.95rem; }
 .gp-news-quote { color: var(--gray-700); font-size: 0.85rem; font-style: italic; margin-top: 4px; }

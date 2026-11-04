@@ -237,6 +237,16 @@ try {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_teams_season ON teams(season_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id)");
+    // Results a racer has flagged as wrong, for /admin/audit. No name, no IP: the
+    // note is the whole report, and the throttle table handles abuse.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS result_flags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        gpid TEXT NOT NULL,
+        note TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Roll Call: who was on which team from when. team_members is the current
     // roster; this is what lets points stay with the team that earned them.
     // reason: draw | join | swap | admin. team_id NULL = taken off the teams.

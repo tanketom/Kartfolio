@@ -31,6 +31,7 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
     <header class="archive-header">
         <h1>Broadcast Archive</h1>
         <p>Mushroom Kingdom Media Ecology History</p>
+        <p><a href="/feed" class="archive-rss">RSS feed</a></p>
     </header>
 
     <?php if ($deleteMsg): ?>

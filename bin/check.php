@@ -22,6 +22,7 @@ $ok = function (string $what, bool $cond, string $detail = '') use (&$fail, &$pa
 
 require "$root/private/includes/db.php";
 require "$root/private/includes/gp_logic.php";
+require "$root/private/includes/feed.php";
 require "$root/private/includes/badges.php";
 
 // ── Roll Call ──
@@ -61,6 +62,18 @@ $rcPlace = seasonPlacements($pdo, 's04')['place'];
 $ok('every racer on the top team who raced is a champion', $rcChamps && count($rcChamps) === count(array_intersect_key($rcTable[0]['members'], getSeasonResultsByRacer($pdo, 's04'))));
 $ok('the champions finish joint first, and the next racer after them', !array_diff_key($rcChamps, array_filter($rcPlace, fn($p) => $p === 1)) && count(array_keys($rcPlace, 1, true)) === count($rcChamps) && (count($rcPlace) === count($rcChamps) || min(array_diff($rcPlace, [1])) === count($rcChamps) + 1));
 $ok('the season title holders are the racers, not the team', (seasonTitleHolders($pdo)['s04'] ?? []) === array_values($rcChamps));
+
+echo "the computer\n";
+$cpu = cpuAheadFromRows([
+    ['gpid' => 's09gp01', 'racer_id' => 1, 'rank' => 1], ['gpid' => 's09gp01', 'racer_id' => 2, 'rank' => 4],   // 2 CPUs between them
+    ['gpid' => 's09gp02', 'racer_id' => 1, 'rank' => 3], ['gpid' => 's09gp02', 'racer_id' => 2, 'rank' => 12],  // 2, then 10
+]);
+$ok('CPUs ahead is your place, minus 1, minus the humans ahead', $cpu['racers'][1] === ['gps' => 2, 'ahead' => 2, 'clean' => 1, 'worst' => 2] && $cpu['racers'][2] === ['gps' => 2, 'ahead' => 12, 'clean' => 0, 'worst' => 10]);
+$cpuHuman = [];
+for ($n = 1; $n <= 20; $n++) { $cpuHuman[] = ['gpid' => sprintf('s08gp%02d', $n), 'racer_id' => 1, 'rank' => 1]; $cpuHuman[] = ['gpid' => sprintf('s08gp%02d', $n), 'racer_id' => 2, 'rank' => 2]; }
+$ok('a season that only ranked the humans is left out', cpuAheadFromRows($cpuHuman)['skipped'] === ['s08'] && !cpuAheadFromRows($cpuHuman)['racers']);
+$ok('a young season counts, however clean its grids', cpuAheadFromRows(array_slice($cpuHuman, 0, 8))['skipped'] === []);
+$ok('feed: valid RSS with only published broadcasts', (function () use ($pdo) { $pdo->beginTransaction(); $pdo->exec("INSERT INTO recap_archive (season_id, recap_text, headline, status) VALUES ('s01', 'Published & **bold** text', 'Public <one>', 'published'), ('s01', 'Secret', 'Draft one', 'draft')"); $x = @simplexml_load_string(rssFeedXml($pdo, 'League & co')); $pdo->rollBack(); $titles = $x ? array_map('strval', $x->xpath('//item/title')) : []; return in_array('Public <one>', $titles, true) && !in_array('Draft one', $titles, true); })());
 
 // ── registry shape ──
 echo "registry\n";
