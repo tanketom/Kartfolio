@@ -115,6 +115,10 @@ if ($system === 'price_is_right') {
 }
 if ($system === 'equaliser' && isset($_GET['eq_mode'])) $rules['eq_mode'] = in_array($_GET['eq_mode'], ['season', 'per_gp'], true) ? $_GET['eq_mode'] : 'season';
 if ($system === 'form' && isset($_GET['form_window'])) $rules['form_window'] = max(1, min(50, (int)$_GET['form_window']));
+if ($system === 'roll_call') {
+    if (isset($_GET['rc_show'])) $rules['rc_show'] = max(0, min(20, (int)$_GET['rc_show']));
+    if (isset($_GET['rc_beat'])) $rules['rc_beat'] = max(0, min(20, (int)$_GET['rc_beat']));
+}
 if ($system === 'haunted') {
     if (isset($_GET['hn_hearts'])) $rules['hn_hearts'] = max(1, min(9, (int)$_GET['hn_hearts']));
     if (isset($_GET['hn_margin'])) $rules['hn_margin'] = max(0, min(30, (int)$_GET['hn_margin']));

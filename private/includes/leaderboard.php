@@ -32,7 +32,7 @@ require_once __DIR__ . '/settings.php';
  *
  * Each row: id, name, score, char, raceCount, qualifies, rank, rank_change,
  * tie, badges (each with icon/title/desc/held/is_new), badge_overflow,
- * breakdown, tooltip, cupsCounted, mikko.
+ * breakdown, tooltip, cupsCounted, mikko, team.
  */
 function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $withBadges = true): array {
     static $cache = [];
@@ -47,6 +47,14 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
     $previous    = calculatePreviousStandings($pdo, $seasonId, $latestDate, $rules);
     $holderCount = $withBadges ? badgeHolderCounts($pdo, $seasonId) : [];
     $newTonight  = $withBadges ? badgeNewThisNight($pdo, $seasonId) : [];
+
+    // Each racer's team, on a season that has teams: one query, not one per row.
+    $teamOf = [];
+    if (moduleEnabled($pdo, 'teams')) {
+        foreach (getTeamConfig($pdo, $seasonId) as $t) {
+            foreach (array_keys($t['members']) as $mid) $teamOf[(int)$mid] = ['name' => $t['name'], 'color' => $t['color']];
+        }
+    }
 
     // Mikkoliiga rank per racer, when the module is on.
     $mikkoByRacer = []; $mikkoTotal = 0;
@@ -100,6 +108,7 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
             'display'     => scoreDisplayFromBreakdown($breakdown),   // null = print the number
             'cupsCounted' => (int)($breakdown['components']['cups_counted'] ?? 0),
             'mikko'       => $mikkoByRacer[$rid] ?? null,
+            'team'        => $teamOf[$rid] ?? null,   // ['name','color'] on a season with teams
         ];
     }
 

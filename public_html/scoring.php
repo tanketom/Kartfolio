@@ -198,6 +198,11 @@ foreach ($racers as $racer) {
         $entry['mh_level'] = $mh['level'] ?? null;
     }
 
+    if ($scoringSystem === 'roll_call') {
+        // Week by week, because the week is what scores here, not the GP.
+        $entry['roll_call'] = breakdownRollCall($pdo, $rid, $seasonId, $rules);
+    }
+
     if ($scoringSystem === 'haunted') {
         // Each GP as the racer lived it: beat the ghost, safe, or a heart lost.
         $hs = hauntedSeason($pdo, $seasonId, $rules);
@@ -557,6 +562,20 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                         <span class="scr-gp-cup"><?= htmlspecialchars($gpid) ?></span>
                         <span class="scr-gp-pts"><?= $b['ladder'] ?></span>
                         <span class="scr-gp-label"><?= $b['over'] ? 'over by ' . scoreNum($b['gap']) : ($b['rank'] === 1 ? 'on the nose' : ordinal($b['rank']) . ' · ' . scoreNum($b['gap']) . ' under') ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif ($scoringSystem === 'roll_call' && isset($rb['roll_call'])): $rc = $rb['roll_call']; ?>
+            <div class="scr-summary">
+                <?= $rc['number'] === null ? 'Your first GP counts as a beat' : 'Your number: <strong>' . htmlspecialchars(scoreNum(round((float)$rc['number'], 1))) . '</strong>' . (!empty($rc['new']) ? ' (your own average so far)' : ' (your career average before this season)') ?>
+                &middot; <?= (int)$rc['beats'] ?> of <?= (int)$rc['weeks'] ?> week<?= (int)$rc['weeks'] === 1 ? '' : 's' ?> beat it
+            </div>
+            <div class="scr-gp-grid">
+                <?php foreach ($rc['by_week'] as $wk => $w): ?>
+                    <div class="scr-gp-chip scr-counted" title="<?= (int)$w['gps'] ?> GP<?= (int)$w['gps'] === 1 ? '' : 's' ?>, best <?= (int)$w['best'] ?>">
+                        <span class="scr-gp-rank"><?= $w['beat'] ? '⭐' : '✓' ?></span>
+                        <span class="scr-gp-cup">Week of <?= date('j M', strtotime($wk)) ?></span>
+                        <span class="scr-gp-pts"><?= (int)$w['pts'] ?></span>
                     </div>
                 <?php endforeach; ?>
             </div>

@@ -24,6 +24,35 @@ require "$root/private/includes/db.php";
 require "$root/private/includes/gp_logic.php";
 require "$root/private/includes/badges.php";
 
+// ── Roll Call ──
+echo "roll call\n";
+require_once __DIR__ . '/../private/includes/team_season.php';
+$rcK = ['show' => 1, 'beat' => 3, 'swap' => true];
+$rcRow = fn($rid, $n, $pts, $date) => ['racer_id' => $rid, 'gpid' => sprintf('s09gp%02d', $n), 'gp_points' => $pts, 'race_date' => $date];
+$rc = rollCallFromRows([
+    $rcRow(1, 1, 30, '2026-11-05'), $rcRow(1, 2, 50, '2026-11-06'), $rcRow(1, 3, 55, '2026-11-08'),   // veteran on 40: one week, one beat, however many GPs
+    $rcRow(1, 4, 40, '2026-11-09'),                                                                    // exactly the number is not a beat, and Monday is a new week
+    $rcRow(2, 5, 20, '2026-11-09'), $rcRow(2, 6, 21, '2026-11-10'), $rcRow(2, 7, 10, '2026-11-16'),    // newcomer: debut beats, then own running average
+], [1 => 40.0], $rcK);
+$ok('a week pays once, however many GPs', $rc['racers'][1]['by_week']['2026-11-02']['pts'] === 3 && $rc['racers'][1]['by_week']['2026-11-02']['gps'] === 3);
+$ok('level with your number is not a beat', $rc['racers'][1]['by_week']['2026-11-09']['pts'] === 1);
+$ok('a season score is its weeks', $rc['racers'][1]['points'] === 4 && $rc['racers'][1]['weeks'] === 2 && $rc['racers'][1]['beats'] === 1);
+$ok("a newcomer's debut is a beat, then their own average", $rc['racers'][2]['by_week']['2026-11-09']['beat'] && !$rc['racers'][2]['by_week']['2026-11-16']['beat'] && abs($rc['racers'][2]['number'] - 17.0) < 0.001);
+$ok('the last frame equals the score', $rc['frames']['s09gp07'][2]['score'] === 4.0 && $rc['frames']['s09gp04'][1]['score'] === 4.0);
+$ok('the swap is the Monday nearest halfway', rollCallSwapDate(['start_date' => '2026-11-05', 'end_date' => '2026-12-21']) === '2026-11-30' && rollCallSwapDate(['start_date' => '2026-11-05', 'end_date' => '2026-12-27']) === '2026-11-30');
+$ok('the swap can be switched off', rollCallSwapDate(['start_date' => '2026-11-05', 'end_date' => '2026-12-21', 'rc_swap' => 0]) === null);
+$rcStints = [1 => [['from' => '2026-11-02', 'team' => 7, 'reason' => 'draw'], ['from' => '2026-11-09', 'team' => 8, 'reason' => 'swap']], 2 => [['from' => '2026-11-09', 'team' => 8, 'reason' => 'join']]];
+$rcTotals = rollCallTeamTotals($rc, $rcStints, [7, 8]);
+$ok('points stay with the team that earned them', $rcTotals[7]['score'] === 3 && $rcTotals[8]['score'] === 1 + 3 + 1);
+$ok('a week before the first stint goes to the first team', rollCallTeamInWeek($rcStints[2], '2026-11-02') === 8);
+$rcPick = teamSeasonPickSwap([7 => 20, 8 => 9, 9 => 12], [7 => [1 => 9, 2 => 7, 3 => 4], 8 => [4 => 9, 5 => 0], 9 => [6 => 12]], [1 => 'A', 2 => 'B', 3 => 'C', 4 => 'D', 5 => 'E', 6 => 'F']);
+$ok("the swap: most-present team's second, least-present team's last", $rcPick === [2, 7, 5, 8]);
+$ok('no swap between level teams', teamSeasonPickSwap([7 => 5, 8 => 5], [7 => [1 => 5], 8 => [2 => 5]], []) === null);
+$rcTable = getTeamStandings($pdo, 's04');
+$rcSum = 0; foreach (rollCallSeason($pdo, 's04', getSeasonRules($pdo, 's04'))['racers'] as $x) $rcSum += $x['points'];
+$ok('every point in the fixture season reached a team', count($rcTable) === 3 && array_sum(array_column($rcTable, 'score')) === $rcSum, array_sum(array_column($rcTable, 'score')) . " of $rcSum");
+$ok('nobody who raced is left without a team', !array_diff(array_keys(getSeasonResultsByRacer($pdo, 's04')), array_merge(...array_map(fn($t) => array_keys($t['members']), $rcTable))));
+
 // ── registry shape ──
 echo "registry\n";
 foreach (getScoringSystemRegistry() as $key => $def) {
@@ -91,7 +120,7 @@ echo "pages\n";
 $pages = [];
 foreach (glob("$root/public_html/*.php") as $f) $pages[basename($f, '.php')] = [];
 unset($pages['login'], $pages['logout']);
-$variants = ['index' => ['', 'season=s01', 'season=s02', 'season=s03'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02', 'season=s03'], 'stats' => ['', 'season=s01', 'season=s02', 'season=all'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'yearbook' => ['', 'season=s01', 'season=s02'], 'cup_mastery' => ['season=s02'], 'territory' => ['', 'season=s01', 'season=s02', 'season=zz'], 'predictions' => [''], 'season' => null];
+$variants = ['teams' => ['', 'season=s04'], 'index' => ['', 'season=s01', 'season=s02', 'season=s03', 'season=s04'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02', 'season=s03', 'season=s04'], 'stats' => ['', 'season=s01', 'season=s02', 'season=all'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'yearbook' => ['', 'season=s01', 'season=s02'], 'cup_mastery' => ['season=s02'], 'territory' => ['', 'season=s01', 'season=s02', 'season=zz'], 'predictions' => [''], 'season' => null];
 $racerIds = $pdo->query("SELECT id FROM racers ORDER BY id LIMIT 2")->fetchAll(PDO::FETCH_COLUMN);
 $renderer = tempnam(sys_get_temp_dir(), 'render'); file_put_contents($renderer, '<?php
 // Renders one page from the CLI. A page may exit() (a redirect, a "not found"),

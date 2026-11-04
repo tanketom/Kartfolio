@@ -68,6 +68,8 @@ foreach ($ranked as $r) {
     if (!empty($r['tie'])) $standingsText .= " — TIE-BREAK: {$r['tie']}";
     $standingsText .= "\n";
 }
+$teamText = teamBriefingText($pdo, $seasonId);   // who won, when the season had teams
+if ($teamText !== '') $standingsText = $teamText . $standingsText;
 $unranked = array_values(array_filter($rows, fn($r) => $r['rank'] === null));
 if ($unranked) {
     $standingsText .= "\nNot ranked (raced, but below the season's minimum): "

@@ -369,6 +369,11 @@ try {
 // signs read, so the broadcast cannot contradict the site.
 require_once __DIR__ . '/../../private/includes/leaderboard.php';
 try {
+    // Every show hears about the teams, the shows without a league table too:
+    // in a team season they are the story, and "no table" is about the numbers.
+    if (moduleEnabled($pdo, 'teams') && ($teamText = teamBriefingText($pdo, $sourceSeason)) !== '') $sections['teams'] = $teamText;
+} catch (Throwable $e) { error_log('recap teams: ' . $e->getMessage()); }
+try {
     $standingsRows = leaderboardRows($pdo, $sourceSeason, 0, false);   // no badges: not needed here
     if ($standingsRows) {
         $sections['standings'] = ($sections['standings'] ?? '') . "*** THE STANDINGS — THIS IS THE TABLE, DO NOT RECALCULATE IT ***\n";
@@ -608,7 +613,7 @@ try {
 // programme always reads its briefing the same way. A section it does not get
 // is never built into the prompt at all — telling a show to "ignore the
 // numbers" does not work when the numbers are sitting in its context.
-$order = ['system', 'focus', 'standings', 'odds', 'scenarios', 'mikkoliiga', 'results', 'badges', 'attendance', 'nemesis', 'form', 'racers', 'lexicon'];
+$order = ['system', 'focus', 'teams', 'standings', 'odds', 'scenarios', 'mikkoliiga', 'results', 'badges', 'attendance', 'nemesis', 'form', 'racers', 'lexicon'];
 foreach ($order as $name) {
     if (!in_array($name, $diet, true)) continue;
     if (!empty($sections[$name])) $dataContext .= $sections[$name];

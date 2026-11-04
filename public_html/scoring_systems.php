@@ -36,6 +36,8 @@ $exampleRules = newSeasonDefaults('average_attendance') + [
     'hm_cap'             => 2.0,
     'form_window'        => 8,
     'hn_hearts'          => 3,
+    'rc_show'            => 1,
+    'rc_beat'            => 3,
     'bg_line_pts'        => 100,
     'bg_card_pts'        => 500,
     'pir_target'         => 'median',
@@ -79,6 +81,11 @@ $groups = [
         'title' => 'Balance & Form',
         'blurb' => 'Systems that level the field or track current form instead of season totals — a catch-up multiplier, a median that ignores volume, and a rolling window that forgets the spring.',
         'keys'  => ['blue_shell', 'median', 'form'],
+    ],
+    [
+        'title' => 'Team Seasons',
+        'blurb' => 'The season is played for a team title. Built for a league where people come and go: turning up counts, and racing more often does not.',
+        'keys'  => ['roll_call'],
     ],
     [
         'title' => 'The Weird Ones',

@@ -507,6 +507,7 @@ deliberate and load-bearing.
 | `private/includes/mk_data.php` | Cups and characters. |
 | `private/includes/badge_catalog.php` | **The** badge definitions — icon, title, earned text, criterion, category for all 91. Add a badge here first. |
 | `private/includes/badges.php` | Badge unlock logic: emits `badgeDef('key')` per rule; career/season contexts. |
+| `private/includes/team_season.php` | Team seasons, the writes: the pot draw, auto-join, the halfway swap, admin moves. Scoring is Roll Call in `gp_logic.php`. |
 | `private/includes/survivor_tournament.php` | Survivor tournament engine. |
 | `private/includes/season_awards_logic.php` | Season awards generation pipeline. |
 | `public_html/admin/seasons.php` | Season config UI — scoring system per season, per-knob fields, Mikkoliiga re-snapshot button, Scoring Simulator panel (fields + `SIM_SEASON_RULES` seeding). |
@@ -1001,6 +1002,27 @@ Cross-reference if you find half-implemented work:
   counts from the next GP and the replay applies it at the right moment.
   Everything reads `hauntedSeason()`, one pass in race order; the season
   replay goes through `progressiveSeasonReplay()`
+- **Roll Call, the team season** (`roll_call`, first run 5 Nov – 27 Dec 2026) —
+  per racer per calendar week: race → `rc_show` (1), any GP that week above your
+  number → `rc_beat` (3). Your number is your pre-season career average
+  (`hauntedGhostBase`); a newcomer's debut is a free beat, then their own running
+  average. Chosen after replaying s02/s04/s05: GP-points team scoring let the
+  most-present team win nearly every time, and this cut the median title gap
+  from 19–28% to 11–14%. A rising target was tried and dropped as too complicated
+  to explain. Scoring is pure and testable (`rollCallFromRows`,
+  `rollCallTeamTotals`); the writes are in `team_season.php` (`teamSeasonDraw` from
+  pots of last season's most active racers, `teamSeasonSync` after every saved GP:
+  the halfway swap on the Monday nearest the midpoint, then anyone unassigned
+  joins the team with the fewest racers who have raced). **`team_members` is the
+  current roster and `team_stints` is the history**: points stay with the team
+  that earned them, so anything summing team points must go through stints.
+  Membership is stored, not replayed, so correcting an old result cannot move
+  someone between teams. A registry system with `team_standings` owns
+  `getTeamStandings()`, so badges, honours, /teams and the API all agree; with
+  `team_season` the team table leads the homepage and is the ceremony's last
+  envelope (`isTeamSeason()`). The Constructor badge and the team-title honour go
+  to the winners' FINAL roster, so a racer swapped off the winning team gets
+  neither. The Lounge sign gets a team panel in the map's slot
 - **Seven more badges** — On the Up / From the Back (from the new
   `seasonPlacements()` in `gp_logic.php`: registry-sorted, qualifier-gated,
   cached — the one ranking pages should use for "where did X finish"),

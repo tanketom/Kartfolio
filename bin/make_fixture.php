@@ -28,6 +28,7 @@ $seasons = [
     ['s01', 'archived', 'average_attendance', 'Fixture One',   date('Y-m-d', strtotime('-200 days')), date('Y-m-d', strtotime('-101 days'))],
     ['s02', 'active',   'territory',          'Fixture Two',   date('Y-m-d', strtotime('-100 days')), date('Y-m-d', strtotime('+60 days'))],
     ['s03', 'archived', 'kart_bingo',         'Fixture Three', date('Y-m-d', strtotime('-400 days')), date('Y-m-d', strtotime('-301 days'))],
+    ['s04', 'archived', 'roll_call',          'Fixture Four',  date('Y-m-d', strtotime('-300 days')), date('Y-m-d', strtotime('-201 days'))],
 ];
 $sm = $pdo->prepare("INSERT INTO season_meta (season_id, status, scoring_system, season_name, start_date, end_date, attendance_weight, drop_rate, weekly_bonus_cap, min_races_threshold, best_n_count, tt_decay_gps, champion_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
 foreach ($seasons as [$id, $st, $sys, $nm, $a, $b]) $sm->execute([$id, $st, $sys, $nm, $a, $b, $sys === 'average_attendance' ? 1.0 : 0.0, $sys === 'average_attendance' ? 10 : 0, 2, 3, 15, 4, $st === 'archived' ? 'Ada' : null]);
@@ -50,5 +51,10 @@ $gp = function (string $season, int $n, string $date, string $cup) use ($res, $r
 $d = strtotime('-190 days'); for ($n = 1; $n <= 16; $n++) { $gp('s01', $n, date('Y-m-d', $d), $cups[($n - 1) % 24]); if ($n % 2 === 0) $d += 7 * 86400; }
 $d = strtotime('-95 days');  for ($n = 1; $n <= 26; $n++) { $gp('s02', $n, date('Y-m-d', $d), $cups[($n * 5) % 24]); if ($n % 2 === 0) $d += 6 * 86400; }
 $d = strtotime('-390 days'); for ($n = 1; $n <= 12; $n++) { $gp('s03', $n, date('Y-m-d', $d), $cups[($n * 7) % 24]); if ($n % 3 === 0) $d += 7 * 86400; }
+$d = strtotime('-295 days'); for ($n = 1; $n <= 16; $n++) { $gp('s04', $n, date('Y-m-d', $d), $cups[($n * 3) % 24]); if ($n % 2 === 0) $d += 12 * 86400; }
+// A team season, through the same code the admin page and add_result use.
+require_once __DIR__ . '/../private/includes/team_season.php';
+teamSeasonDraw($pdo, 's04', 's01', 3, 2);
+teamSeasonSync($pdo, 's04');
 $pdo->exec("UPDATE racers SET is_retired = 1 WHERE id = " . (int)end($racerIds));
 echo "fixture: $out · racers " . count($racerIds) . " · results " . $pdo->query("SELECT COUNT(*) FROM results")->fetchColumn() . " · seasons " . count($seasons) . "\n";

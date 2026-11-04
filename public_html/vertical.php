@@ -35,7 +35,12 @@ $ttMap = $isTerritory ? territoryMapPayload($pdo, $seasonId) : null;
 // The Price Is Right's price board. Everything they need comes from the season
 // cache; the standings below shrink to five like on Territory seasons.
 $signPanel = in_array($scoringSystem, ['kart_bingo', 'price_is_right'], true) ? $scoringSystem : null;
+// A team season's panel is the team table, once there are teams to show.
+$signTeams = isTeamSeason($pdo, $seasonId) ? getTeamStandings($pdo, $seasonId) : [];
+if ($signTeams) $signPanel = 'teams';
 $leaderboard = array_slice($standings, 0, ($isTerritory || $signPanel) ? 5 : 10);
+// The team panel leaves room for four rows, or three while a banner is up.
+if ($signPanel === 'teams') $leaderboard = array_slice($standings, 0, scoringSystemBanner($pdo, $seasonId) ? 3 : 4);
 $racerColour = territoryRacerColors(array_column($standings, 'id'));
 $names = racerNamesMap($pdo);
 
@@ -95,7 +100,31 @@ while($row = $newsStmt->fetch()) {
         <script src="<?= assetUrl('/assets/js/territory_map.js') ?>"></script>
         <?php endif; ?>
 
-        <?php if ($signPanel === 'kart_bingo'): ?>
+        <?php if ($signPanel === 'teams'):
+            $rc = rollCallSeason($pdo, $seasonId, $rules);
+            $thisWeek = rollCallWeekOf(date('Y-m-d'));
+            $careerAvg = hauntedGhostBase($pdo, $seasonId)['per']; ?>
+        <section class="sign-panel sign-panel--teams">
+            <div class="sp-title"><h3><?= htmlspecialchars(getScoringSystemInfo($pdo, $seasonId)['icon'] . ' ' . $systemName) ?></h3><span>this week so far</span></div>
+            <?php foreach ($signTeams as $i => $t): ?>
+            <div class="sp-team" style="--team-color: <?= htmlspecialchars($t['color']) ?>">
+                <div class="sp-team-head">
+                    <span class="sp-team-rank"><?= $i + 1 ?></span>
+                    <span class="sp-team-name"><?= htmlspecialchars($t['name']) ?></span>
+                    <span class="sp-team-score"><?= (int)$t['score'] ?></span>
+                </div>
+                <div class="sp-team-members">
+                    <?php foreach ($t['members'] as $rid => $mname):
+                        $w = $rc['racers'][$rid]['by_week'][$thisWeek] ?? null;
+                        $num = $rc['racers'][$rid]['number'] ?? $careerAvg[$rid] ?? null; ?>
+                    <span class="sp-team-member <?= $w ? ($w['beat'] ? 'is-beat' : 'is-in') : '' ?>"><?= $w ? ($w['beat'] ? '⭐ ' : '✓ ') : '' ?><?= htmlspecialchars($mname) ?><small><?= $num === null ? 'new' : number_format((float)$num, 1) ?></small></span>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <div class="sp-hint">✓ raced this week: <?= (int)$rc['knobs']['show'] ?> point. ⭐ beat their number: <?= (int)$rc['knobs']['beat'] ?> points. The number beside each name is theirs to beat.</div>
+        </section>
+        <?php elseif ($signPanel === 'kart_bingo'): ?>
         <section class="sign-panel">
             <div class="sp-title"><h3>🎱 Kart Bingo</h3><span><?= (int)($rules['bg_line_pts'] ?? 100) ?> a line · <?= (int)($rules['bg_card_pts'] ?? 500) ?> the card</span></div>
             <?php if (!$bingoCards): ?>
@@ -198,7 +227,7 @@ while($row = $newsStmt->fetch()) {
 
                 <div class="racer-info">
                     <div class="racer-name-row">
-                        <div class="racer-name"><?= htmlspecialchars($row['name']) ?></div>
+                        <div class="racer-name"><?= htmlspecialchars($row['name']) ?></div><?php if (!empty($row['team'])): ?><span class="racer-team-dot" style="background:<?= htmlspecialchars($row['team']['color']) ?>" title="<?= htmlspecialchars($row['team']['name']) ?>"></span><?php endif; ?>
                         <?php if (!empty($row['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($row['tie']) ?>">TIE</span><?php endif; ?>
                         <?php if (!empty($row['mikko'])): ?>
                             <span class="mikko-leaderboard-badge">🌟 #<?= (int)$row['mikko']['rank'] ?></span>

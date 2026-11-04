@@ -158,7 +158,10 @@ CREATE TABLE IF NOT EXISTS season_meta (
     hn_margin INTEGER DEFAULT 5,
     hn_creep FLOAT DEFAULT 1.0,
     hn_pack_cost INTEGER DEFAULT 25,
-    hn_heart_cost INTEGER DEFAULT 25
+    hn_heart_cost INTEGER DEFAULT 25,
+    rc_show INTEGER DEFAULT 1,
+    rc_beat INTEGER DEFAULT 3,
+    rc_swap INTEGER DEFAULT 1
 );
 
 -- The Real Monster Was Yourself: soul-coin purchases
@@ -469,3 +472,13 @@ INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, catego
 -- Default Season
 INSERT OR IGNORE INTO season_meta (season_id, status, scoring_system, season_name)
     VALUES ('s01', 'active', 'average_attendance', 'Season 1');
+
+CREATE TABLE IF NOT EXISTS team_stints (
+    season_id TEXT NOT NULL,
+    racer_id INTEGER NOT NULL,
+    from_date TEXT NOT NULL,
+    team_id INTEGER,
+    reason TEXT NOT NULL DEFAULT 'admin',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (season_id, racer_id, from_date)
+);

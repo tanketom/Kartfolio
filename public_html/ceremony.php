@@ -99,6 +99,18 @@ if ($fantasyName) {
     $honours[] = ['category' => 'Fantasy Champion', 'winner' => $fantasyName, 'sub' => $fantasyPts . ' fantasy points'];
 }
 
+// A season with teams has a team title. Where the teams ARE the season it is
+// the last envelope of the night; otherwise it is one honour among the others.
+$teamSeason = isTeamSeason($pdo, $seasonId);
+$teamWinner = null;
+try {
+    $teamTable = moduleEnabled($pdo, 'teams') ? getTeamStandings($pdo, $seasonId) : [];
+    if ($teamTable && (float)$teamTable[0]['score'] > 0) {
+        $teamWinner = ['category' => 'Team Champions', 'winner' => $teamTable[0]['name'], 'sub' => (int)$teamTable[0]['score'] . ' points · ' . implode(', ', $teamTable[0]['members'])];
+    }
+} catch (Throwable $e) {}
+if ($teamWinner && !$teamSeason) $honours[] = $teamWinner;
+
 // ── The running order ────────────────────────────────────────────────────
 // Kartificial's lines are picked by position, so a rehearsal and the real
 // thing say the same words.
@@ -162,19 +174,19 @@ if ($n > 0) {
     $podiumHost = [
         3 => 'Third. Close enough to see the trophy. Not close enough to lick it.',
         2 => 'Second. The first of the losers — my words, not the league\'s. Actually, the league\'s.',
-        1 => 'Your champion.',
+        1 => $teamSeason ? 'More points for their team than anyone. The title is still in an envelope.' : 'Your champion.',
     ];
     foreach ([3, 2, 1] as $place) {
         $r = $ranked[$place - 1] ?? null;
         if (!$r) continue;
         if ($place === 1) {
-            $steps[] = ['type' => 'drum', 'kicker' => 'And the champion of', 'title' => $seasonName,
+            $steps[] = ['type' => 'drum', 'kicker' => $teamSeason ? 'And the top scorer of' : 'And the champion of', 'title' => $seasonName,
                         'host' => $n > 1
                             ? 'One name left. ' . $ranked[1]['name'] . ' finished second, so it isn\'t them.'
                             : 'One name left.'];
         }
         $steps[] = ['type' => 'podium', 'place' => $place,
-                    'kicker' => ['1' => 'Champion', '2' => 'Second place', '3' => 'Third place'][(string)$place],
+                    'kicker' => ['1' => $teamSeason ? 'Top scorer' : 'Champion', '2' => 'Second place', '3' => 'Third place'][(string)$place],
                     'title' => $r['name'], 'char' => (string)($r['char'] ?? ''),
                     'sub' => ($r['display'] ?? ceremonyScore($r['score'])) . ($systemName !== '' ? ' · ' . $systemName : '')
                              . ' · ' . (int)$r['raceCount'] . ' GPs',
@@ -184,7 +196,13 @@ if ($n > 0) {
 
     $podium = array_map(fn($r) => ['name' => $r['name'], 'char' => (string)($r['char'] ?? ''),
                                    'score' => $r['display'] ?? ceremonyScore($r['score'])], array_slice($ranked, 0, 3));
-    $steps[] = ['type' => 'finale', 'kicker' => $seasonName, 'title' => $ranked[0]['name'],
+    if ($teamSeason && $teamWinner) {
+        $steps[] = ['type' => 'drum', 'kicker' => 'And the team champions of', 'title' => $seasonName,
+                    'host' => 'The envelope that matters. Everybody in this room has been working towards it, some of them on purpose.'];
+        $steps[] = ['type' => 'reveal', 'kicker' => 'Team Champions', 'title' => $teamWinner['winner'], 'sub' => $teamWinner['sub'], 'char' => '',
+                    'host' => 'Congratulations, ' . $teamWinner['winner'] . '.'];
+    }
+    $steps[] = ['type' => 'finale', 'kicker' => $seasonName, 'title' => ($teamSeason && $teamWinner) ? $teamWinner['winner'] : $ranked[0]['name'],
                 'podium' => $podium,
                 'host' => "That's the season. Thank you all for coming. Please take your karts with you."];
 } else {

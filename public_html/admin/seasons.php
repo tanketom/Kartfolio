@@ -235,6 +235,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($scoringSystem === 'form') {
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['form_thresh'] ?? 3));
                 $updateFields['form_window'] = max(1, min(50, (int)($_POST['form_window'] ?? 8)));
+            } elseif ($scoringSystem === 'roll_call') {
+                // Same clamps as rollCallKnobs().
+                $updateFields['rc_show'] = max(0, min(20, (int)($_POST['rc_show'] ?? 1)));
+                $updateFields['rc_beat'] = max(0, min(20, (int)($_POST['rc_beat'] ?? 3)));
+                $updateFields['rc_swap'] = !empty($_POST['rc_swap']) ? 1 : 0;
             } elseif ($scoringSystem === 'haunted') {
                 // Same clamps as hauntedKnobs().
                 $updateFields['min_races_threshold'] = max(0, (int)($_POST['hn_thresh'] ?? 3));
@@ -560,6 +565,11 @@ include __DIR__ . '/../../private/templates/header.php';
                         <div class="form-field" id="sim-param-form-w" style="display:none;">
                             <label>Form Window (GPs)</label>
                             <input type="number" id="sim-form-window" value="8" min="1" max="50" onchange="updateSimulator()">
+                        </div>
+                        <div class="form-field" id="sim-param-rc" style="display:none;">
+                            <label>Points: raced a week · beat your number</label>
+                            <input type="number" id="sim-rc-show" value="1" min="0" max="20" onchange="updateSimulator()">
+                            <input type="number" id="sim-rc-beat" value="3" min="0" max="20" onchange="updateSimulator()">
                         </div>
                         <div class="form-field" id="sim-param-hn" style="display:none;">
                             <label>Hearts · margin · ghost growth/day</label>
@@ -1053,6 +1063,25 @@ include __DIR__ . '/../../private/templates/header.php';
                             </div>
                         </div>
                     </div>
+                    <div id="fields-<?= $sid ?>-roll_call" class="scoring-fields" style="<?= $meta['scoring_system'] === 'roll_call' ? '' : 'display:none;' ?>">
+                        <h4 class="subsection-title">📣 Roll Call</h4>
+                        <p class="info-text"><?= htmlspecialchars($scoringSystems['roll_call']['long_description']) ?></p>
+                        <div class="form-grid grid-4">
+                            <div class="form-field">
+                                <label>Points for racing in a week</label>
+                                <input type="number" name="rc_show" value="<?= (int)($meta['rc_show'] ?? 1) ?>" min="0" max="20">
+                            </div>
+                            <div class="form-field">
+                                <label>Points for beating your number</label>
+                                <input type="number" name="rc_beat" value="<?= (int)($meta['rc_beat'] ?? 3) ?>" min="0" max="20">
+                            </div>
+                            <div class="form-field">
+                                <label><input type="checkbox" name="rc_swap" value="1" <?= (int)($meta['rc_swap'] ?? 1) ? 'checked' : '' ?>> Automatic halfway swap</label>
+                            </div>
+                        </div>
+                        <p class="info-text">Draw the teams and name them on <a href="/admin/teams?season=<?= htmlspecialchars($sid) ?>">Team Management</a>.</p>
+                    </div>
+
                     <div id="fields-<?= $sid ?>-haunted" class="scoring-fields" style="<?= $meta['scoring_system'] === 'haunted' ? '' : 'display:none;' ?>">
                         <h4 class="subsection-title">👻 The Real Monster Was Yourself</h4>
                         <p class="info-text"><?= htmlspecialchars($scoringSystems['haunted']['long_description']) ?></p>
@@ -1429,6 +1458,8 @@ const SIM_SEASON_RULES = <?= json_encode(array_map(fn($m) => [
     'pir_best_n'        => (int)($m['pir_best_n'] ?? 15),
     'eq_mode'           => $m['eq_mode'] ?? 'season',
     'form_window'       => (int)($m['form_window'] ?? 8),
+    'rc_show'           => (int)($m['rc_show'] ?? 1),
+    'rc_beat'           => (int)($m['rc_beat'] ?? 3),
     'hn_hearts'         => (int)($m['hn_hearts'] ?? 3),
     'hn_margin'         => (int)($m['hn_margin'] ?? 5),
     'hn_creep'          => (float)($m['hn_creep'] ?? 1.0),
@@ -1460,6 +1491,7 @@ function onSimSelectionChange() {
         set('sim-pir-target', r.pir_target); set('sim-pir-n', r.pir_best_n);
         set('sim-eq-mode', r.eq_mode);
         set('sim-form-window', r.form_window);
+        set('sim-rc-show', r.rc_show); set('sim-rc-beat', r.rc_beat);
         set('sim-hn-hearts', r.hn_hearts); set('sim-hn-margin', r.hn_margin); set('sim-hn-creep', r.hn_creep);
     }
     loadSimData();
@@ -1501,6 +1533,7 @@ function updateSimulator() {
         'sim-param-hm-cap':   system === 'hard_mode',
         'sim-param-form-w':   system === 'form',
         'sim-param-hn':       system === 'haunted',
+        'sim-param-rc':       system === 'roll_call',
     };
     for (const [id, visible] of Object.entries(show)) {
         document.getElementById(id).style.display = visible ? '' : 'none';
@@ -1528,6 +1561,7 @@ function updateSimulator() {
     if (system === 'price_is_right')    url += `&pir_target=${val('sim-pir-target')}&pir_best_n=${val('sim-pir-n')}`;
     if (system === 'equaliser')         url += `&eq_mode=${val('sim-eq-mode')}`;
     if (system === 'form')              url += `&form_window=${val('sim-form-window')}`;
+    if (system === 'roll_call')         url += `&rc_show=${val('sim-rc-show')}&rc_beat=${val('sim-rc-beat')}`;
     if (system === 'haunted')           url += `&hn_hearts=${val('sim-hn-hearts')}&hn_margin=${val('sim-hn-margin')}&hn_creep=${val('sim-hn-creep')}`;
 
     document.getElementById('sim-standings-table').innerHTML = '<p class="sim-status">Computing...</p>';

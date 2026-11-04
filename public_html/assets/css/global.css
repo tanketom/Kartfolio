@@ -2339,3 +2339,7 @@ select, textarea {
 .system-banner-body span { font-size: 0.92rem; opacity: 0.9; }
 .haunt-winner { margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; background: rgba(255, 215, 0, 0.14); border: 2px solid var(--gold, #ffd700); }
 .scr-haunt--ghost { opacity: 0.85; border-style: dashed; }
+
+/* A racer's team on the standings (homepage and signs). Sized in em so it fits
+   a 16px homepage row and an 80px sign row alike. */
+.racer-team-dot { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; margin-left: 0.4em; vertical-align: 0.05em; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }

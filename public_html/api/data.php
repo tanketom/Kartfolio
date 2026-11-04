@@ -140,7 +140,7 @@ switch ($resource) {
                 'members' => array_values($t['members']),
             ];
         }
-        api_out($out, ['season' => $season, 'best_n' => teamBestN($pdo, $season)]);
+        api_out($out, ['season' => $season, 'best_n' => teamBestN($pdo, $season), 'scoring' => teamScoringLine($pdo, $season)]);
     }
 
     case 'mikkoliiga': {

@@ -91,6 +91,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                     <a href="/cup-mastery">Cup Mastery Grid</a>
                     <a href="/track-favourites">🏁 Track Favourites</a>
                     <?php if (moduleEnabled($pdo, 'mikkoliiga')): ?><a href="/mikkoliiga">🌟 Mikkoliiga</a><?php endif; ?>
+                    <?php if (moduleEnabled($pdo, 'teams')): ?><a href="/teams">🤝 Teams</a><?php endif; ?>
 
                 </div>
             </div>

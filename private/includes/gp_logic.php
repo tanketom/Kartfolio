@@ -338,6 +338,29 @@ function getScoringSystemRegistry(): array {
             'page_label'             => 'Enter the haunted house',
         ],
 
+        'roll_call' => [
+            'name'                   => 'Roll Call',
+            'icon'                   => '📣',
+            'description'            => fn($rules) => 'A team season: ' . rollCallKnobs((array)$rules)['show'] . ' for racing in a week, ' . rollCallKnobs((array)$rules)['beat'] . ' for beating your own average',
+            'long_description'       => "A team season built for a league nobody can schedule. Each week you race, your team gets a point; if any of your GPs that week beats your own number, it gets three instead. Your number is your career average from before the season, so a beginner and a veteran are each racing themselves. A newcomer's first GP counts as a beat, and after that their number is their own running average. Racing five times in a week earns no more than racing once, and staying home costs nothing. Last season's most active racers are drawn into the teams from pots; everyone else joins on their first race, on the team that has the fewest racers so far. At the halfway point the most-present team's second most-present racer swaps with the least-present team's least-present racer, and points stay with the team that earned them. The title is the team's; the individual table shows who has contributed most.",
+            'calculate'              => 'calculateRollCallScore',
+            'breakdown'              => 'breakdownRollCall',
+            'tooltip'                => 'tooltipRollCall',
+            'banner'                 => 'bannerRollCall',
+            'qualifies_by_threshold' => false,
+            'sort'                   => null,
+            'tiebreak'               => [
+                'metric' => fn($pdo, $rid, $season_id, $rules) => rollCallSeason($pdo, $season_id, (array)$rules)['racers'][(int)$rid]['beats'] ?? 0,
+                'level'  => 'Level on points',
+                'ahead'  => 'weeks beating their number',
+                'both'   => 'Level on points and weeks beating their number',
+            ],
+            'team_season'            => true,               // the table leads, racers join by racing
+            'team_standings'         => 'rollCallTeamStandings',
+            'page'                   => '/teams',
+            'page_label'             => 'The team table',
+        ],
+
         'kart_bingo' => [
             'name'                   => 'Kart Bingo',
             'icon'                   => '🎱',
@@ -1514,6 +1537,8 @@ function progressiveSeasonReplay(PDO $pdo, string $system, string $season_id, ar
             return monsterHuntReplay($pdo, $season_id, $rules);
         case 'haunted':
             return hauntedSeason($pdo, $season_id, $rules)['frames'];
+        case 'roll_call':
+            return rollCallSeason($pdo, $season_id, $rules)['frames'];
     }
     return null;
 }
@@ -2433,6 +2458,10 @@ function getTeamConfig(PDO $pdo, string $season_id): array {
  * tiebreak). Each entry: id, name, color, score, gps_scored, members, member_count.
  */
 function getTeamStandings(PDO $pdo, string $season_id): array {
+    // A system that scores its own teams says so in the registry (Roll Call).
+    $own = getScoringSystemDef(getSeasonRules($pdo, $season_id)['scoring_system'] ?? 'average_attendance')['team_standings'] ?? null;
+    if ($own !== null) return $own($pdo, $season_id);
+
     $teams = getTeamConfig($pdo, $season_id);
     if (empty($teams)) return [];
 
@@ -2467,6 +2496,306 @@ function getTeamStandings(PDO $pdo, string $season_id): array {
 
     usort($standings, fn($a, $b) => ($b['score'] <=> $a['score']) ?: strcmp($a['name'], $b['name']));
     return $standings;
+}
+
+// ============================================================================
+// ROLL CALL — the team season built for a league nobody can schedule
+// ============================================================================
+//
+// Per racer, per calendar week (Monday to Sunday): race at all and your team
+// gets rc_show points; have any GP that week beat your own number and it gets
+// rc_beat instead. Staying home costs nothing, and racing five times in a week
+// earns no more than racing once, which is what stops the most-present team
+// winning by attendance alone.
+//
+// Your number: your career average from before the season (hauntedGhostBase,
+// the same figure the Haunted ghost starts from). A newcomer's first GP ever
+// counts as a beat; after that their number is their own running average.
+//
+// Who is on which team lives in team_stints, not team_members: points stay
+// with the team that earned them, so a racer moved at the halfway swap must
+// not carry their first half across. team_members stays the CURRENT roster,
+// which is all the rest of the site needs. The writes (draw, auto-join, swap)
+// are in team_season.php.
+
+function rollCallKnobs(array $rules): array {
+    return [
+        'show' => max(0, min(20, (int)($rules['rc_show'] ?? 1))),
+        'beat' => max(0, min(20, (int)($rules['rc_beat'] ?? 3))),
+        'swap' => (int)($rules['rc_swap'] ?? 1) !== 0,
+    ];
+}
+
+/** The Monday (Y-m-d) of the week a date falls in. */
+function rollCallWeekOf(string $date): string {
+    $day = substr($date, 0, 10);
+    return date('Y-m-d', strtotime($day . ' -' . ((int)date('N', strtotime($day)) - 1) . ' days'));
+}
+
+/**
+ * The Monday nearest the midpoint of the season's dates, or null when the season
+ * has no dates or the swap is off. On a Monday so that no week is split between
+ * two teams; nearest, because "first Monday after" can leave a 5/3 split of an
+ * 8-week season (5 Nov to 27 Dec has its midpoint on Tuesday 1 Dec).
+ */
+function rollCallSwapDate(array $rules): ?string {
+    if (!rollCallKnobs($rules)['swap']) return null;
+    $a = strtotime(substr((string)($rules['start_date'] ?? ''), 0, 10));
+    $b = strtotime(substr((string)($rules['end_date'] ?? ''), 0, 10));
+    if (!$a || !$b || $b <= $a) return null;
+    $mid = date('Y-m-d', $a + (int)(($b - $a) / 2));
+    $monday = rollCallWeekOf($mid);
+    return (int)date('N', strtotime($mid)) <= 4 ? $monday : date('Y-m-d', strtotime($monday . ' +7 days'));
+}
+
+/** Every Monday of the season, from its dates plus any week actually raced. */
+function rollCallSeasonWeeks(array $rules, array $raced = []): array {
+    $weeks = array_fill_keys($raced, true);
+    $a = substr((string)($rules['start_date'] ?? ''), 0, 10);
+    $b = substr((string)($rules['end_date'] ?? ''), 0, 10);
+    if (strtotime($a) && strtotime($b) && $b >= $a) {
+        for ($w = rollCallWeekOf($a); $w <= $b; $w = date('Y-m-d', strtotime($w . ' +7 days'))) $weeks[$w] = true;
+    }
+    ksort($weeks);
+    return array_keys($weeks);
+}
+
+/**
+ * The scoring itself, pure: no database, so team_season.php can run it on rows
+ * it has just read and bin/check.php can test it on rows it made up.
+ *
+ * $rows: racer_id, gpid, gp_points, race_date — any order, sorted here.
+ * $career: [racer_id => career average before the season]; absent = newcomer.
+ *
+ * Returns 'racers' => [rid => points, weeks, beats, gps, new, number (today's,
+ * null before a newcomer's first GP), by_week => [monday => pts, beat, best, gps]],
+ * 'weeks' => [mondays raced], 'frames' => [gpid => [rid => score, gps]].
+ */
+function rollCallFromRows(array $rows, array $career, array $k): array {
+    usort($rows, fn($a, $b) => strcmp(substr((string)$a['race_date'], 0, 10), substr((string)$b['race_date'], 0, 10))
+        ?: strnatcmp((string)$a['gpid'], (string)$b['gpid']) ?: ((int)$a['racer_id'] <=> (int)$b['racer_id']));
+
+    $racers = []; $weeks = []; $frames = []; $order = [];
+    foreach ($rows as $r) {
+        $rid = (int)$r['racer_id']; $pts = (int)$r['gp_points'];
+        $wk = rollCallWeekOf((string)$r['race_date']);
+        $weeks[$wk] = true;
+        if (!isset($racers[$rid])) {
+            $racers[$rid] = ['points' => 0, 'weeks' => 0, 'beats' => 0, 'gps' => 0, 'new' => !isset($career[$rid]),
+                             'number' => $career[$rid] ?? null, 'sum' => 0, 'by_week' => []];
+        }
+        $x = &$racers[$rid];
+        // $x['number'] is null only before a newcomer's first GP: that one is free.
+        $beat = $x['number'] === null || $pts > $x['number'];
+        $x['gps']++;
+        if ($x['new']) { $x['sum'] += $pts; $x['number'] = $x['sum'] / $x['gps']; }
+
+        if (!isset($x['by_week'][$wk])) {
+            $x['by_week'][$wk] = ['pts' => $k['show'], 'beat' => false, 'best' => $pts, 'gps' => 0];
+            $x['weeks']++;
+            $x['points'] += $k['show'];
+        }
+        $w = &$x['by_week'][$wk];
+        $w['gps']++;
+        $w['best'] = max($w['best'], $pts);
+        if ($beat && !$w['beat']) {
+            $w['beat'] = true;
+            $x['beats']++;
+            $x['points'] += $k['beat'] - $k['show'];
+            $w['pts'] = $k['beat'];
+        }
+        unset($w, $x);
+
+        $g = (string)$r['gpid'];
+        if (!isset($frames[$g])) $order[] = $g;
+        $frames[$g] = [];
+        foreach ($racers as $id => $y) $frames[$g][$id] = ['score' => (float)$y['points'], 'gps' => $y['gps']];
+    }
+    ksort($weeks);
+    return ['racers' => $racers, 'weeks' => array_keys($weeks), 'frames' => $frames];
+}
+
+/** The whole season, once per request and knob setting (the simulator varies them). */
+function rollCallSeason(PDO $pdo, string $season_id, array $rules): array {
+    static $cache = [];
+    $k = rollCallKnobs($rules);
+    $key = $season_id . '|' . $k['show'] . '|' . $k['beat'];
+    if (isset($cache[$key])) return $cache[$key];
+    $rows = [];
+    foreach (getSeasonResultsByRacer($pdo, $season_id) as $list) foreach ($list as $r) $rows[] = $r;
+    return $cache[$key] = rollCallFromRows($rows, hauntedGhostBase($pdo, $season_id)['per'], $k) + ['knobs' => $k];
+}
+
+/**
+ * Who has been on which team, per racer: [rid => [['from' => Y-m-d, 'team' =>
+ * id or null, 'reason' => …], …]] oldest first. A racer on a roster with no
+ * history (assigned before history existed) is on that team from day one.
+ */
+function rollCallStints(PDO $pdo, string $season_id, string $start): array {
+    $out = [];
+    $st = $pdo->prepare("SELECT racer_id, from_date, team_id, reason FROM team_stints WHERE season_id = ? ORDER BY racer_id, from_date");
+    $st->execute([$season_id]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[(int)$r['racer_id']][] = ['from' => $r['from_date'], 'team' => $r['team_id'] === null ? null : (int)$r['team_id'], 'reason' => $r['reason']];
+    }
+    $st = $pdo->prepare("SELECT racer_id, team_id FROM team_members WHERE season_id = ?");
+    $st->execute([$season_id]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) {
+        $out[(int)$m['racer_id']] ??= [['from' => $start, 'team' => (int)$m['team_id'], 'reason' => 'roster']];
+    }
+    return $out;
+}
+
+/**
+ * The team a racer's week counts for: their latest stint begun by that week's
+ * Sunday. A week raced before their first stint (a result entered late, say)
+ * goes to the team they first joined, rather than to nobody.
+ */
+function rollCallTeamInWeek(array $stints, string $monday): ?int {
+    if (!$stints) return null;
+    $sunday = date('Y-m-d', strtotime($monday . ' +6 days'));
+    $team = $stints[0]['team'];
+    foreach ($stints as $s) if ($s['from'] <= $sunday) $team = $s['team'];
+    return $team;
+}
+
+/**
+ * Team totals from the scored season and the stints, pure like rollCallFromRows.
+ * [team_id => score, beats, present (racer-weeks), by_week => [monday => pts],
+ * racers => [rid => pts, beats, weeks]].
+ */
+function rollCallTeamTotals(array $season, array $stints, array $teamIds): array {
+    $out = [];
+    foreach ($teamIds as $id) $out[(int)$id] = ['score' => 0, 'beats' => 0, 'present' => 0, 'by_week' => [], 'racers' => []];
+    foreach ($season['racers'] as $rid => $x) {
+        foreach ($x['by_week'] as $wk => $w) {
+            $team = rollCallTeamInWeek($stints[$rid] ?? [], $wk);
+            if ($team === null || !isset($out[$team])) continue;
+            $t = &$out[$team];
+            $t['score'] += $w['pts'];
+            $t['beats'] += $w['beat'] ? 1 : 0;
+            $t['present']++;
+            $t['by_week'][$wk] = ($t['by_week'][$wk] ?? 0) + $w['pts'];
+            $t['racers'][$rid] ??= ['pts' => 0, 'beats' => 0, 'weeks' => 0];
+            $t['racers'][$rid]['pts'] += $w['pts'];
+            $t['racers'][$rid]['beats'] += $w['beat'] ? 1 : 0;
+            $t['racers'][$rid]['weeks']++;
+            unset($t);
+        }
+    }
+    return $out;
+}
+
+/** getTeamStandings() for a Roll Call season, through the registry's 'team_standings'. */
+function rollCallTeamStandings(PDO $pdo, string $season_id): array {
+    $teams = getTeamConfig($pdo, $season_id);
+    if (!$teams) return [];
+    $rules  = getSeasonRules($pdo, $season_id);
+    $season = rollCallSeason($pdo, $season_id, $rules);
+    $stints = rollCallStints($pdo, $season_id, substr((string)($rules['start_date'] ?? ''), 0, 10));
+    $totals = rollCallTeamTotals($season, $stints, array_keys($teams));
+    $out = [];
+    foreach ($teams as $id => $t) {
+        $x = $totals[$id];
+        $out[] = ['id' => $id, 'name' => $t['name'], 'color' => $t['color'], 'score' => $x['score'],
+                  'gps_scored' => $x['present'], 'beats' => $x['beats'], 'present' => $x['present'],
+                  'by_week' => $x['by_week'], 'racers' => $x['racers'],
+                  'members' => $t['members'], 'member_count' => count($t['members'])];
+    }
+    // More beats first when level: that team was ahead of its own numbers more
+    // often. The name is only there to keep the order deterministic (§10).
+    usort($out, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['beats'] <=> $a['beats']) ?: strcmp($a['name'], $b['name']));
+    return $out;
+}
+
+/** The racers moved by the halfway swap, or [] before it has happened. */
+function rollCallSwapMoves(PDO $pdo, string $season_id): array {
+    try {
+        $st = $pdo->prepare("SELECT s.racer_id, s.from_date, s.team_id, r.name AS racer, t.name AS team
+                             FROM team_stints s JOIN racers r ON r.id = s.racer_id LEFT JOIN teams t ON t.id = s.team_id
+                             WHERE s.season_id = ? AND s.reason = 'swap' ORDER BY r.name ASC");
+        $st->execute([$season_id]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { return []; }
+}
+
+function calculateRollCallScore($pdo, $racer_id, $season_id, $rules) {
+    return rollCallSeason($pdo, $season_id, (array)$rules)['racers'][(int)$racer_id]['points'] ?? 0;
+}
+
+function breakdownRollCall($pdo, $racer_id, $season_id, $rules) {
+    $s = rollCallSeason($pdo, $season_id, (array)$rules);
+    $x = $s['racers'][(int)$racer_id] ?? null;
+    $career = hauntedGhostBase($pdo, $season_id)['per'][(int)$racer_id] ?? null;
+    return [
+        'points' => $x['points'] ?? 0, 'weeks' => $x['weeks'] ?? 0, 'beats' => $x['beats'] ?? 0, 'gps' => $x['gps'] ?? 0,
+        'number' => $x['number'] ?? $career, 'new' => $x ? $x['new'] : $career === null,
+        'show' => $s['knobs']['show'], 'beat' => $s['knobs']['beat'], 'by_week' => $x['by_week'] ?? [],
+    ];
+}
+
+function tooltipRollCall(array $c, $score): string {
+    $weeks = (int)($c['weeks'] ?? 0); $beats = (int)($c['beats'] ?? 0);
+    $number = $c['number'] ?? null;
+    $num = $number === null ? 'your first GP counts as a beat' : 'your number is ' . scoreNum(round((float)$number, 1));
+    if ($weeks === 0) return 'Not raced yet · ' . $num;
+    return sprintf('%d week%s raced, %d beat your number (%d pts each), %d turned up (%d each) · %s',
+        $weeks, $weeks === 1 ? '' : 's', $beats, $c['beat'] ?? 3, $weeks - $beats, $c['show'] ?? 1, $num);
+}
+
+/** Announces the halfway swap the week before it, and who moved the week after. */
+function bannerRollCall(PDO $pdo, string $season_id): ?array {
+    $rules = getSeasonRules($pdo, $season_id);
+    $date  = rollCallSwapDate($rules);
+    if ($date === null) return null;
+    $today = date('Y-m-d');
+    $moves = rollCallSwapMoves($pdo, $season_id);
+    if ($moves) {
+        if ($today > date('Y-m-d', strtotime($date . ' +13 days'))) return null;
+        return ['icon' => '🔀', 'title' => 'The halfway swap has happened',
+                'text' => implode(' · ', array_map(fn($m) => $m['racer'] . ' → ' . $m['team'], $moves)) . '. Points earned so far stay with the team that earned them.',
+                'link' => '/teams'];
+    }
+    if ($today >= date('Y-m-d', strtotime($date . ' -7 days')) && !empty(getTeamConfig($pdo, $season_id))) {
+        return ['icon' => '🔀', 'title' => 'Halfway swap: ' . date('l j F', strtotime($date)),
+                'text' => "The most-present team's second most-present racer swaps with the least-present team's least-present racer. Points stay where they were earned.",
+                'link' => '/teams'];
+    }
+    return null;
+}
+
+/** "How this team table is scored" in a line, for the pages that show one. */
+function teamScoringLine(PDO $pdo, string $season_id): string {
+    $rules = getSeasonRules($pdo, $season_id);
+    $def = getScoringSystemDef($rules['scoring_system'] ?? 'average_attendance');
+    if (!empty($def['team_season'])) {
+        $k = rollCallKnobs($rules);
+        return "{$def['name']} · {$k['show']} for racing in a week, {$k['beat']} for beating your number";
+    }
+    return 'Constructor scoring · best ' . teamBestN($pdo, $season_id) . ' per GP';
+}
+
+/** True when the teams ARE the season: the table leads and racers join by racing. */
+function isTeamSeason(PDO $pdo, string $season_id): bool {
+    return !empty(getScoringSystemDef(getSeasonRules($pdo, $season_id)['scoring_system'] ?? 'average_attendance')['team_season']);
+}
+
+/** The team table as text for the writers (broadcasts, season report). '' when there are no teams. */
+function teamBriefingText(PDO $pdo, string $season_id): string {
+    $table = getTeamStandings($pdo, $season_id);
+    if (!$table) return '';
+    $team = isTeamSeason($pdo, $season_id);
+    $out = "*** THE TEAMS" . ($team ? ' — THIS IS WHAT THE SEASON IS PLAYED FOR' : '') . " ***\n" . teamScoringLine($pdo, $season_id) . ".\n";
+    if ($team) $out .= "Each racer's number is their own average: they are racing that, not each other. Nobody loses points for staying home. The individual table is who has contributed most; the title is the team's.\n";
+    foreach ($table as $i => $t) {
+        $out .= ($i + 1) . ". {$t['name']} — {$t['score']} pts — " . ($t['members'] ? implode(', ', $t['members']) : 'no members') . "\n";
+    }
+    if ($team && ($moves = rollCallSwapMoves($pdo, $season_id))) {
+        $out .= 'The halfway swap moved: ' . implode(', ', array_map(fn($m) => "{$m['racer']} to {$m['team']}", $moves)) . ". Points earned before it stayed with the old team.\n";
+    } elseif ($team && ($date = rollCallSwapDate(getSeasonRules($pdo, $season_id)))) {
+        $out .= 'The halfway swap happens on ' . date('l j F', strtotime($date)) . ".\n";
+    }
+    return $out . "\n";
 }
 
 /**

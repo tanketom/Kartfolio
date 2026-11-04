@@ -164,6 +164,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             hauntedGrantPacks($pdo, $gpid);
         } catch (Throwable $e) { error_log('haunted packs: ' . $e->getMessage()); }
+        // Team seasons: anyone new joins a team on their first race, and the
+        // halfway swap happens with the first GP after its date (no-op otherwise).
+        try {
+            require_once __DIR__ . '/../private/includes/team_season.php';
+            teamSeasonSync($pdo, preg_replace('/gp\d+$/', '', $gpid));
+        } catch (Throwable $e) { error_log('team season: ' . $e->getMessage()); }
         // Badge sightings for "new this week" on the homepage — never lets a
         // badge hiccup break result entry.
         try {

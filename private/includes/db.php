@@ -237,6 +237,18 @@ try {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_teams_season ON teams(season_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id)");
+    // Roll Call: who was on which team from when. team_members is the current
+    // roster; this is what lets points stay with the team that earned them.
+    // reason: draw | join | swap | admin. team_id NULL = taken off the teams.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS team_stints (
+        season_id TEXT NOT NULL,
+        racer_id INTEGER NOT NULL,
+        from_date TEXT NOT NULL,
+        team_id INTEGER,
+        reason TEXT NOT NULL DEFAULT 'admin',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (season_id, racer_id, from_date)
+    )");
     // Per-season constructor depth (how many members count toward each GP).
     try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN team_best_n INTEGER DEFAULT 2"); }
     catch (PDOException $e) {}
@@ -274,6 +286,7 @@ try {
         "eq_mode TEXT DEFAULT 'season'",                                             // The Great Equaliser
         "hn_hearts INTEGER DEFAULT 3", "hn_margin INTEGER DEFAULT 5", "hn_creep FLOAT DEFAULT 1.0",   // The Real Monster Was Yourself
         "hn_pack_cost INTEGER DEFAULT 25", "hn_heart_cost INTEGER DEFAULT 25",
+        "rc_show INTEGER DEFAULT 1", "rc_beat INTEGER DEFAULT 3", "rc_swap INTEGER DEFAULT 1",   // Roll Call
     ] as $col) {
         try { $pdo->exec("ALTER TABLE season_meta ADD COLUMN $col"); } catch (PDOException $e) {}
     }

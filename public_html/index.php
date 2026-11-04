@@ -232,6 +232,40 @@ $liveFormatLabels = [
     </a>
     <?php endif; ?>
 
+<?php
+    // On a team season the teams are the season, so their table leads the page;
+    // otherwise it sits further down as a side competition.
+    $teamsLead = isTeamSeason($pdo, $seasonId);
+    $renderTeamSection = function () use ($teamStandings, $pdo, $seasonId) { ?>
+    <?php if (!empty($teamStandings) && moduleEnabled($pdo, 'teams')): ?>
+    <section class="team-home-section">
+        <div class="section-header">
+            <h3 class="section-title">🤝 Team Standings</h3>
+            <span class="section-meta"><?= htmlspecialchars(teamScoringLine($pdo, $seasonId)) ?> · <a href="/teams" class="mikko-full-link">all teams →</a></span>
+        </div>
+        <div class="team-home-grid">
+            <?php foreach ($teamStandings as $tIdx => $t):
+                $tMedals = ['🥇', '🥈', '🥉'];
+            ?>
+            <a href="/teams?season=<?= htmlspecialchars($seasonId) ?>" class="team-home-card" style="--team-color: <?= htmlspecialchars($t['color']) ?>;">
+                <div class="team-home-top">
+                    <span class="team-home-medal"><?= $tMedals[$tIdx] ?? ('#' . ($tIdx + 1)) ?></span>
+                    <span class="team-home-name"><?= htmlspecialchars($t['name']) ?></span>
+                    <span class="team-home-score"><?= (int)$t['score'] ?></span>
+                </div>
+                <div class="team-home-members">
+                    <?php foreach (array_values($t['members']) as $mi => $mname): if ($mi >= 6) { echo '<span class="team-home-more">+' . (count($t['members']) - 6) . '</span>'; break; } ?>
+                        <span class="team-home-chip"><?= htmlspecialchars($mname) ?></span>
+                    <?php endforeach; ?>
+                    <?php if (empty($t['members'])): ?><span class="team-home-chip team-home-chip--empty">no members</span><?php endif; ?>
+                </div>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+    <?php }; if ($teamsLead) $renderTeamSection(); ?>
+
     <?php if ($scoringInfo['system'] === 'territory' && !empty($standings)):
         // Territory seasons get the overworld map above the fold, with a
         // Map / Rankings switch (remembered per browser). Data + renderer:
@@ -307,6 +341,7 @@ $liveFormatLabels = [
                     <a href="/racer/<?= $row['id'] ?>" class="racer-name racer-name-link">
                         <?= htmlspecialchars($row['name']) ?>
                     </a>
+                    <?php if (!empty($row['team'])): ?><a href="/teams" class="racer-team-dot" style="background:<?= htmlspecialchars($row['team']['color']) ?>" title="<?= htmlspecialchars($row['team']['name']) ?>" aria-label="<?= htmlspecialchars($row['team']['name']) ?>"></a><?php endif; ?>
                     <?php if (isset($mikkoliigaByRacer[$row['id']]) && moduleEnabled($pdo, 'mikkoliiga')):
                         $mk = $mikkoliigaByRacer[$row['id']];
                         $mkTip = sprintf('Mikkoliiga member · #%d of %d · %d internal pts (best %d GPs)',
@@ -492,33 +527,7 @@ $liveFormatLabels = [
     </section>
     <?php endif; ?>
 
-    <?php if (!empty($teamStandings) && moduleEnabled($pdo, 'teams')): ?>
-    <section class="team-home-section">
-        <div class="section-header">
-            <h3 class="section-title">🤝 Team Standings</h3>
-            <span class="section-meta">Constructor scoring · best <?= teamBestN($pdo, $seasonId) ?> per GP · <a href="/teams" class="mikko-full-link">all teams →</a></span>
-        </div>
-        <div class="team-home-grid">
-            <?php foreach ($teamStandings as $tIdx => $t):
-                $tMedals = ['🥇', '🥈', '🥉'];
-            ?>
-            <a href="/teams?season=<?= htmlspecialchars($seasonId) ?>" class="team-home-card" style="--team-color: <?= htmlspecialchars($t['color']) ?>;">
-                <div class="team-home-top">
-                    <span class="team-home-medal"><?= $tMedals[$tIdx] ?? ('#' . ($tIdx + 1)) ?></span>
-                    <span class="team-home-name"><?= htmlspecialchars($t['name']) ?></span>
-                    <span class="team-home-score"><?= (int)$t['score'] ?></span>
-                </div>
-                <div class="team-home-members">
-                    <?php foreach (array_values($t['members']) as $mi => $mname): if ($mi >= 6) { echo '<span class="team-home-more">+' . (count($t['members']) - 6) . '</span>'; break; } ?>
-                        <span class="team-home-chip"><?= htmlspecialchars($mname) ?></span>
-                    <?php endforeach; ?>
-                    <?php if (empty($t['members'])): ?><span class="team-home-chip team-home-chip--empty">no members</span><?php endif; ?>
-                </div>
-            </a>
-            <?php endforeach; ?>
-        </div>
-    </section>
-    <?php endif; ?>
+    <?php if (!$teamsLead) $renderTeamSection(); ?>
 
     <?php if (!empty($mikkoliigaTop3) && moduleEnabled($pdo, 'mikkoliiga')): ?>
     <section class="mikko-section">

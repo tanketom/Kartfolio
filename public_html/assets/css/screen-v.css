@@ -619,3 +619,16 @@ body {
     color: var(--gold, #ffd700); letter-spacing: -.01em;
 }
 .sign-crown-body span { font-size: 2.2rem; line-height: 1.25; opacity: .9; }
+
+/* ── A team season's panel: the team table, with who has raced this week ── */
+.signage-container .sign-panel--teams { height: 1120px; justify-content: space-between; gap: 24px; }
+.sp-team { background: #fff; border: 4px solid #e6e2d8; border-left: 22px solid var(--team-color); border-radius: 22px; padding: 16px 34px; flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+.sp-team-head { display: flex; align-items: baseline; gap: 26px; }
+.sp-team-rank { font-family: var(--font-display); font-size: 56px; font-weight: 700; color: #6b6560; }
+.sp-team-name { font-family: var(--font-display); font-size: 60px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.1; }
+.sp-team-score { font-family: 'DM Mono', monospace; font-size: 80px; font-weight: 500; line-height: 1; }
+.sp-team-members { display: flex; flex-wrap: wrap; gap: 10px 14px; align-content: flex-start; }
+.sp-team-member { font-size: 40px; font-weight: 700; padding: 8px 24px; border-radius: 999px; background: #f1eee6; color: #6b6560; white-space: nowrap; }
+.sp-team-member small { font-family: 'DM Mono', monospace; font-size: 30px; font-weight: 500; margin-left: 12px; opacity: 0.8; }
+.sp-team-member.is-in { background: #e3e0d6; color: #2b2723; }
+.sp-team-member.is-beat { background: #ffe9a8; color: #2b2723; }
