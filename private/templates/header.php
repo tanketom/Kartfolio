@@ -133,7 +133,9 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                             <a href="/admin/news">📰 News desk</a>
                             <a href="/admin/audit">🔎 Data audit<?php
                                 // The only nudge a flagged result gets, so nobody has to remember to look.
-                                $openFlags = (int)$pdo->query("SELECT COUNT(*) FROM result_flags WHERE status = 'open'")->fetchColumn();
+                                $openFlags = 0;
+                                try { $openFlags = (int)$pdo->query("SELECT COUNT(*) FROM result_flags WHERE status = 'open'")->fetchColumn(); }
+                                catch (Throwable $e) { error_log('flag count: ' . $e->getMessage()); }
                                 if ($openFlags > 0) echo ' <strong>(' . $openFlags . ')</strong>'; ?></a>
                             <a href="/admin/modules">🧩 Modules</a>
                             <a href="/admin/uml">🗂️ System UML</a>

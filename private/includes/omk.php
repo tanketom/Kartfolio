@@ -19,6 +19,7 @@ const OMK_SYMBOL = 'Ω';
 const OMK_PER_WEEK = 2;
 const OMK_EPOCH_DEFAULT = '2026-11-02';   // racing before this week earned nothing
 const OMK_PRICES = ['bribe' => 10, 'counter' => 15, 'sponsor' => 20];
+const OMK_BRIBE_ODDS = 4;                 // a bribed cup comes up 1 draw in this many
 
 /** A purchase refused for a reason the buyer should read. Nothing has been spent. */
 class OmkRefused extends RuntimeException {}
@@ -183,16 +184,26 @@ function omkBuyCounter(PDO $pdo, int $racer_id, int $bribe_id): array {
 }
 
 /**
- * Triple weight per live bribe for a cup. A bribe only counts in a draw its payer
- * is actually in: they paid to race their best cup, not for it to come up while
- * they are at home. Vetoes and "raced today" still apply to it, and he keeps the money.
+ * A bribed cup gets a 1 in OMK_BRIBE_ODDS chance. A set share rather than a
+ * multiplier, because What cup? weighs a cup nobody has raced up to 20× and more, so
+ * tripling a familiar cup barely moved it: about 1% to 5% in testing. Two cups bribed
+ * at once share out a little less each. Still a draw, not a purchase of the result.
+ *
+ * A bribe only counts in a draw its payer is actually in: they paid to race their
+ * best cup, not for it to come up while they are at home. Vetoes and "raced today"
+ * still apply to it, and he keeps the money.
  */
 function omkApplyBribes(array $weights, array $bribes, array $racerIds): array {
+    $bribed = [];
     foreach ($bribes as $b) {
         if ($b['status'] === 'pending' && in_array((int)$b['racer_id'], $racerIds, true) && isset($weights[$b['cup_name']])) {
-            $weights[$b['cup_name']] *= 3;
+            $bribed[$b['cup_name']] = true;
         }
     }
+    if (!$bribed) return $weights;
+    $rest = array_sum(array_diff_key($weights, $bribed));
+    $share = (int)ceil($rest / (OMK_BRIBE_ODDS - 1));
+    foreach (array_keys($bribed) as $cup) $weights[$cup] = max($weights[$cup], $share, 1);
     return $weights;
 }
 

@@ -126,7 +126,9 @@ $omkFav = omkBuyBribe($pdo, $omkR);
 $omkFavCheck = $pdo->prepare("SELECT cup_name FROM results WHERE racer_id = ? AND gpid LIKE 's%' GROUP BY cup_name HAVING COUNT(*) >= 3 ORDER BY AVG(gp_points) DESC, COUNT(*) DESC, cup_name ASC LIMIT 1"); $omkFavCheck->execute([$omkR]);
 $ok("a bribe goes on the briber's best cup, and one at a time", $omkFav['cup'] === $omkFavCheck->fetchColumn() && $omkRefused(fn() => omkBuyBribe($pdo, $omkR)) && omkBalance($pdo, $omkR) === 95);
 $omkOpen = omkOpenBribes($pdo);
-$ok('a bribe triples its cup only in a draw the briber is in', omkApplyBribes([$omkFav['cup'] => 2, 'Other' => 2], $omkOpen, [$omkR])[$omkFav['cup']] === 6 && omkApplyBribes([$omkFav['cup'] => 2], $omkOpen, [$omkR2])[$omkFav['cup']] === 2);
+$omkW = omkApplyBribes([$omkFav['cup'] => 1, 'Other' => 30, 'Another' => 30], $omkOpen, [$omkR]);
+$ok('a bribed cup gets 1 draw in 4, only if the briber is in it', $omkW[$omkFav['cup']] === 20 && $omkW['Other'] === 30 && omkApplyBribes([$omkFav['cup'] => 1, 'Other' => 30], $omkOpen, [$omkR2])[$omkFav['cup']] === 1);
+$ok('a bribe does nothing for a cup out of the draw', !isset(omkApplyBribes(['Other' => 30], $omkOpen, [$omkR])[$omkFav['cup']]));
 $ok('he admits it when it lands, and keeps the money when it does not', str_contains((string)omkBribeLine($omkOpen, $omkFav['cup'], [$omkR]), "I'm suggesting") && str_contains((string)omkBribeLine($omkOpen, '__other__', [$omkR]), 'keeping the money') && omkBribeLine($omkOpen, $omkFav['cup'], [$omkR2]) === null);
 $ok('you cannot counter yourself', $omkRefused(fn() => omkBuyCounter($pdo, $omkR, (int)$omkOpen[0]['id'])));
 $omkG = $pdo->prepare("SELECT gpid FROM results WHERE racer_id = ? AND gpid LIKE 's%' LIMIT 1"); $omkG->execute([$omkR]); $omkGp = (string)$omkG->fetchColumn();
@@ -138,7 +140,7 @@ $ok('a GP the briber raced uses it up', !omkOpenBribes($pdo));
 omkBuyBribe($pdo, $omkR);
 omkBuyCounter($pdo, $omkR2, (int)omkOpenBribes($pdo)[0]['id']);
 $omkOpen = omkOpenBribes($pdo);
-$ok('a counter-bribe cancels it, costs both, and he keeps both', $omkOpen[0]['status'] === 'countered' && omkApplyBribes(['X' => 1, $omkOpen[0]['cup_name'] => 2], $omkOpen, [$omkR])[$omkOpen[0]['cup_name']] === 2 && str_contains((string)omkBribeLine($omkOpen, 'X', [$omkR]), 'keeping both') && omkBalance($pdo, $omkR2) === 85);
+$ok('a counter-bribe cancels it, costs both, and he keeps both', $omkOpen[0]['status'] === 'countered' && omkApplyBribes(['X' => 30, $omkOpen[0]['cup_name'] => 2], $omkOpen, [$omkR])[$omkOpen[0]['cup_name']] === 2 && str_contains((string)omkBribeLine($omkOpen, 'X', [$omkR]), 'keeping both') && omkBalance($pdo, $omkR2) === 85);
 omkAfterGpSaved($pdo, $omkGp);
 $ok('a countered bribe closes with the next GP', !omkOpenBribes($pdo));
 omkBuySponsor($pdo, $omkR);
@@ -234,7 +236,19 @@ $counting = 'class CPDO extends PDO { public $n=0; #[\ReturnTypeWillChange] func
 $src = str_replace(['new PDO(', '__DIR__', '__FILE__'], ['new CPDO(', var_export("$root/private/includes", true), var_export("$root/private/includes/db.php", true)], $dbSrc);
 $probe = "<?php $counting ?>$src<?php echo \$pdo->n;";
 $tmp = tempnam(sys_get_temp_dir(), 'dbprobe'); file_put_contents($tmp, $probe);
-$n = (int)trim((string)shell_exec('KARTFOLIO_DB=' . escapeshellarg($db) . ' php ' . escapeshellarg($tmp) . ' 2>/dev/null')); unlink($tmp);
+$runDb = fn() => (int)trim((string)shell_exec('KARTFOLIO_DB=' . escapeshellarg($db) . ' php ' . escapeshellarg($tmp) . ' 2>/dev/null'));
+// The settling window: for a few minutes after a schema change the block keeps
+// running, because the host's opcache can still be serving the old db.php.
+$winPdo = new PDO('sqlite:' . $db); $winPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$winPdo->exec('PRAGMA application_id = ' . time());
+$winPdo->exec('DROP TABLE IF EXISTS result_flags');
+$runDb();
+$ok('inside the settling window, migrations still run and a missing table comes back', (bool)$winPdo->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='result_flags'")->fetchColumn());
+$provisional = (int)$winPdo->query('PRAGMA user_version')->fetchColumn();
+$winPdo->exec('PRAGMA application_id = 1');   // the window has passed
+$runDb();
+$ok('after the window, the signature goes final', (int)$winPdo->query('PRAGMA user_version')->fetchColumn() === ($provisional ^ 1));
+$n = $runDb(); unlink($tmp);
 $ok("db.php steady state is ≤ 6 statements per request (got $n)", $n > 0 && $n <= 6);
 
 // ── render every public page, warnings are failures ──

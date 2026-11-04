@@ -40,7 +40,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     break;
                 case 'bribe':
                     $f = omkBuyBribe($pdo, $rid);
-                    $msg = "Kartificial has your envelope. {$f['cup']} Cup gets triple weight until you next race.";
+                    $msg = "Kartificial has your envelope. {$f['cup']} Cup comes up about 1 draw in " . OMK_BRIBE_ODDS . " until you next race.";
                     break;
                 case 'counter':
                     $b = omkBuyCounter($pdo, $rid, (int)($_POST['bribe_id'] ?? 0));
@@ -154,7 +154,7 @@ include __DIR__ . '/../private/templates/header.php';
             <div class="omk-items">
                 <div class="omk-item">
                     <h3>Bribe Kartificial <span class="omk-price"><?= omkFormat(OMK_PRICES['bribe']) ?></span></h3>
-                    <p>Triple weight in What cup? for <?= $fav ? '<strong>' . htmlspecialchars($fav['cup']) . ' Cup</strong>, your best (' . number_format($fav['avg'], 1) . ' over ' . (int)$fav['gps'] . ' GPs)' : 'your best cup' ?>. You can't pick another. It counts in draws you're in, runs until you next race, and he says so on screen.</p>
+                    <p>About a 1 in <?= OMK_BRIBE_ODDS ?> chance in What cup? for <?= $fav ? '<strong>' . htmlspecialchars($fav['cup']) . ' Cup</strong>, your best (' . number_format($fav['avg'], 1) . ' over ' . (int)$fav['gps'] . ' GPs)' : 'your best cup' ?>. You can't pick another. It counts in draws you're in, runs until you next race, and he says so on screen.</p>
                     <?php if (!$fav): ?><p class="omk-note">You need three GPs on a cup first.</p>
                     <?php elseif ($myBribe): ?><p class="omk-note">He already has your envelope.</p>
                     <?php else: ?><button type="submit" name="action" value="bribe" class="btn btn-primary btn-sm" <?= $hasCode ? '' : 'disabled' ?>>Hand over the envelope</button><?php endif; ?>

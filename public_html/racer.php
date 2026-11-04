@@ -675,10 +675,18 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
             $stkEpoch = getSetting($pdo, 'stickers_epoch', '2026-06-21') ?: '2026-06-21';
             $stkLive  = date('Y-m-d') >= $stkEpoch;
             if (($stkLive || $isAdminViewer) && moduleEnabled($pdo, 'stickers')): ?>
-                <?php if (moduleEnabled($pdo, 'omk')):
-                    $omkSt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM omk_ledger WHERE racer_id = ?");
-                    $omkSt->execute([(int)$racerId]); ?>
-                <a href="/omk-exchange?racer=<?= (int)$racerId ?>" class="stk-profile-chip">Ω <?= number_format((int)$omkSt->fetchColumn()) ?> OMKredits →</a>
+                <?php
+                // A chip must not be able to take the profile down with it.
+                $omkHere = null;
+                if (moduleEnabled($pdo, 'omk')) {
+                    try {
+                        $omkSt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM omk_ledger WHERE racer_id = ?");
+                        $omkSt->execute([(int)$racerId]);
+                        $omkHere = (int)$omkSt->fetchColumn();
+                    } catch (Throwable $e) { error_log('omk chip: ' . $e->getMessage()); }
+                }
+                if ($omkHere !== null): ?>
+                <a href="/omk-exchange?racer=<?= (int)$racerId ?>" class="stk-profile-chip">Ω <?= number_format($omkHere) ?> OMKredits →</a>
                 <?php endif; ?>
                 <a href="/stickers/<?= (int)$racerId ?>" class="stk-profile-chip">
                     🩹 Sticker album →

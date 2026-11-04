@@ -40,7 +40,12 @@ The whole migration block runs **once per schema change, not once per
 request**: `db.php` stores a crc32 of itself plus `settings_schema.sql` in
 `PRAGMA user_version` and skips the block while it matches. Editing either
 file re-runs the block on the next hit (it is idempotent, so that is safe);
-nothing needs bumping by hand. Steady state is 5 statements per request
+nothing needs bumping by hand. After a change the signature is recorded as provisional and the
+block keeps running for `MIGRATION_SETTLE_SECONDS` (5 minutes) before it goes final:
+the host's opcache runs the OLD compiled db.php for a minute or two after a deploy,
+and that code once stamped the new signature without creating the new tables, which
+then took What cup? and the racer profiles down. **A page that reads a new table must
+not be able to die of it**: wrap anything optional in a try/catch that logs. Steady state is 5 statements per request
 (four pragmas + the version read) instead of ~45 plus a settings write.
 
 These migrations are **upgrade** steps — `ALTER TABLE`s and index creations
@@ -1035,8 +1040,8 @@ Cross-reference if you find half-implemented work:
   `omk_epoch`), and trading in duplicates card by card (1Ω, foil 3Ω, always keeping one).
   Soul coins do not convert. Whale and Stuck With Dupes count copies HELD, so trading
   can cost those badges: deliberate, and the page warns first. Spent, through the
-  profile code with POST + CSRF + throttle + `BEGIN IMMEDIATE`, on a bribe (10Ω, triple
-  weight in What cup? for the buyer's best-average cup with 3+ GPs, never a free
+  profile code with POST + CSRF + throttle + `BEGIN IMMEDIATE`, on a bribe (10Ω, a 1 in 4
+  chance in What cup? for the buyer's best-average cup with 3+ GPs, never a free
   choice; only in draws they are in, used up by the next GP they race), a counter-bribe
   (15Ω) and a broadcast sponsorship (20Ω). No free text anywhere, so no approval queue.
   A sponsorship goes through the briefing, `omkEnsureAdRead()` appends the line if the

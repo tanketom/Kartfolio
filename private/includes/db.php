@@ -10,6 +10,9 @@
 // bin/dev_router.php + .claude/launch.json: a demo copy with a Territory
 // season, never the live league). Unset in production.
 require_once __DIR__ . '/config.php';   // kartfolioConfig()
+
+/** How long a changed schema keeps re-running its migrations. See the signature comment below. */
+const MIGRATION_SETTLE_SECONDS = 300;
 require_once __DIR__ . '/http_headers.php';
 kartfolioSendSecurityHeaders();
 $dbPath = getenv('KARTFOLIO_DB') ?: __DIR__ . '/../data/league.db';
@@ -51,9 +54,21 @@ try {
     // Nothing to bump by hand, so a forgotten constant can't strand a
     // migration on the live server. The deploy model in CLAUDE.md §1 holds:
     // deploy, hit any page, the DB catches up.
+    //
+    // The catch, found when a deploy stranded three new tables: for a minute or
+    // two after a deploy the host's opcache still runs the OLD compiled db.php,
+    // which hashes the NEW file on disk, runs its old migrations, and records the
+    // new signature as done. The new code then sees a match and skips the tables
+    // it was shipped to create. So a changed signature is first recorded as
+    // provisional (one bit off), which keeps the block running on every request
+    // for MIGRATION_SETTLE_SECONDS after the new code first runs, well past the
+    // opcache window, and only then final. The block is idempotent, so the only
+    // cost is those few minutes of ~45 extra statements. The trailing 'v2' makes
+    // this signature differ from anything the old formula ever stored.
     $schemaSig = crc32((string)@file_get_contents(__FILE__)
         . (string)@file_get_contents(__DIR__ . '/../data/settings_schema.sql')
-        . (string)@file_get_contents(__DIR__ . '/../data/tournament_schema.sql'));
+        . (string)@file_get_contents(__DIR__ . '/../data/tournament_schema.sql')
+        . 'v2');
     if ($schemaSig > 0x7FFFFFFF) $schemaSig -= 0x100000000;   // user_version is a signed 32-bit int
     $dbSig = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
     if ($dbSig !== $schemaSig) {
@@ -511,7 +526,14 @@ try {
     $settingsSchema = __DIR__ . '/../data/settings_schema.sql';
     if (is_readable($settingsSchema)) $pdo->exec(file_get_contents($settingsSchema));
 
-    $pdo->exec('PRAGMA user_version = ' . (int)$schemaSig);
+    // Provisional first, final once the old compiled code can no longer be running.
+    $provisionalSig = $schemaSig ^ 1;
+    if ($dbSig !== $provisionalSig) {
+        $pdo->exec('PRAGMA application_id = ' . time());
+        $pdo->exec('PRAGMA user_version = ' . (int)$provisionalSig);
+    } elseif (time() - (int)$pdo->query('PRAGMA application_id')->fetchColumn() >= MIGRATION_SETTLE_SECONDS) {
+        $pdo->exec('PRAGMA user_version = ' . (int)$schemaSig);
+    }
     }   // end of the versioned migration block
 
     // Once-a-day snapshot of the league (backup.php). One is_file() per

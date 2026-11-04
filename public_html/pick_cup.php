@@ -158,9 +158,12 @@ foreach ($eligible as $cup) {
 // Bribes. Paid for at the OMK Exchange Counter, and he says so below.
 $openBribes = [];
 if (function_exists('moduleEnabled') && moduleEnabled($pdo, 'omk')) {
-    $openBribes = omkOpenBribes($pdo);
-    $weights = omkApplyBribes($weights, $openBribes, $racerIds);
-    $totalWeight = array_sum($weights);
+    // Never lets the shop break the wheel: this runs on race night, in front of people.
+    try {
+        $openBribes = omkOpenBribes($pdo);
+        $weights = omkApplyBribes($weights, $openBribes, $racerIds);
+        $totalWeight = array_sum($weights);
+    } catch (Throwable $e) { error_log('what cup bribes: ' . $e->getMessage()); $openBribes = []; }
 }
 
 $rand         = mt_rand(1, max(1, $totalWeight));
