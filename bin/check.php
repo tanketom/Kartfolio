@@ -59,6 +59,8 @@ $ok('pots from several seasons respect the size asked for', count(array_merge(..
 $rcEloPots = array_column(array_merge(...teamSeasonPots($pdo, 's04', 'elo', 3, 2)), 'elo');
 $rcEloSorted = $rcEloPots; rsort($rcEloSorted);
 $ok('pots by Elo run highest first and respect the size asked for', count($rcEloPots) === 6 && $rcEloPots === $rcEloSorted);
+$rcEloIds = array_column(array_merge(...teamSeasonPots($pdo, 's02', 'elo', 6, 10)), 'id');
+$ok('pots by Elo only hold racers from the seasons before this one', $rcEloIds && !array_diff($rcEloIds, array_keys(getSeasonResultsByRacer($pdo, 's01'))));
 $ok('teams level on points share a rank', array_column(teamStandingRanks([['score' => 0], ['score' => 0], ['score' => 0]]), 'rank') === [1, 1, 1] && array_column(teamStandingRanks([['score' => 9], ['score' => 5], ['score' => 5], ['score' => 2]]), 'rank') === [1, 2, 2, 4]);
 $rcChamps = teamSeasonChampions($pdo, 's04');
 $rcPlace = seasonPlacements($pdo, 's04')['place'];

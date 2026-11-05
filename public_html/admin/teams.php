@@ -186,7 +186,7 @@ include __DIR__ . '/../../private/templates/header.php';
                         <?php endforeach; ?>
                         </optgroup>
                         <optgroup label="Highest rated">
-                        <option value="elo" <?= $refSeason === 'elo' ? 'selected' : '' ?>>Current Elo</option>
+                        <option value="elo" <?= $refSeason === 'elo' ? 'selected' : '' ?>>Current Elo, raced in the last <?= TEAM_SEASON_ELO_SEASONS ?> seasons</option>
                         </optgroup>
                     </select>
                 </label>
