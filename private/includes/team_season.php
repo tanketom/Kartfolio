@@ -9,6 +9,7 @@
  * are on it, and correcting an old result must not quietly move them.
  */
 require_once __DIR__ . '/gp_logic.php';
+require_once __DIR__ . '/elo_engine.php';
 
 /** Colours for teams the draw creates. The teams choose their own later. */
 const TEAM_SEASON_COLOURS = ['#e60012', '#0a84ff', '#2fb344', '#ffb400', '#9b59b6', '#00a3a3'];
@@ -18,10 +19,12 @@ const TEAM_SEASON_COLOURS = ['#e60012', '#0a84ff', '#2fb344', '#ffb400', '#9b59b
  * retired racers excluded, split into pots of one per team. Pot 1 is the most
  * active. [[['id','name','weeks','gps'], …], …]
  *
- * $ref is a season id, 'last3' or 'all' (see teamSeasonRefSeasons).
+ * $ref is a season id, 'last3' or 'all' (see teamSeasonRefSeasons), or 'elo':
+ * the highest current rating first, [['id','name','elo','gps'], …] in the pots.
  */
 function teamSeasonPots(PDO $pdo, string $season_id, string $ref, int $teams, int $perTeam): array {
     $teams = max(1, $teams);
+    if ($ref === 'elo') return array_chunk(teamSeasonEloRanking($pdo, $teams * max(1, $perTeam)), $teams);
     $from  = teamSeasonRefSeasons($pdo, $season_id, $ref);
     if (!$from) return [];
     $st = $pdo->prepare("SELECT r.id, r.name, COUNT(DISTINCT strftime('%Y-%W', x.race_date)) AS weeks, COUNT(*) AS gps
@@ -31,6 +34,17 @@ function teamSeasonPots(PDO $pdo, string $season_id, string $ref, int $teams, in
                          GROUP BY r.id ORDER BY weeks DESC, gps DESC, r.name ASC LIMIT " . (int)($teams * max(1, $perTeam)));
     $st->execute($from);
     return array_chunk($st->fetchAll(PDO::FETCH_ASSOC), $teams);
+}
+
+/** Racers by current all-time Elo, then GPs, then name. Retired racers and anyone without a season GP are left out. */
+function teamSeasonEloRanking(PDO $pdo, int $limit): array {
+    $ratings = calculateAllELORatings($pdo)['ratings'];
+    $rows = $pdo->query("SELECT r.id, r.name, COUNT(*) AS gps FROM results x JOIN racers r ON r.id = x.racer_id
+                         WHERE x.gpid LIKE 's%' AND COALESCE(r.is_retired, 0) = 0 GROUP BY r.id")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as &$r) $r['elo'] = (float)($ratings[$r['name']] ?? ELO_INITIAL_RATING);
+    unset($r);
+    usort($rows, fn($a, $b) => [$b['elo'], $b['gps'], $a['name']] <=> [$a['elo'], $a['gps'], $b['name']]);
+    return array_slice($rows, 0, $limit);
 }
 
 /** The seasons a draw reference covers: one season, the last three before this one, or all before it. */
@@ -45,7 +59,7 @@ function teamSeasonRefSeasons(PDO $pdo, string $season_id, string $ref): array {
 
 /** A draw reference in words, for the flash message. */
 function teamSeasonRefLabel(string $ref): string {
-    return ['all' => 'all seasons', 'last3' => 'the last 3 seasons'][$ref] ?? strtoupper($ref);
+    return ['all' => 'all seasons', 'last3' => 'the last 3 seasons', 'elo' => 'current Elo'][$ref] ?? strtoupper($ref);
 }
 
 /** The default season to draw from: the latest before this one with at least four weeks of racing. */

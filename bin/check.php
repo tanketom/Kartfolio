@@ -56,6 +56,9 @@ $ok('nobody who raced is left without a team', !array_diff(array_keys(getSeasonR
 
 $ok('a draw can come from one season, the last three, or all', teamSeasonRefSeasons($pdo, 's04', 's01') === ['s01'] && teamSeasonRefSeasons($pdo, 's04', 'all') === ['s03', 's02', 's01'] && teamSeasonRefSeasons($pdo, 's04', 'last3') === ['s03', 's02', 's01'] && teamSeasonRefSeasons($pdo, 's03', 'last3') === ['s02', 's01'] && teamSeasonRefSeasons($pdo, 's04', 'nonsense') === []);
 $ok('pots from several seasons respect the size asked for', count(array_merge(...teamSeasonPots($pdo, 's04', 'all', 3, 2))) === 6);
+$rcEloPots = array_column(array_merge(...teamSeasonPots($pdo, 's04', 'elo', 3, 2)), 'elo');
+$rcEloSorted = $rcEloPots; rsort($rcEloSorted);
+$ok('pots by Elo run highest first and respect the size asked for', count($rcEloPots) === 6 && $rcEloPots === $rcEloSorted);
 $ok('teams level on points share a rank', array_column(teamStandingRanks([['score' => 0], ['score' => 0], ['score' => 0]]), 'rank') === [1, 1, 1] && array_column(teamStandingRanks([['score' => 9], ['score' => 5], ['score' => 5], ['score' => 2]]), 'rank') === [1, 2, 2, 4]);
 $rcChamps = teamSeasonChampions($pdo, 's04');
 $rcPlace = seasonPlacements($pdo, 's04')['place'];

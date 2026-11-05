@@ -45,7 +45,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
     } elseif ($action === 'draw_teams') {
         $ref = strtolower((string)($_POST['ref_season'] ?? ''));
-        if (!preg_match('/^(s[0-9]{2}|all|last3)$/', $ref)) {
+        if (!preg_match('/^(s[0-9]{2}|all|last3|elo)$/', $ref)) {
             $message = "Pick a season to draw from.";
         } else {
             try {
@@ -129,7 +129,7 @@ foreach ($pool as $id => $name) $racers[] = ['id' => $id, 'name' => $name];
 // The draw: what the pots would be, shown before anyone presses the button.
 $drawOpen = $teamSeason && teamSeasonRacedMembers($pdo, $selectedSeason) === 0;
 $refSeason = strtolower((string)($_GET['ref'] ?? ''));
-if (!preg_match('/^(s[0-9]{2}|all|last3)$/', $refSeason)) $refSeason = teamSeasonDefaultReference($pdo, $selectedSeason);
+if (!preg_match('/^(s[0-9]{2}|all|last3|elo)$/', $refSeason)) $refSeason = teamSeasonDefaultReference($pdo, $selectedSeason);
 $teamCount = $teams ? count($teams) : max(2, min(6, (int)($_GET['n'] ?? 3)));
 $perTeam   = max(1, min(10, (int)($_GET['per'] ?? 3)));
 $drawPots  = ($drawOpen && $refSeason) ? teamSeasonPots($pdo, $selectedSeason, $refSeason, $teamCount, $perTeam) : [];
@@ -176,13 +176,18 @@ include __DIR__ . '/../../private/templates/header.php';
             <p class="tm-note">One racer from each pot goes to each team, at random. Everyone else joins on their first race. You can draw again until a drawn racer has raced.</p>
             <form method="GET" class="tm-draw-opts">
                 <input type="hidden" name="season" value="<?= htmlspecialchars($selectedSeason) ?>">
-                <label>Most active in
+                <label>Pots from
                     <select name="ref" onchange="this.form.submit()">
+                        <optgroup label="Most active in">
                         <option value="last3" <?= $refSeason === 'last3' ? 'selected' : '' ?>>Last 3 seasons</option>
                         <option value="all" <?= $refSeason === 'all' ? 'selected' : '' ?>>All seasons</option>
                         <?php foreach ($seasons as $s): if ($s >= $selectedSeason) continue; ?>
                             <option value="<?= htmlspecialchars($s) ?>" <?= $s === $refSeason ? 'selected' : '' ?>><?= strtoupper(htmlspecialchars($s)) ?></option>
                         <?php endforeach; ?>
+                        </optgroup>
+                        <optgroup label="Highest rated">
+                        <option value="elo" <?= $refSeason === 'elo' ? 'selected' : '' ?>>Current Elo</option>
+                        </optgroup>
                     </select>
                 </label>
                 <?php if (!$teams): ?>
@@ -194,7 +199,7 @@ include __DIR__ . '/../../private/templates/header.php';
                 <?php foreach ($drawPots as $i => $pot): ?>
                 <div class="tm-pot">
                     <div class="tm-pot-h">Pot <?= $i + 1 ?></div>
-                    <?php foreach ($pot as $r): ?><div class="tm-pot-r"><span><?= htmlspecialchars($r['name']) ?></span><small><?= (int)$r['weeks'] ?> weeks · <?= (int)$r['gps'] ?> GPs</small></div><?php endforeach; ?>
+                    <?php foreach ($pot as $r): ?><div class="tm-pot-r"><span><?= htmlspecialchars($r['name']) ?></span><small><?= isset($r['elo']) ? round($r['elo']) . ' Elo' : (int)$r['weeks'] . ' weeks' ?> · <?= (int)$r['gps'] ?> GPs</small></div><?php endforeach; ?>
                 </div>
                 <?php endforeach; ?>
             </div>
