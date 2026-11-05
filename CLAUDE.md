@@ -1062,6 +1062,12 @@ Cross-reference if you find half-implemented work:
   `KARTFOLIO_BRIEFING_DUMP` and `-d disable_functions=curl_exec,curl_multi_exec`. A
   wrong require path inside its try/catch failed silently here until an end-to-end run
   caught it, so check.php now verifies every `require __DIR__` target exists
+- **Wrapped runs anniversary to anniversary** — `wrappedPeriodFor()` in
+  `wrapped_personas.php`: `?year=2026` is 19 Nov 2025 to 18 Nov 2026, "Year 1", worked
+  out from the league's first race, never hard-coded. Public from the anniversary for
+  `WRAPPED_WINDOW_DAYS` (to 31 December here); admins preview any time. A race on the
+  anniversary itself belongs to the next year. The estimated hours played were removed
+  on purpose: the page gets shown to outsiders, so do not bring them back
 - **Eight team-season badges** (`team_season` category) — `rollCallBadgeFacts()`,
   pure, emitted before the racing gate because 🎟️ Cameo may be a single GP. 🔀 Traded
   and 🙌 Full House land mid-season, Full House once the week has ended so a late

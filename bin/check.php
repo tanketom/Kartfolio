@@ -208,6 +208,13 @@ $pdo->prepare("DELETE FROM racer_stickers WHERE racer_id = ? AND sticker_key IN 
 $pdo->exec("DELETE FROM settings WHERE setting_key = 'omk_epoch'");
 settingsMap($pdo, true);
 
+echo "wrapped\n";
+require_once "$root/private/includes/wrapped_personas.php";
+$wp = wrappedPeriodFor('2025-11-19', 2026);
+$ok('a Wrapped year runs anniversary to anniversary, and 2026 is Year 1', $wp['start'] === '2025-11-19' && $wp['end'] === '2026-11-19' && $wp['label'] === 'Year 1' && $wp['range'] === '19 Nov 2025 – 18 Nov 2026');
+$ok('Wrapped opens on the anniversary and closes after six weeks', !wrappedIsOpenOn('2025-11-19', '2026-11-18') && wrappedIsOpenOn('2025-11-19', '2026-11-19') && wrappedIsOpenOn('2025-11-19', '2026-12-31') && !wrappedIsOpenOn('2025-11-19', '2027-01-01') && wrappedIsOpenOn('2025-11-19', '2027-11-19'));
+$ok('Wrapped is shut on the day the league begins, and with no racing', !wrappedIsOpenOn('2025-11-19', '2025-11-19') && !wrappedIsOpenOn('2025-11-19', '2025-12-25') && !wrappedIsOpenOn(null, '2026-11-19'));
+$ok('Wrapped says when it next opens', wrappedNextOpening('2025-11-19', '2026-11-05') === '2026-11-19' && wrappedNextOpening('2025-11-19', '2027-01-02') === '2027-11-19' && wrappedNextOpening('2025-11-19', '2025-12-01') === '2026-11-19' && wrappedNextOpening(null, '2026-11-05') === null);
 echo "the computer\n";
 $cpu = cpuAheadFromRows([
     ['gpid' => 's09gp01', 'racer_id' => 1, 'rank' => 1], ['gpid' => 's09gp01', 'racer_id' => 2, 'rank' => 4],   // 2 CPUs between them

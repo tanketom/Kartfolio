@@ -5,11 +5,14 @@
  *
  * Access:
  *   /wrapped            → ADMIN ONLY (preview index / roster grid).
- *   /wrapped/<racerId>  → public, but gated to December (admins preview any
- *                         time). Linked from the top of the racer profile in
- *                         December. ?year=YYYY overrides the year.
+ *   /wrapped/<racerId>  → public from the anniversary of the league's first race
+ *                         for six weeks (admins preview any time). Linked from
+ *                         the top of the racer profile while it is open.
+ *                         ?year=YYYY overrides the year.
  *
- * Calendar-year scoped (filters on race_date, not season). All reads are
+ * A "year" runs anniversary to anniversary of the league's first race (filters on
+ * race_date, not season): ?year=2026 is 19 Nov 2025 to 18 Nov 2026, Year 1. See
+ * wrappedPeriodFor(). All reads are
  * batched — at most two queries plus the cached Elo engine.
  *
  * Path: /cdnmk/public_html/wrapped.php
@@ -29,7 +32,9 @@ require_once __DIR__ . '/../private/includes/wrapped_personas.php';
 $isAdmin    = !empty($_SESSION['is_admin']);
 $year       = preg_match('/^\d{4}$/', $_GET['year'] ?? '') ? $_GET['year'] : date('Y');
 $racerId    = isset($_GET['racer']) ? (int)$_GET['racer'] : 0;
-$isDecember = ((int)date('n') === 12);
+$isOpen     = wrappedIsOpen($pdo);
+$period     = wrappedPeriod($pdo, (int)$year);
+$yearLabel  = $period['label'];
 
 /**
  * Per-racer year aggregates from ONE query, grouped in PHP (used for the
@@ -41,7 +46,8 @@ function wrappedYearData($pdo, $year) {
         FROM results res JOIN racers r ON r.id = res.racer_id
         WHERE res.gpid LIKE 's%' AND res.race_date >= ? AND res.race_date < ?
     ");
-    $stmt->execute(["$year-01-01", ($year + 1) . "-01-01"]);
+    $p = wrappedPeriod($pdo, (int)$year);
+    $stmt->execute([$p['start'], $p['end']]);
     $acc = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $rid = (int)$row['racer_id'];
@@ -65,17 +71,17 @@ $leagueName = getSetting($pdo, 'league_name', 'Kartfolio') ?? 'Kartfolio';
 if ($racerId === 0) {
     require_admin(); // redirects non-admins to /login
     $roster = wrappedYearData($pdo, $year);
-    $pageTitle = "$year Wrapped — Admin index";
+    $pageTitle = "$yearLabel Wrapped — Admin index";
     $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
     include __DIR__ . '/../private/templates/header.php';
     ?>
     <div class="stats-container">
         <header class="page-header">
-            <h1 class="page-title">🎁 <?= htmlspecialchars($year) ?> Wrapped</h1>
-            <p class="page-subtitle">ADMIN INDEX · INDIVIDUAL CARDS GO PUBLIC EACH DECEMBER<?= $isDecember ? ' · LIVE NOW' : ' · (preview)' ?></p>
+            <h1 class="page-title">🎁 <?= htmlspecialchars($yearLabel) ?> Wrapped</h1>
+            <p class="page-subtitle">ADMIN INDEX · <?= htmlspecialchars(mb_strtoupper($period['range'])) ?> · CARDS GO PUBLIC ON THE ANNIVERSARY<?= $isOpen ? ' · LIVE NOW' : ' · (preview)' ?></p>
         </header>
         <?php if (empty($roster)): ?>
-            <div style="text-align:center;padding:50px;color:#888;"><p>No GPs raced in <?= htmlspecialchars($year) ?>.</p></div>
+            <div style="text-align:center;padding:50px;color:#888;"><p>No GPs raced in <?= htmlspecialchars($period['range']) ?>.</p></div>
         <?php else: ?>
             <div class="wr-grid">
                 <?php foreach ($roster as $r): ?>
@@ -104,20 +110,22 @@ if ($racerId === 0) {
 }
 
 // ============================================================================
-// INDIVIDUAL CARD  (/wrapped/<id>) — public in December, admin preview anytime
+// INDIVIDUAL CARD  (/wrapped/<id>) — public from the anniversary, admin preview anytime
 // ============================================================================
-$gateOpen  = $isDecember || $isAdmin;
-$isPreview = $gateOpen && !$isDecember;
+$gateOpen  = $isOpen || $isAdmin;
+$isPreview = $gateOpen && !$isOpen;
+$nextOpening = wrappedNextOpening(wrappedFirstRace($pdo), date('Y-m-d'));
+$nextOpeningText = $nextOpening ? date('j F', strtotime($nextOpening)) : 'soon';
 
 if (!$gateOpen) {
-    $pageTitle = "Wrapped — Coming in December";
+    $pageTitle = "Wrapped — Coming on $nextOpeningText";
     $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
     include __DIR__ . '/../private/templates/header.php';
     echo '<div class="stats-container" style="text-align:center;padding:60px 20px;">'
        . '<div style="font-size:4rem;">🎁</div>'
-       . '<h1 class="page-title">' . htmlspecialchars($year) . ' Wrapped</h1>'
+       . '<h1 class="page-title">' . htmlspecialchars($yearLabel) . ' Wrapped</h1>'
        . '<p style="color:#aaa;font-size:1.1rem;max-width:520px;margin:16px auto;">Your year in karts is being tallied. '
-       . '<strong>Wrapped unlocks in December</strong> — come back then for the full highlight reel.</p>'
+       . '<strong>Wrapped unlocks on ' . htmlspecialchars($nextOpeningText) . '</strong> — come back then for the full highlight reel.</p>'
        . '<a href="/" class="btn btn-secondary">← Back to standings</a></div>';
     include __DIR__ . '/../private/templates/footer.php';
     exit;
@@ -140,7 +148,7 @@ $rowStmt = $pdo->prepare("
     WHERE racer_id = ? AND gpid LIKE 's%' AND race_date >= ? AND race_date < ?
     ORDER BY race_date ASC, id ASC
 ");
-$rowStmt->execute([$racerId, "$year-01-01", ($year + 1) . "-01-01"]);
+$rowStmt->execute([$racerId, $period['start'], $period['end']]);
 $rows = $rowStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $name    = $roster[$racerId]['name'];
@@ -224,7 +232,7 @@ if ($gps >= 3) {
 $eloData = calculateAllELORatings($pdo);
 $peakElo = null; $eloFirst = null; $eloLast = null; $monthlyElo = [];
 foreach ($eloData['gp_changelog'] ?? [] as $gpLog) {
-    if (substr($gpLog['date'], 0, 4) !== (string)$year) continue;
+    if ($gpLog['date'] < $period['start'] || $gpLog['date'] >= $period['end']) continue;
     foreach ($gpLog['racers'] as $rc) {
         if ($rc['name'] !== $name) continue;
         if ($eloFirst === null) $eloFirst = $rc['old'];
@@ -243,7 +251,7 @@ $nemStmt = $pdo->prepare("
     JOIN racers rb ON rb.id = b.racer_id
     WHERE a.racer_id = ? AND a.gpid LIKE 's%' AND a.race_date >= ? AND a.race_date < ?
 ");
-$nemStmt->execute([$racerId, "$year-01-01", ($year + 1) . "-01-01"]);
+$nemStmt->execute([$racerId, $period['start'], $period['end']]);
 $rivals = [];
 foreach ($nemStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
     $rivals[$r['name']] ??= ['faced' => 0, 'ahead' => 0, 'behind' => 0];
@@ -255,7 +263,7 @@ $nemesis = !empty($rivals) ? (['name' => array_key_first($rivals)] + reset($riva
 
 // Badges earned this year (union across the year's seasons).
 $seasonsThisYear = $pdo->prepare("SELECT DISTINCT SUBSTR(gpid,1,3) FROM results WHERE gpid LIKE 's%' AND race_date >= ? AND race_date < ?");
-$seasonsThisYear->execute(["$year-01-01", ($year + 1) . "-01-01"]);
+$seasonsThisYear->execute([$period['start'], $period['end']]);
 $yearBadges = [];
 foreach ($seasonsThisYear->fetchAll(PDO::FETCH_COLUMN) as $sid) {
     foreach (getRacerBadges($pdo, $racerId, $sid) as $b) $yearBadges[$b['title']] = $b;
@@ -343,7 +351,7 @@ if ($bestCup !== null) {
     }
 }
 
-$pageTitle = htmlspecialchars($name) . " — $year Wrapped";
+$pageTitle = htmlspecialchars($name) . " — $yearLabel Wrapped";
 $extraCss  = '<link rel="stylesheet" href="/assets/css/pages.css">';
 include __DIR__ . '/../private/templates/header.php';
 
@@ -353,7 +361,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
 
 <?php if ($isPreview): ?>
 <div style="background:#3a2a00;color:#ffd700;text-align:center;padding:6px;font-size:.8rem;">
-    ⚠️ Admin preview — public sees this only in December.
+    ⚠️ Admin preview — public from <?= htmlspecialchars($nextOpeningText) ?>.
 </div>
 <?php endif; ?>
 
@@ -361,25 +369,19 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
 
     <!-- 1. Intro -->
     <section class="wr-slide wr-intro">
-        <div class="wr-kicker"><?= htmlspecialchars($year) ?> WRAPPED</div>
+        <div class="wr-kicker"><?= htmlspecialchars(mb_strtoupper($yearLabel)) ?> WRAPPED · <?= htmlspecialchars(mb_strtoupper($period['range'])) ?></div>
         <div class="wr-big"><?= htmlspecialchars($name) ?>,</div>
         <div class="wr-intro-stripe"></div>
         <div class="wr-lead">here's your year in karts.</div>
         <div class="wr-hint">tap / scroll ↓</div>
     </section>
 
-    <!-- 2. GPs raced (+ estimated time played) -->
-    <?php
-        // Rough wheel-time estimate: a GP is 4 races plus character/track
-        // select and results screens — call it ~18 min start to finish.
-        $estMinutes = $gps * 18;
-    ?>
+    <!-- 2. GPs raced -->
     <section class="wr-slide">
         <div class="wr-kicker">YOU SHOWED UP</div>
         <div class="wr-huge"><?= $gps ?></div>
         <div class="wr-lead">Grand Prix raced this year.</div>
         <div class="wr-sub"><?= number_format($gps * 4) ?> individual races. <?= number_format($points) ?> points scored.</div>
-        <div class="wr-sub">≈ <?= number_format($estMinutes) ?> minutes behind the wheel — about <?= number_format(round($estMinutes / 60)) ?> hours.</div>
     </section>
 
     <!-- 2b. Firsts of the year -->
@@ -588,7 +590,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
     <!-- 15. Summary card (shareable) -->
     <section class="wr-slide wr-summary-slide">
         <div class="wr-card" id="wr-card">
-            <div class="wr-card-top"><span class="wr-year"><?= htmlspecialchars($year) ?></span><span class="wr-brand">WRAPPED</span></div>
+            <div class="wr-card-top"><span class="wr-year"><?= htmlspecialchars(mb_strtoupper($yearLabel)) ?></span><span class="wr-brand">WRAPPED</span></div>
             <div class="wr-card-hero">
                 <img src="<?= $portrait($sigChar) ?>" class="wr-card-portrait" onerror="this.src='/assets/img/Mii.png'">
                 <div>
@@ -610,7 +612,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
                 <?php if ($nemesis): ?><div><span>⚔️ Nemesis</span><b><?= htmlspecialchars($nemesis['name']) ?></b></div><?php endif; ?>
                 <div><span>🎟️ Club</span><b><?= htmlspecialchars($club['name']) ?></b></div>
             </div>
-            <div class="wr-card-foot">🍄 <?= htmlspecialchars($leagueName) ?> · <?= htmlspecialchars($year) ?> Wrapped</div>
+            <div class="wr-card-foot">🍄 <?= htmlspecialchars($leagueName) ?> · <?= htmlspecialchars($yearLabel) ?> Wrapped</div>
         </div>
         <button type="button" id="wr-dl" class="btn btn-primary" style="margin-top:18px;">📸 Download card</button>
         <div class="wr-restart"><a href="#wr-deck">↺ replay</a></div>
@@ -750,7 +752,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
         const card = document.getElementById('wr-card');
         html2canvas(card, { backgroundColor: null, scale: 2 }).then(canvas => {
             const a = document.createElement('a');
-            a.download = <?= json_encode($name . '-' . $year . '-wrapped.png') ?>;
+            a.download = <?= json_encode($name . '-' . str_replace(' ', '-', strtolower($yearLabel)) . '-wrapped.png') ?>;
             a.href = canvas.toDataURL('image/png');
             a.click();
         });

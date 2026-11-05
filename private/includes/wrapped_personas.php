@@ -57,6 +57,59 @@ function wrappedAssignAll(array $catalog, array $bags): array {
     return $out;
 }
 
+/** How long Wrapped stays public after the anniversary: 19 November + 42 days is New Year's Eve. */
+const WRAPPED_WINDOW_DAYS = 42;
+
+/**
+ * A Wrapped year runs from one anniversary of the league's first race to the next,
+ * so 2026 means 19 Nov 2025 to 18 Nov 2026, "Year 1". The dates come from the league's
+ * own first race, because every league starts on a different day. Pure, so it can be
+ * tested. 'start' is inclusive, 'end' exclusive, both Y-m-d, ready to compare against
+ * race_date. With no racing yet it falls back to the calendar year.
+ */
+function wrappedPeriodFor(?string $firstRace, int $year): array {
+    if ($firstRace === null || $firstRace === '') {
+        return ['start' => "$year-01-01", 'end' => ($year + 1) . '-01-01', 'number' => 0, 'label' => (string)$year,
+                'range' => (string)$year, 'opens' => ($year + 1) . '-01-01', 'closes' => ($year + 1) . '-01-01'];
+    }
+    $md = substr($firstRace, 5, 5);
+    $on = fn(int $y) => date('Y-m-d', strtotime("$y-$md"));   // a 29 February start rolls to 1 March
+    $start = $on($year - 1);
+    $end = $on($year);
+    $number = $year - (int)substr($firstRace, 0, 4);
+    return ['start' => $start, 'end' => $end, 'number' => $number,
+            'label' => $number >= 1 ? "Year $number" : (string)$year,
+            'range' => date('j M Y', strtotime($start)) . ' – ' . date('j M Y', strtotime("$end -1 day")),
+            'opens' => $end, 'closes' => date('Y-m-d', strtotime("$end +" . WRAPPED_WINDOW_DAYS . ' days'))];
+}
+
+/** Is Wrapped public on this date? From the anniversary until the window closes. Pure. */
+function wrappedIsOpenOn(?string $firstRace, string $today): bool {
+    $p = wrappedPeriodFor($firstRace, (int)substr($today, 0, 4));
+    return $p['number'] >= 1 && $today >= $p['opens'] && $today <= $p['closes'];
+}
+
+/** The next day Wrapped opens, Y-m-d, or null with no racing yet. Pure. */
+function wrappedNextOpening(?string $firstRace, string $today): ?string {
+    if ($firstRace === null || $firstRace === '') return null;
+    $y = (int)substr($today, 0, 4);
+    $p = wrappedPeriodFor($firstRace, $y);
+    return ($p['number'] >= 1 && $today < $p['opens']) ? $p['opens'] : wrappedPeriodFor($firstRace, max($y + 1, (int)substr($firstRace, 0, 4) + 1))['opens'];
+}
+
+/** The league's first race day, once per request. */
+function wrappedFirstRace(PDO $pdo): ?string {
+    static $first = false;
+    if ($first === false) {
+        $first = $pdo->query("SELECT MIN(date(race_date)) FROM results WHERE gpid LIKE 's%'")->fetchColumn() ?: null;
+    }
+    return $first;
+}
+
+function wrappedPeriod(PDO $pdo, int $year): array { return wrappedPeriodFor(wrappedFirstRace($pdo), $year); }
+
+function wrappedIsOpen(PDO $pdo): bool { return wrappedIsOpenOn(wrappedFirstRace($pdo), date('Y-m-d')); }
+
 /**
  * Stat bag for every racer with a GP this year — the fields the catalogues
  * match on, computed from ONE query of the year's rows plus the Elo
@@ -72,7 +125,8 @@ function wrappedStatBags(PDO $pdo, int $year, array $roster): array {
         FROM results
         WHERE gpid LIKE 's%' AND race_date >= ? AND race_date < ?
         ORDER BY race_date ASC, id ASC");
-    $st->execute(["$year-01-01", ($year + 1) . "-01-01"]);
+    $period = wrappedPeriod($pdo, $year);
+    $st->execute([$period['start'], $period['end']]);
     $byRacer = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $byRacer[(int)$r['racer_id']][] = $r;
 
@@ -81,7 +135,7 @@ function wrappedStatBags(PDO $pdo, int $year, array $roster): array {
     $eloData = calculateAllELORatings($pdo);
     $elo = [];   // name => [first, last, peak]
     foreach ($eloData['gp_changelog'] ?? [] as $gpLog) {
-        if (substr($gpLog['date'], 0, 4) !== (string)$year) continue;
+        if ($gpLog['date'] < $period['start'] || $gpLog['date'] >= $period['end']) continue;
         foreach ($gpLog['racers'] as $rc) {
             $n = $rc['name'];
             if (!isset($elo[$n])) $elo[$n] = [$rc['old'], $rc['new'], $rc['new']];

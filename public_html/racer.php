@@ -638,14 +638,16 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 <div class="container stats-container">
     <?php
-    // Wrapped entry point — public in December, admins can preview any time.
-    $wrappedShow = (((int)date('n') === 12) || $isAdminViewer) && moduleEnabled($pdo, 'wrapped');
+    // Wrapped entry point — public from the league's anniversary, admins can preview any time.
+    require_once __DIR__ . '/../private/includes/wrapped_personas.php';
+    $wrappedOpen = wrappedIsOpen($pdo);
+    $wrappedShow = ($wrappedOpen || $isAdminViewer) && moduleEnabled($pdo, 'wrapped');
     if ($wrappedShow):
         $wrappedYear = date('Y');
     ?>
         <a href="/wrapped/<?= (int)$racerId ?>?year=<?= htmlspecialchars($wrappedYear) ?>" class="racer-wrapped-cta">
-            🎁 See <?= htmlspecialchars($racer['name']) ?>'s <?= htmlspecialchars($wrappedYear) ?> Wrapped
-            <?php if ((int)date('n') !== 12): ?><span class="racer-wrapped-preview">admin preview</span><?php endif; ?>
+            🎁 See <?= htmlspecialchars($racer['name']) ?>'s <?= htmlspecialchars(wrappedPeriod($pdo, (int)$wrappedYear)['label']) ?> Wrapped
+            <?php if (!$wrappedOpen): ?><span class="racer-wrapped-preview">admin preview</span><?php endif; ?>
             <span class="racer-wrapped-arrow">→</span>
         </a>
     <?php endif; ?>
