@@ -25,6 +25,9 @@ require_once __DIR__ . '/../private/includes/settings.php';
 require_once __DIR__ . '/../private/includes/omk.php';
 
 header('Content-Type: application/json');
+// A draw must never be served from a cache. The host's proxy keeps a response with
+// no cache header, so the same line-up was getting the same cup back on every spin.
+header('Cache-Control: no-store');
 
 $cups          = getMKAllCups();
 $currentSeason = getCurrentSeasonNumber();

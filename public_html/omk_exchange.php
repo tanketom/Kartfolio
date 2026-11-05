@@ -2,8 +2,11 @@
 /**
  * The OMK Exchange Counter — /omk-exchange[?racer=ID]
  *
- * Trade in duplicate stickers for OMKredits (Ω), and spend them on bribes and
- * sponsorships. Anyone can read it; spending takes the racer's own profile code.
+ * Trade in duplicate stickers for OMKredits (Ω̈), and spend them on bribes and
+ * sponsorships. Anyone can read the rules and what is on the table, because a
+ * counter-bribe needs it. A racer's balance, trade-ins and purchases only appear once
+ * their profile code has opened their account. The ledger and everyone's balances are
+ * for admins.
  * All the rules are in private/includes/omk.php. This page only asks and answers.
  */
 require_once __DIR__ . '/../private/includes/session.php';
@@ -23,14 +26,30 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $rid = (int)($_POST['racer_id'] ?? 0);
     $action = (string)($_POST['action'] ?? '');
     $ok = false;
-    if (!isset($names[$rid]) || !in_array($action, ['trade', 'bribe', 'counter', 'sponsor'], true)) {
-        $msg = 'Pick your name and what you came for.';
-    } elseif (!throttleAllow($pdo, 'omk_exchange', 10, 10)) {
+    $msg = null;
+    if ($action === 'leave') {
+        unset($_SESSION['omk_counter']);
+        header('Location: /omk-exchange', true, 303);
+        exit;
+    } elseif (!isset($names[$rid])) {
+        $msg = 'Pick your name first.';
+    } elseif ($action === 'unlock') {
+        if (!throttleAllow($pdo, 'omk_unlock', 10, 10)) {
+            $msg = 'Too many attempts from this connection. Wait ten minutes and try again.';
+        } elseif (!profileHasCode($pdo, $rid)) {
+            $msg = $names[$rid] . ' has no profile code yet. A commissioner issues them on the racers page.';
+        } elseif (!profileCodeCheck($pdo, $rid, (string)($_POST['code'] ?? ''))) {
+            $msg = "That code doesn't match.";
+        } else {
+            session_regenerate_id(true);
+            $_SESSION['omk_counter'] = ['racer' => $rid, 'until' => time() + OMK_COUNTER_MINUTES * 60];
+        }
+    } elseif (!omkCounterIsOpen($_SESSION, $rid, time())) {
+        $msg = 'Enter your profile code first.';
+    } elseif (!in_array($action, ['trade', 'bribe', 'counter', 'sponsor', 'gold', 'offset', 'founder', 'loot'], true)) {
+        $msg = 'Pick what you came for.';
+    } elseif (!throttleAllow($pdo, 'omk_exchange', 30, 10)) {
         $msg = 'Too many attempts from this connection. Wait ten minutes and try again.';
-    } elseif (!profileHasCode($pdo, $rid)) {
-        $msg = $names[$rid] . ' has no profile code yet. A commissioner issues them on the racers page.';
-    } elseif (!profileCodeCheck($pdo, $rid, (string)($_POST['code'] ?? ''))) {
-        $msg = "That code doesn't match.";
     } else {
         try {
             switch ($action) {
@@ -50,6 +69,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     omkBuySponsor($pdo, $rid);
                     $msg = 'Sold. Your name goes in the next ad break.';
                     break;
+                case 'gold':
+                    $msg = 'Your name is gold until ' . date('j F', omkBuyGold($pdo, $rid)) . '. Congratulations on your purchase.';
+                    break;
+                case 'offset':
+                    $r = omkBuyOffset($pdo, $rid, (int)($_POST['lol_id'] ?? 0));
+                    $msg = 'The LOL in ' . strtoupper($r['gpid']) . ' is now offset. It still happened.';
+                    break;
+                case 'founder':
+                    $msg = sprintf("Welcome, Founder #%03d. It does nothing, and it is yours.", omkBuyFounder($pdo, $rid));
+                    break;
+                case 'loot':
+                    $msg = omkBuyLootBox($pdo, $rid)['golden']
+                        ? 'A GOLDEN KARTIFICIAL. One in a million. The OMK would like a word.'
+                        : 'A loot box is waiting unopened in your sticker album.';
+                    break;
             }
             $ok = true;
         } catch (OmkRefused $e) {
@@ -59,7 +93,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $msg = 'Something went wrong; nothing was spent.';
         }
     }
-    $_SESSION['omk_flash'] = ['msg' => $msg, 'ok' => $ok];
+    if ($msg !== null) $_SESSION['omk_flash'] = ['msg' => $msg, 'ok' => $ok];
     header('Location: /omk-exchange' . (isset($names[$rid]) ? '?racer=' . $rid : ''), true, 303);
     exit;
 }
@@ -71,26 +105,35 @@ $racerId = (int)($_GET['racer'] ?? 0);
 if (!isset($names[$racerId])) $racerId = 0;
 
 $roster = $pdo->query("SELECT id, name FROM racers WHERE COALESCE(is_retired, 0) = 0 ORDER BY name COLLATE NOCASE ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
-$balances = omkBalances($pdo);
 $bribes = omkOpenBribes($pdo);
 $pending = array_values(array_filter($bribes, fn($b) => $b['status'] === 'pending'));
 $queue = omkSponsorQueue($pdo);
 
-$dupes = []; $fav = null; $balance = 0; $hasCode = false; $copiesHeld = 0; $mostOfOne = 0;
-if ($racerId) {
+// The account: only once this racer's code has opened it in this session. Nothing
+// about their balance or collection is read before that.
+$open = omkCounterIsOpen($_SESSION, $racerId, time());
+$hasCode = $racerId ? profileHasCode($pdo, $racerId) : false;
+$dupes = []; $fav = null; $balance = 0; $copiesHeld = 0; $mostOfOne = 0; $counterable = []; $myBribe = null; $mySponsor = false;
+$goldUntil = 0; $myLols = []; $myFounder = null;
+$founders = omkFounders($pdo);
+if ($open) {
+    $_SESSION['omk_counter']['until'] = time() + OMK_COUNTER_MINUTES * 60;   // still at the counter
     $dupes = omkDuplicates($pdo, $racerId);
     $fav = omkFavouredCup($pdo, $racerId);
-    $balance = $balances[$racerId] ?? 0;
-    $hasCode = profileHasCode($pdo, $racerId);
+    $balance = omkBalance($pdo, $racerId);
     foreach (racerAlbum($pdo, $racerId) as $count) { $copiesHeld += (int)$count; $mostOfOne = max($mostOfOne, (int)$count); }
+    $counterable = array_values(array_filter($pending, fn($b) => (int)$b['racer_id'] !== $racerId));
+    foreach ($pending as $b) if ((int)$b['racer_id'] === $racerId) $myBribe = $b;
+    $mySponsor = (bool)array_filter($queue, fn($q) => (int)$q['racer_id'] === $racerId);
+    $goldUntil = omkGoldUntil($pdo, $racerId);
+    $myLols = omkUnoffsetLols($pdo, $racerId);
+    $myFounder = $founders[$racerId] ?? null;
 }
-$counterable = array_values(array_filter($pending, fn($b) => (int)$b['racer_id'] !== $racerId));
-$myBribe = null;
-foreach ($pending as $b) if ((int)$b['racer_id'] === $racerId) $myBribe = $b;
-$mySponsor = (bool)array_filter($queue, fn($s) => (int)$s['racer_id'] === $racerId);
 
-$ledger = $pdo->query("SELECT l.amount, l.detail, l.created_at, l.racer_id FROM omk_ledger l
-                       WHERE l.kind != 'race_week' ORDER BY l.id DESC LIMIT 25")->fetchAll(PDO::FETCH_ASSOC);
+$isAdmin = ($_SESSION['is_admin'] ?? false) === true;
+$balances = $isAdmin ? omkBalances($pdo) : [];
+$ledger = $isAdmin ? $pdo->query("SELECT l.amount, l.detail, l.created_at, l.racer_id FROM omk_ledger l
+                                  WHERE l.kind != 'race_week' ORDER BY l.id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC) : [];
 
 $pageTitle = 'OMK Exchange Counter';
 $ogTitle = 'The OMK Exchange Counter';
@@ -106,17 +149,17 @@ include __DIR__ . '/../private/templates/header.php';
     </nav>
 
     <header class="page-header">
-        <h1 class="page-title"><span class="omk-sigil"><?= OMK_SYMBOL ?></span> OMK Exchange Counter</h1>
+        <h1 class="page-title"><span class="omk-sigil"><?= omkSign() ?></span> OMK Exchange Counter</h1>
         <p class="page-subtitle">ALL SALES FINAL · RATES SET BY THE OMK, WHO ANSWER TO NOBODY</p>
     </header>
 
-    <?php if ($flash): ?><div class="omk-flash <?= $flash['ok'] ? 'is-ok' : 'is-no' ?>" role="status"><?= htmlspecialchars($flash['msg']) ?></div><?php endif; ?>
+    <?php if ($flash): ?><div class="omk-flash <?= $flash['ok'] ? 'is-ok' : 'is-no' ?>" role="status"><?= omkHtml($flash['msg']) ?></div><?php endif; ?>
 
     <section class="omk-card">
         <h2 class="omk-h">How OMKredits work</h2>
         <ul class="omk-rules">
-            <li><strong><?= OMK_PER_WEEK . OMK_SYMBOL ?> for every week you race</strong>, however many GPs. Paid when the GP is saved.</li>
-            <li><strong>Trade in duplicate stickers</strong>: <?= omkDupeValue('common') . OMK_SYMBOL ?> each, or <?= omkDupeValue('foil') . OMK_SYMBOL ?> for a foil. You always keep one of each card.</li>
+            <li><strong><?= omkFormatHtml(OMK_PER_WEEK) ?> for every week you race</strong>, however many GPs. Paid when the GP is saved.</li>
+            <li><strong>Trade in duplicate stickers</strong>: <?= omkFormatHtml(omkDupeValue('common')) ?> each, or <?= omkFormatHtml(omkDupeValue('foil')) ?> for a foil. You always keep one of each card.</li>
             <li>Nothing here changes your points, your rank or your Elo.</li>
         </ul>
         <form method="GET" class="omk-who">
@@ -129,51 +172,88 @@ include __DIR__ . '/../private/templates/header.php';
         </form>
     </section>
 
-    <?php if ($racerId): ?>
+    <?php if ($racerId && !$open): ?>
+    <section class="omk-card">
+        <h2 class="omk-h"><?= htmlspecialchars($names[$racerId]) ?>'s account</h2>
+        <?php if ($hasCode): ?>
+        <form method="POST" autocomplete="off" class="omk-gate">
+            <?= csrf_field() ?>
+            <input type="hidden" name="racer_id" value="<?= $racerId ?>">
+            <input type="hidden" name="action" value="unlock">
+            <label for="omk-code-input">Your profile code</label>
+            <input type="text" id="omk-code-input" name="code" required autofocus placeholder="Profile code" autocapitalize="characters" spellcheck="false">
+            <button type="submit" class="btn btn-primary btn-sm">Open my account</button>
+        </form>
+        <?php else: ?>
+        <p class="omk-note"><?= htmlspecialchars($names[$racerId]) ?> has no profile code yet. A commissioner issues them on the racers page.</p>
+        <?php endif; ?>
+    </section>
+    <?php elseif ($open): ?>
     <form method="POST" autocomplete="off" id="omk-form">
         <?= csrf_field() ?>
         <input type="hidden" name="racer_id" value="<?= $racerId ?>">
 
         <section class="omk-card omk-account">
             <div>
-                <div class="omk-balance"><?= omkFormat($balance) ?></div>
+                <div class="omk-balance"><?= omkFormatHtml($balance) ?></div>
                 <div class="omk-note"><?= htmlspecialchars($names[$racerId]) ?>'s balance</div>
             </div>
-            <div class="omk-code">
-                <?php if ($hasCode): ?>
-                    <label for="omk-code-input">Your profile code, to spend or trade</label>
-                    <input type="text" id="omk-code-input" name="code" required placeholder="Profile code" autocapitalize="characters" spellcheck="false">
-                <?php else: ?>
-                    <p class="omk-note"><?= htmlspecialchars($names[$racerId]) ?> has no profile code yet. A commissioner issues them on the racers page.</p>
-                <?php endif; ?>
-            </div>
+            <button type="submit" name="action" value="leave" class="btn btn-secondary btn-sm" formnovalidate>Leave the counter</button>
         </section>
 
         <section class="omk-card">
             <h2 class="omk-h">Buy</h2>
             <div class="omk-items">
                 <div class="omk-item">
-                    <h3>Bribe Kartificial <span class="omk-price"><?= omkFormat(OMK_PRICES['bribe']) ?></span></h3>
+                    <h3>Bribe Kartificial <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['bribe']) ?></span></h3>
                     <p>About a 1 in <?= OMK_BRIBE_ODDS ?> chance in What cup? for <?= $fav ? '<strong>' . htmlspecialchars($fav['cup']) . ' Cup</strong>, your best (' . number_format($fav['avg'], 1) . ' over ' . (int)$fav['gps'] . ' GPs)' : 'your best cup' ?>. You can't pick another. It counts in draws you're in, runs until you next race, and he says so on screen.</p>
                     <?php if (!$fav): ?><p class="omk-note">You need three GPs on a cup first.</p>
                     <?php elseif ($myBribe): ?><p class="omk-note">He already has your envelope.</p>
-                    <?php else: ?><button type="submit" name="action" value="bribe" class="btn btn-primary btn-sm" <?= $hasCode ? '' : 'disabled' ?>>Hand over the envelope</button><?php endif; ?>
+                    <?php else: ?><button type="submit" name="action" value="bribe" class="btn btn-primary btn-sm">Hand over the envelope</button><?php endif; ?>
                 </div>
                 <div class="omk-item">
-                    <h3>Counter-bribe <span class="omk-price"><?= omkFormat(OMK_PRICES['counter']) ?></span></h3>
+                    <h3>Counter-bribe <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['counter']) ?></span></h3>
                     <p>Cancels someone's pending bribe. They don't get their money back, and he announces both payments.</p>
                     <?php if ($counterable): ?>
                         <select name="bribe_id" aria-label="Which bribe">
                             <?php foreach ($counterable as $b): ?><option value="<?= (int)$b['id'] ?>"><?= htmlspecialchars($b['name'] . ': ' . $b['cup_name'] . ' Cup') ?></option><?php endforeach; ?>
                         </select>
-                        <button type="submit" name="action" value="counter" class="btn btn-primary btn-sm" <?= $hasCode ? '' : 'disabled' ?>>Outbid them</button>
+                        <button type="submit" name="action" value="counter" class="btn btn-primary btn-sm">Outbid them</button>
                     <?php else: ?><p class="omk-note">Nobody else has a bribe pending.</p><?php endif; ?>
                 </div>
                 <div class="omk-item">
-                    <h3>Sponsor a broadcast <span class="omk-price"><?= omkFormat(OMK_PRICES['sponsor']) ?></span></h3>
+                    <h3>Sponsor a broadcast <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['sponsor']) ?></span></h3>
                     <p>The next newscast's ad break is yours: "Kart Core Team is brought to you by <?= htmlspecialchars($names[$racerId]) ?>", followed by your catchphrase.</p>
                     <?php if ($mySponsor): ?><p class="omk-note">You're already in the queue for the next one.</p>
-                    <?php else: ?><button type="submit" name="action" value="sponsor" class="btn btn-primary btn-sm" <?= $hasCode ? '' : 'disabled' ?>>Buy the ad break</button><?php endif; ?>
+                    <?php else: ?><button type="submit" name="action" value="sponsor" class="btn btn-primary btn-sm">Buy the ad break</button><?php endif; ?>
+                </div>
+                <div class="omk-item">
+                    <h3>Gold nameplate <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['gold']) ?></span></h3>
+                    <p>Your name in <span class="omk-gold">gold</span> on the homepage and the signs for <?= OMK_GOLD_DAYS ?> days, with a small PAID beside it so nobody thinks you earned it.</p>
+                    <?php if ($goldUntil > time()): ?><p class="omk-note">Gold until <?= date('j F', $goldUntil) ?>. More adds to that.</p><?php endif; ?>
+                    <button type="submit" name="action" value="gold" class="btn btn-primary btn-sm"><?= $goldUntil > time() ? 'Add a week' : 'Go gold' ?></button>
+                </div>
+                <div class="omk-item">
+                    <h3>Carbon-offset a LOL <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['offset']) ?></span></h3>
+                    <p>It stays on your record and in every count. It just gets a small tag on the GP's page: "LOL · offset by <?= htmlspecialchars($names[$racerId]) ?>".</p>
+                    <?php if ($myLols): ?>
+                        <select name="lol_id" aria-label="Which LOL">
+                            <?php foreach ($myLols as $l): ?><option value="<?= (int)$l['id'] ?>"><?= htmlspecialchars(strtoupper($l['gpid']) . ' · ' . ($l['cup_name'] ?: '?') . ' · ' . date('j M Y', strtotime($l['d']))) ?></option><?php endforeach; ?>
+                        </select>
+                        <button type="submit" name="action" value="offset" class="btn btn-primary btn-sm">Clear my conscience</button>
+                    <?php else: ?><p class="omk-note">You have no LOLs left to offset.</p><?php endif; ?>
+                </div>
+                <div class="omk-item">
+                    <h3>Founder's Edition <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['founder']) ?></span></h3>
+                    <p>A badge with a serial number, limited to <?= OMK_FOUNDER_LIMIT ?>. It does nothing, forever. <?= OMK_FOUNDER_LIMIT - count($founders) ?> left.</p>
+                    <?php if ($myFounder): ?><p class="omk-note">You are Founder #<?= sprintf('%03d', $myFounder) ?>.</p>
+                    <?php elseif (count($founders) >= OMK_FOUNDER_LIMIT): ?><p class="omk-note">Sold out.</p>
+                    <?php else: ?><button type="submit" name="action" value="founder" class="btn btn-primary btn-sm" onclick="return confirm('Spend <?= OMK_PRICES['founder'] ?> OMKredits on a badge that does nothing?');">Become a Founder</button><?php endif; ?>
+                </div>
+                <div class="omk-item">
+                    <h3>Loot box <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['loot']) ?></span></h3>
+                    <p>One sticker pack, at the odds published below as the OMK Gaming Commission requires. It waits unopened in your album.</p>
+                    <button type="submit" name="action" value="loot" class="btn btn-primary btn-sm">Take my money</button>
                 </div>
             </div>
         </section>
@@ -196,7 +276,7 @@ include __DIR__ . '/../private/templates/header.php';
                         <tr>
                             <td><?= htmlspecialchars($d['emoji'] . ' ' . $d['title']) ?><?= $d['rarity'] === 'foil' ? ' <span class="omk-foil">foil</span>' : '' ?></td>
                             <td class="txt-right">×<?= (int)$d['count'] ?></td>
-                            <td class="txt-right"><?= omkFormat($d['value']) ?></td>
+                            <td class="txt-right"><?= omkFormatHtml($d['value']) ?></td>
                             <td class="txt-right"><input type="number" class="omk-qty" name="qty[<?= htmlspecialchars($d['key']) ?>]" min="0" max="<?= (int)$d['spare'] ?>" value="0" data-value="<?= (int)$d['value'] ?>" data-count="<?= (int)$d['count'] ?>" aria-label="Copies of <?= htmlspecialchars($d['title']) ?> to trade"></td>
                         </tr>
                     <?php endforeach; ?>
@@ -205,15 +285,32 @@ include __DIR__ . '/../private/templates/header.php';
                 </div>
                 <p class="omk-warn" id="omk-warn" hidden></p>
                 <div class="omk-trade-go">
-                    <strong id="omk-total">0<?= OMK_SYMBOL ?></strong>
-                    <button type="submit" name="action" value="trade" class="btn btn-primary btn-sm" id="omk-trade" <?= $hasCode ? '' : 'disabled' ?>>Trade them in</button>
+                    <strong><span id="omk-total">0</span><?= omkSign() ?></strong>
+                    <button type="submit" name="action" value="trade" class="btn btn-primary btn-sm" id="omk-trade">Trade them in</button>
                 </div>
             <?php endif; ?>
         </section>
     </form>
     <?php endif; ?>
 
-    <div class="omk-two">
+    <section class="omk-card">
+        <h2 class="omk-h">Loot box odds <small class="omk-note">as required by the OMK Gaming Commission</small></h2>
+        <div class="omk-table-wrap">
+        <table class="clean-table omk-odds">
+            <thead><tr><th>Rarity</th><th class="txt-right">Per card</th><th class="txt-right">At least one in a pack of <?= STICKER_PACK_SIZE ?></th></tr></thead>
+            <tbody>
+                <tr><td>Golden Kartificial</td><td class="txt-right">—</td><td class="txt-right"><?= rtrim(number_format(100 / OMK_GOLDEN_ODDS, 4), '0') ?>% per box</td></tr>
+                <?php foreach (omkLootOdds() as $o): ?>
+                <tr><td><?= htmlspecialchars($o['label']) ?></td><td class="txt-right"><?= rtrim(rtrim(number_format($o['card'], 1), '0'), '.') ?>%</td><td class="txt-right"><?= number_format($o['pack'], 1) ?>%</td></tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+        <?php $goldenPulls = omkGoldenPulls($pdo); ?>
+        <p class="omk-note omk-odds-note">These are the real odds. Golden Kartificials pulled to date: <?= count($goldenPulls) ?><?= $goldenPulls ? ' (' . htmlspecialchars(implode(', ', $goldenPulls)) . ')' : '' ?>. Past performance is not indicative of anything.</p>
+    </section>
+
+    <div class="<?= $isAdmin ? 'omk-two' : '' ?>">
         <section class="omk-card">
             <h2 class="omk-h">On the table</h2>
             <?php if (!$pending && !$queue): ?><p class="omk-note">Nobody is paying anybody. Kartificial is disappointed.</p><?php endif; ?>
@@ -222,31 +319,32 @@ include __DIR__ . '/../private/templates/header.php';
                 <?php foreach ($bribes as $b): if ($b['status'] !== 'countered') continue; ?><li>✉️✉️ <strong><?= htmlspecialchars((string)$b['counter_name']) ?></strong> out-bribed <?= htmlspecialchars($b['name']) ?> on <?= htmlspecialchars($b['cup_name']) ?> Cup</li><?php endforeach; ?>
                 <?php foreach ($queue as $i => $s): ?><li>📺 <strong><?= htmlspecialchars($s['name']) ?></strong> <?= $i === 0 ? 'sponsors the next newscast' : 'is next in line to sponsor one' ?></li><?php endforeach; ?>
             </ul>
+        </section>
 
-            <h2 class="omk-h omk-h2">Balances</h2>
+        <?php if ($isAdmin): ?>
+        <section class="omk-card">
+            <h2 class="omk-h">The ledger <small class="omk-note">admins only</small></h2>
+            <?php if (!$ledger): ?><p class="omk-note">Nothing yet.</p><?php else: ?>
+            <ul class="omk-list omk-ledger">
+                <?php foreach ($ledger as $l): ?>
+                    <li><span><strong><?= htmlspecialchars($names[(int)$l['racer_id']] ?? '?') ?></strong> <?= htmlspecialchars(lcfirst($l['detail'])) ?> <small><?= date('j M', strtotime($l['created_at'])) ?></small></span><span class="<?= (int)$l['amount'] > 0 ? 'is-in' : 'is-out' ?>"><?= ((int)$l['amount'] > 0 ? '+' : '−') . omkFormatHtml(abs((int)$l['amount'])) ?></span></li>
+                <?php endforeach; ?>
+            </ul>
+            <?php endif; ?>
+            <h2 class="omk-h omk-h2">Balances <small class="omk-note">admins only</small></h2>
             <?php if (!$balances): ?><p class="omk-note">Nobody has any OMKredits yet.</p><?php else: ?>
             <ul class="omk-list omk-balances">
                 <?php foreach ($balances as $rid => $b): if (!isset($names[$rid])) continue; ?>
-                    <li><a href="/omk-exchange?racer=<?= (int)$rid ?>"><?= htmlspecialchars($names[$rid]) ?></a><span><?= omkFormat($b) ?></span></li>
+                    <li><span><?= htmlspecialchars($names[$rid]) ?></span><span><?= omkFormatHtml($b) ?></span></li>
                 <?php endforeach; ?>
             </ul>
             <?php endif; ?>
         </section>
-
-        <section class="omk-card">
-            <h2 class="omk-h">The ledger</h2>
-            <?php if (!$ledger): ?><p class="omk-note">Not a single transaction. The OMK has noticed.</p><?php else: ?>
-            <ul class="omk-list omk-ledger">
-                <?php foreach ($ledger as $l): ?>
-                    <li><span><strong><?= htmlspecialchars($names[(int)$l['racer_id']] ?? '?') ?></strong> <?= htmlspecialchars(lcfirst($l['detail'])) ?> <small><?= date('j M', strtotime($l['created_at'])) ?></small></span><span class="<?= (int)$l['amount'] > 0 ? 'is-in' : 'is-out' ?>"><?= ((int)$l['amount'] > 0 ? '+' : '−') . omkFormat(abs((int)$l['amount'])) ?></span></li>
-                <?php endforeach; ?>
-            </ul>
-            <?php endif; ?>
-        </section>
+        <?php endif; ?>
     </div>
 </div>
 
-<?php if ($racerId && $dupes): ?>
+<?php if ($open && $dupes): ?>
 <script>
 (function () {
     const qty = [...document.querySelectorAll('.omk-qty')];
@@ -262,7 +360,7 @@ include __DIR__ . '/../private/templates/header.php';
             copies += n;
             maxAfter = Math.max(maxAfter, parseInt(el.dataset.count, 10) - n);
         });
-        total.textContent = credits + '<?= OMK_SYMBOL ?>';
+        total.textContent = credits;
         // Only cards with spares are listed, and everything else you hold is a single copy.
         const lost = [];
         if (most >= 5 && Math.max(maxAfter, 1) < 5) lost.push('Stuck With Dupes');

@@ -252,7 +252,7 @@ try {
     )");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_teams_season ON teams(season_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id)");
-    // OMKredits (Ω). The ledger is the only place a balance lives: a balance is
+    // OMKredits (Ω̈). The ledger is the only place a balance lives: a balance is
     // SUM(amount). A race week can only be paid once per racer.
     $pdo->exec("CREATE TABLE IF NOT EXISTS omk_ledger (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -280,6 +280,18 @@ try {
         recap_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS omk_cosmetics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        racer_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        ref TEXT,
+        serial INTEGER,
+        until_ts INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_omk_lol_offset ON omk_cosmetics(ref) WHERE kind = 'lol_offset'");
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_omk_founder ON omk_cosmetics(serial) WHERE kind = 'founder'");
 
     // Results a racer has flagged as wrong, for /admin/audit. No name, no IP: the
     // note is the whole report, and the throttle table handles abuse.

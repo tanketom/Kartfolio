@@ -227,7 +227,7 @@ while($row = $newsStmt->fetch()) {
 
                 <div class="racer-info">
                     <div class="racer-name-row">
-                        <div class="racer-name"><?= htmlspecialchars($row['name']) ?></div><?php if (!empty($row['team'])): ?><span class="racer-team-dot" style="background:<?= htmlspecialchars($row['team']['color']) ?>" title="<?= htmlspecialchars($row['team']['name']) ?>"></span><?php endif; ?>
+                        <div class="racer-name<?= !empty($row['gold']) ? ' omk-gold' : '' ?>"><?= htmlspecialchars($row['name']) ?><?php if (!empty($row['gold'])): ?><span class="omk-paid" title="Gold nameplate, paid for at the OMK Exchange">PAID</span><?php endif; ?></div><?php if (!empty($row['team'])): ?><span class="racer-team-dot" style="background:<?= htmlspecialchars($row['team']['color']) ?>" title="<?= htmlspecialchars($row['team']['name']) ?>"></span><?php endif; ?>
                         <?php if (!empty($row['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($row['tie']) ?>">TIE</span><?php endif; ?>
                         <?php if (!empty($row['mikko'])): ?>
                             <span class="mikko-leaderboard-badge">🌟 #<?= (int)$row['mikko']['rank'] ?></span>

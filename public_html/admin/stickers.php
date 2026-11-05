@@ -10,6 +10,8 @@ require_once __DIR__ . '/../../private/includes/db.php';
 require_once __DIR__ . '/../../private/includes/auth.php';
 require_once __DIR__ . '/../../private/includes/csrf.php';
 require_once __DIR__ . '/../../private/includes/stickers.php';
+require_once __DIR__ . '/../../private/includes/settings.php';
+require_once __DIR__ . '/../../private/includes/omk.php';
 require_admin();
 
 $racers = $pdo->query("SELECT id, name FROM racers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -33,6 +35,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         foreach ($targets as $rid) $packs += grantAdminPacks($pdo, $rid, $count, $size, $source);
         $who = $scope === 'all' ? count($targets) . ' racers' : 'one racer';
         $msg = "Granted $packs pack" . ($packs === 1 ? '' : 's') . " (size $size, “$source”) to $who.";
+    } elseif ($action === 'grant_omk') {
+        $amount = max(-10000, min(10000, (int)($_POST['amount'] ?? 0)));
+        $reason = (string)($_POST['reason'] ?? '');
+        $targets = ($_POST['scope'] ?? 'one') === 'all'
+            ? array_map('intval', $pdo->query("SELECT id FROM racers WHERE COALESCE(is_retired, 0) = 0")->fetchAll(PDO::FETCH_COLUMN))
+            : array_filter([max(0, (int)($_POST['racer_id'] ?? 0))]);
+        $moved = 0; $people = 0;
+        if ($amount !== 0) {
+            foreach ($targets as $rid) {
+                $m = omkGift($pdo, (int)$rid, $amount, $reason);
+                $moved += $m; $people += $m !== 0 ? 1 : 0;
+            }
+        }
+        $msg = $people === 0
+            ? 'No OMKredits moved. Pick an amount; a racer on nothing has nothing to take back.'
+            : ($moved > 0 ? 'Gave ' : 'Took back ') . omkFormat(abs($moved)) . ($people === 1 ? '' : " across $people racers") . '.';
     } elseif ($action === 'grant_sticker') {
         $rid = (int)($_POST['racer_id'] ?? 0);
         $key = $_POST['sticker_key'] ?? '';
@@ -96,7 +114,7 @@ include __DIR__ . '/../../private/templates/header.php';
         <p class="page-subtitle"><?= $totalCards ?> CARDS · <?= $bespokeHave ?>/<?= $bespokeTotal ?> BESPOKE ARTS · LAUNCHES <?= htmlspecialchars(stickersEpoch($pdo)) ?></p>
     </header>
 
-    <?php if ($flash): ?><div class="sb-flash">✅ <?= htmlspecialchars($flash) ?></div><?php endif; ?>
+    <?php if ($flash): ?><div class="sb-flash">✅ <?= omkHtml($flash) ?></div><?php endif; ?>
 
     <nav class="sb-subnav">
         <a href="#grant">Give packs</a><a href="#award">Award a card</a><a href="#inspect">Racer inspector</a>
@@ -133,6 +151,33 @@ include __DIR__ . '/../../private/templates/header.php';
     </section>
 
     <!-- ── AWARD A SPECIFIC CARD ──────────────────────────────────── -->
+    <?php if (moduleEnabled($pdo, 'omk')): ?>
+    <section class="sb-card" id="omk">
+        <h2><?= omkSign() ?> Give OMKredits</h2>
+        <form method="POST" class="sb-form">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="grant_omk">
+            <div class="sb-row">
+                <label>Who
+                    <select name="scope" onchange="document.getElementById('sb-omk-one').style.display=this.value==='one'?'':'none'">
+                        <option value="one">One racer</option>
+                        <option value="all">Everyone (not retired)</option>
+                    </select>
+                </label>
+                <label id="sb-omk-one">Racer
+                    <select name="racer_id">
+                        <?php foreach ($racers as $r): ?><option value="<?= (int)$r['id'] ?>"><?= htmlspecialchars($r['name']) ?></option><?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Amount each <input type="number" name="amount" value="10" min="-10000" max="10000" required></label>
+                <label>Reason <input type="text" name="reason" maxlength="80" placeholder="Optional. Admins see it"></label>
+            </div>
+            <button type="submit" class="btn btn-primary">Give OMKredits</button>
+            <small class="sb-note">A minus takes OMKredits back, never below zero. Everything shows in the ledger on the <a href="/omk-exchange">Exchange Counter</a>.</small>
+        </form>
+    </section>
+    <?php endif; ?>
+
     <section class="sb-card" id="award">
         <h2>🎯 Award a specific card</h2>
         <form method="POST" class="sb-form">

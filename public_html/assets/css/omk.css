@@ -13,9 +13,6 @@
 .omk-root select, .omk-root input[type=text], .omk-root input[type=number] { background: var(--gray-50); color: var(--gray-900); border: 1px solid var(--gray-400); padding: 7px 10px; border-radius: 6px; font: inherit; max-width: 100%; }
 .omk-account { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
 .omk-balance { font-family: 'DM Mono', monospace; font-size: 2.4rem; line-height: 1.1; }
-.omk-code { flex: 0 1 320px; min-width: 200px; }
-.omk-code label { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 5px; }
-.omk-code input { width: 100%; box-sizing: border-box; }
 .omk-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .omk-item { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px; min-width: 0; }
 .omk-item h3 { margin: 0; font-size: 1rem; width: 100%; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
@@ -36,8 +33,6 @@
 .omk-list li:first-child { border-top: 0; }
 .omk-balances li, .omk-ledger li { display: flex; justify-content: space-between; gap: 12px; }
 .omk-balances span, .omk-ledger li > span:last-child { font-family: 'DM Mono', monospace; white-space: nowrap; }
-.omk-balances a { color: inherit; font-weight: 700; text-decoration: none; }
-.omk-balances a:hover { text-decoration: underline; }
 .omk-ledger small { color: var(--gray-500); margin-left: 4px; }
 .omk-ledger .is-in { color: var(--success-text); }
 .omk-ledger .is-out { color: var(--error-text); }
@@ -45,3 +40,9 @@
     .omk-items, .omk-two { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .omk-two { gap: 0; }
 }
+
+.omk-gate { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.omk-gate label { font-weight: 700; }
+.omk-gate input { flex: 0 1 220px; min-width: 0; }
+.omk-odds { width: 100%; }
+.omk-odds-note { margin-top: 10px; }

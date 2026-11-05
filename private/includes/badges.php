@@ -55,6 +55,9 @@ function badgeCareerContext($pdo) {
     $stickerGrandTotal = 0;
     foreach ($byKey as $s) { $stickerSetTotals[$s['set']] = ($stickerSetTotals[$s['set']] ?? 0) + 1; $stickerGrandTotal++; }
 
+    require_once __DIR__ . '/omk.php';
+    $omkFounders = omkFounders($pdo);   // racer_id => serial, bought at the OMK Exchange
+
     $stickerHoldings = [];  // racer_id => ['distinct','total','foil','maxDup','kart','sets'=>[set=>owned]]
     try {
         foreach ($pdo->query("SELECT racer_id, sticker_key, count FROM racer_stickers")->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -253,7 +256,7 @@ function badgeCareerContext($pdo) {
     } catch (PDOException $e) { /* fantasy tables absent */ }
 
     return $cache = compact(
-        'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart',
+        'omkFounders', 'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart',
         'careerWins', 'debutPodium', 'maxGpsInDay', 'lockedIn'
     );
 }
@@ -798,6 +801,8 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
             if (!empty($ctx['haunted'][$racer_id][$key])) $badges[] = badgeDef($key);
         }
     }
+    // 🪪 Founder's Edition: bought, so built in omk.php rather than the catalogue.
+    if (isset($ctx['omkFounders'][$racer_id])) $badges[] = omkFounderBadge((int)$ctx['omkFounders'][$racer_id]);
     // 📣 Team-season honours. Before the gate too: 🎟️ Cameo is for someone who
     // raced one week, which may be one GP.
     if (!empty($ctx['teamFacts'][$racer_id])) {

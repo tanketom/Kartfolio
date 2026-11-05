@@ -2343,3 +2343,30 @@ select, textarea {
 /* A racer's team on the standings (homepage and signs). Sized in em so it fits
    a 16px homepage row and an 80px sign row alike. */
 .racer-team-dot { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; margin-left: 0.4em; vertical-align: 0.05em; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }
+
+/* The OMKredit sign: an omega with a trema. Unicode has no such character, and a
+   combining diaeresis lands wherever the font likes (Inter and Fredoka drift it off
+   to the right), so the dots are drawn, centred on whatever omega the font has. */
+.omk-sign { position: relative; display: inline-block; line-height: 1; padding-top: 0.08em; vertical-align: baseline; }
+.omk-sign::before {
+    content: "";
+    position: absolute;
+    top: -0.03em;
+    left: calc(50% - 0.2em);
+    width: 0.13em;
+    height: 0.13em;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0.27em 0 0 currentColor;
+}
+
+/* A name somebody paid to have in gold, and the tag that says so. Dark enough to read
+   on the cream cards; the plain colour is the fallback where clipped text is not supported. */
+.omk-gold {
+    color: #9a7400;
+    background: linear-gradient(90deg, #8f6a00, #c79a12 45%, #8f6a00);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.omk-paid { display: inline-block; font-size: 0.55em; font-weight: 800; letter-spacing: 0.06em; padding: 0.1em 0.45em; border-radius: 999px; background: #ffe9a8; color: #3a2c00; vertical-align: middle; margin-left: 0.5em; -webkit-text-fill-color: #3a2c00; font-family: var(--font-body); font-style: normal; }

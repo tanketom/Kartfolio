@@ -14,6 +14,7 @@ require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/mk_data.php';
 require_once __DIR__ . '/../private/includes/elo_engine.php';
+require_once __DIR__ . '/../private/includes/settings.php';
 require_once __DIR__ . '/../private/includes/session.php';
 require_once __DIR__ . '/../private/includes/csrf.php';
 require_once __DIR__ . '/../private/includes/throttle.php';
@@ -87,7 +88,7 @@ $cupSlug    = $gpHeader['cup_name'] ? getMKCupSlug($gpHeader['cup_name']) : null
 
 // ── 2. Full results in finishing order ─────────────────────────────────
 $resStmt = $pdo->prepare("
-    SELECT res.rank, res.gp_points, res.character_used, res.kart_setup,
+    SELECT res.id AS result_id, res.rank, res.gp_points, res.character_used, res.kart_setup,
            res.is_lol, res.is_monster, r.id AS racer_id, r.name, r.nickname
     FROM results res
     JOIN racers r ON r.id = res.racer_id
@@ -96,6 +97,13 @@ $resStmt = $pdo->prepare("
 ");
 $resStmt->execute([$gpid]);
 $results = $resStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// LOLs somebody has paid to offset. They stay on the record; they just get a tag.
+$lolOffsets = [];
+if (moduleEnabled($pdo, 'omk')) {
+    require_once __DIR__ . '/../private/includes/omk.php';
+    $lolOffsets = omkLolOffsets($pdo, $gpid);
+}
 
 // ── 3. Elo deltas around this GP ───────────────────────────────────────
 // Re-running the full Elo engine to extract per-GP deltas is heavy but
@@ -280,7 +288,7 @@ include __DIR__ . '/../private/templates/header.php';
                     </td>
                     <td class="gp-flags">
                         <?php if ($row['is_monster']): ?><span class="flag flag-monster">👹 Monster</span><?php endif; ?>
-                        <?php if ($row['is_lol']): ?><span class="flag flag-lol">😂 LOL</span><?php endif; ?>
+                        <?php if ($row['is_lol']): ?><?php if (isset($lolOffsets[(int)$row['result_id']])): ?><span class="flag flag-lol flag-offset" title="Paid for at the OMK Exchange. It still happened.">😂 LOL · offset by <?= htmlspecialchars($row['name']) ?></span><?php else: ?><span class="flag flag-lol">😂 LOL</span><?php endif; ?><?php endif; ?>
                         <?php if ((int)$row['gp_points'] === MK_MAX_GP_POINTS): ?><span class="flag flag-perfect">💎 Perfect</span><?php endif; ?>
                         <?php if (isset($hauntOutcome[(int)$row['racer_id']])): [$hk, $ht] = $hauntOutcome[(int)$row['racer_id']]; ?><span class="flag flag-haunt flag-haunt--<?= $hk ?>"><?= htmlspecialchars($ht) ?></span><?php endif; ?>
                     </td>
@@ -444,6 +452,7 @@ include __DIR__ . '/../private/templates/header.php';
 }
 .flag-monster { background: #5a2a8a; color: #fff; }
 .flag-lol     { background: #444; color: var(--nintendo-red); }
+.flag-offset  { background: #e6f6ec; color: #157347; }
 .flag-perfect { background: #2ebd59; color: #fff; }
 .flag-haunt--beat  { background: #e8f7ec; color: #14602c; }
 .flag-haunt--heart { background: #fde8e8; color: #9b1c1c; }

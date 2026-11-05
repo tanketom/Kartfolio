@@ -1033,17 +1033,29 @@ Cross-reference if you find half-implemented work:
   `archived`): mid-season the leading team would all read 1st on their profiles. `season_meta.champion_name` holds one string, the TEAM's on
   these seasons: anything counting a racer's titles reads `seasonTitleHolders()`,
   never that column. The Lounge sign gets a team panel in the map's slot
-- **OMKredits (Ω) and the Exchange Counter** — `/omk-exchange`, rules in
+- **OMKredits (Ω̈) and the Exchange Counter** — `/omk-exchange`, rules in
   `private/includes/omk.php`, proposals in the OMK Microtransactions doc. A balance is
-  only ever `SUM(omk_ledger.amount)`. Earned two ways: 2Ω per week raced
+  only ever `SUM(omk_ledger.amount)`. The profile code opens a racer's account for one racer at a time, for
+  20 idle minutes (`omkCounterIsOpen()`, session), and their balance, trade-ins and
+  purchases appear only then. The ledger and all balances show to admins only; pending
+  bribes stay public because a counter-bribe needs them. Admins give OMKredits on the
+  Sticker Board (`omkGift()`). The sign is an omega with a trema. In plain text that is `OMK_SYMBOL`
+  (U+03A9 + U+0308), but Inter and Fredoka drift the mark off to the right, so in HTML
+  always use `omkSign()` / `omkFormatHtml()`, which draw the dots with CSS. Earned two ways: 2Ω̈ per week raced
   (`omkGrantRaceWeeks()`, a partial unique index means a week pays once, from
-  `omk_epoch`), and trading in duplicates card by card (1Ω, foil 3Ω, always keeping one).
+  `omk_epoch`), and trading in duplicates card by card (1Ω̈, foil 3Ω̈, always keeping one).
   Soul coins do not convert. Whale and Stuck With Dupes count copies HELD, so trading
-  can cost those badges: deliberate, and the page warns first. Spent, through the
-  profile code with POST + CSRF + throttle + `BEGIN IMMEDIATE`, on a bribe (10Ω, a 1 in 4
+  can cost those badges: deliberate, and the page warns first. Spent, from an open
+  account with POST + CSRF + throttle + `BEGIN IMMEDIATE`, on a bribe (10Ω̈, a 1 in 4
   chance in What cup? for the buyer's best-average cup with 3+ GPs, never a free
   choice; only in draws they are in, used up by the next GP they race), a counter-bribe
-  (15Ω) and a broadcast sponsorship (20Ω). No free text anywhere, so no approval queue.
+  (15Ω̈) and a broadcast sponsorship (20Ω̈). No free text anywhere, so no approval queue.
+  Also on sale: a gold nameplate (15, 7 days, `leaderboardRows()['gold']`,
+  always with a PAID tag), a carbon offset per LOL (5, a tag on the GP page; the LOL
+  still counts everywhere), a Founder's badge (100, 10 serials; bought, so built by
+  `omkFounderBadge()` and NOT in `badgeCatalog()`, which is what can be earned) and a
+  loot box (8, one ordinary pack, with the real odds published from `STICKER_WEIGHTS`,
+  and a real 1-in-a-million Golden Kartificial, because published odds have to be true).
   A sponsorship goes through the briefing, `omkEnsureAdRead()` appends the line if the
   writer dropped it, and it is attached rather than spent: deleting a rejected draft
   frees it. Test the broadcast path without paying by running with

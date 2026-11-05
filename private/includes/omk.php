@@ -1,30 +1,49 @@
 <?php
 /**
- * OMKredits (Ω) — the league's fake money, and everything it buys.
+ * OMKredits (Ω̈) — the league's fake money, and everything it buys.
  *
- * Earned two ways: 2Ω for each week raced, however many GPs (the sticker packs
+ * Earned two ways: 2Ω̈ for each week raced, however many GPs (the sticker packs
  * are the per-GP reward), and by trading in duplicate stickers. Spent at the OMK
  * Exchange Counter, /omk-exchange. Nothing bought changes a point, a rank or an
  * Elo rating. A bribe gets closest: it can only push the briber's own best cup,
  * and Kartificial tells everyone.
  *
  * Same plumbing as the Haunted soul shop: profile code, POST + CSRF + throttle,
- * balance re-checked inside BEGIN IMMEDIATE, one public ledger. The balance is
- * always SUM(amount), so there is no second number to drift out of step.
+ * balance re-checked inside BEGIN IMMEDIATE. A racer's balance shows only to them, once
+ * their code has opened the account; the ledger and all balances only to admins.
+ * The balance is always SUM(amount), so there is no second number to drift out of step.
+ * A commissioner can also give OMKredits from the Sticker Board.
  */
 require_once __DIR__ . '/gp_logic.php';
 require_once __DIR__ . '/stickers.php';
 
-const OMK_SYMBOL = 'Ω';
+// Capital omega + combining diaeresis. Unicode has no single character for it, and
+// where a font puts the mark is up to the font: Inter and Fredoka both drift it off to
+// the right. So this is for plain text only. In HTML use omkSign(), which draws the
+// dots with CSS (.omk-sign in global.css) so they sit centred in any font.
+const OMK_SYMBOL = "\u{03A9}\u{0308}";
 const OMK_PER_WEEK = 2;
 const OMK_EPOCH_DEFAULT = '2026-11-02';   // racing before this week earned nothing
-const OMK_PRICES = ['bribe' => 10, 'counter' => 15, 'sponsor' => 20];
+const OMK_PRICES = ['bribe' => 10, 'counter' => 15, 'sponsor' => 20, 'gold' => 15, 'offset' => 5, 'founder' => 100, 'loot' => 8];
+const OMK_GOLD_DAYS = 7;
+const OMK_FOUNDER_LIMIT = 10;
+const OMK_GOLDEN_ODDS = 1000000;          // one loot box in this many holds a Golden Kartificial
+const OMK_COUNTER_MINUTES = 20;           // how long an account stays open at the counter
 const OMK_BRIBE_ODDS = 4;                 // a bribed cup comes up 1 draw in this many
 
 /** A purchase refused for a reason the buyer should read. Nothing has been spent. */
 class OmkRefused extends RuntimeException {}
 
 function omkFormat(int $amount): string { return number_format($amount) . OMK_SYMBOL; }
+
+/** The sign, for HTML. */
+function omkSign(): string { return '<span class="omk-sign" role="img" aria-label="OMKredits">Ω</span>'; }
+
+/** An amount, for HTML. */
+function omkFormatHtml(int $amount): string { return number_format($amount) . omkSign(); }
+
+/** Plain text carrying amounts (a flash message, say), escaped and with the sign drawn properly. */
+function omkHtml(string $text): string { return str_replace(htmlspecialchars(OMK_SYMBOL), omkSign(), htmlspecialchars($text)); }
 
 /** What one duplicate is worth. */
 function omkDupeValue(string $rarity): int { return $rarity === 'foil' ? 3 : 1; }
@@ -61,11 +80,37 @@ function omkEntry(PDO $pdo, int $racer_id, int $amount, string $kind, string $de
         ->execute([$racer_id, $amount, $kind, $detail, $ref]);
 }
 
+/**
+ * A commissioner giving OMKredits (or, with a negative amount, taking back a mistake,
+ * never below zero). Returns what actually moved.
+ */
+function omkGift(PDO $pdo, int $racer_id, int $amount, string $reason = ''): int {
+    return omkTxn($pdo, function () use ($pdo, $racer_id, $amount, $reason) {
+        if ($amount < 0) $amount = -min(-$amount, max(0, omkBalance($pdo, $racer_id)));
+        if ($amount === 0) return 0;
+        $reason = trim((string)preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $reason));
+        $what = $amount > 0 ? 'Given by the OMK' : 'Taken back by the OMK';
+        omkEntry($pdo, $racer_id, $amount, 'gift', $what . ($reason !== '' ? ': ' . mb_substr($reason, 0, 80) : ''));
+        return $amount;
+    });
+}
+
 /** Call inside omkTxn(), so the balance cannot change between the check and the spend. */
 function omkSpend(PDO $pdo, int $racer_id, int $cost, string $kind, string $detail): void {
     $have = omkBalance($pdo, $racer_id);
     if ($have < $cost) throw new OmkRefused('That costs ' . omkFormat($cost) . ' and you have ' . omkFormat($have) . '.');
     omkEntry($pdo, $racer_id, -$cost, $kind, $detail);
+}
+
+/**
+ * Is this racer's account open in this session? The profile code opens it once, for
+ * one racer at a time, and it closes after OMK_COUNTER_MINUTES without activity. Pure,
+ * so the gate can be tested. Balances and purchases sit behind it: this is a shared
+ * machine in a lounge as often as it is anybody's phone.
+ */
+function omkCounterIsOpen(array $session, int $racer_id, int $now): bool {
+    $c = $session['omk_counter'] ?? null;
+    return is_array($c) && $racer_id > 0 && (int)($c['racer'] ?? 0) === $racer_id && (int)($c['until'] ?? 0) > $now;
 }
 
 // ── Earning ──────────────────────────────────────────────────────────────
@@ -218,6 +263,142 @@ function omkBribeLine(array $bribes, string $drawn, array $racerIds): ?string {
     }
     if ($live) return "{$live[0]['name']} paid me to suggest {$live[0]['cup_name']} Cup. The wheel has its own opinions. I am keeping the money.";
     return null;
+}
+
+// ── Vanity ───────────────────────────────────────────────────────────────
+//
+// None of it does anything, which is the joke. Each is marked as paid wherever it
+// shows. The Founder's badge is deliberately not in badgeCatalog(): the catalogue is
+// what you can earn, and this is what you can buy.
+
+/** Racer ids with a gold name right now. Must never be able to break a standings page. */
+function omkGoldNames(PDO $pdo): array {
+    try {
+        $st = $pdo->prepare("SELECT DISTINCT racer_id FROM omk_cosmetics WHERE kind = 'gold_name' AND until_ts > ?");
+        $st->execute([time()]);
+        return array_fill_keys(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)), true);
+    } catch (Throwable $e) { error_log('omk gold: ' . $e->getMessage()); return []; }
+}
+
+/** When this racer's gold runs out (a timestamp), or 0. */
+function omkGoldUntil(PDO $pdo, int $racer_id): int {
+    $st = $pdo->prepare("SELECT COALESCE(MAX(until_ts), 0) FROM omk_cosmetics WHERE kind = 'gold_name' AND racer_id = ?");
+    $st->execute([$racer_id]);
+    return (int)$st->fetchColumn();
+}
+
+/** Seven days of gold. Buying more while you have it adds to the end. Returns the new end. */
+function omkBuyGold(PDO $pdo, int $racer_id, ?int $now = null): int {
+    $now ??= time();
+    return omkTxn($pdo, function () use ($pdo, $racer_id, $now) {
+        $until = max($now, omkGoldUntil($pdo, $racer_id)) + OMK_GOLD_DAYS * 86400;
+        omkSpend($pdo, $racer_id, OMK_PRICES['gold'], 'gold', 'Bought a gold nameplate');
+        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, until_ts) VALUES (?, 'gold_name', ?)")->execute([$racer_id, $until]);
+        return $until;
+    });
+}
+
+/** The racer's LOLs still on the planet's conscience: id, gpid, cup_name, d. Newest first. */
+function omkUnoffsetLols(PDO $pdo, int $racer_id): array {
+    $st = $pdo->prepare("SELECT x.id, x.gpid, x.cup_name, date(x.race_date) AS d FROM results x
+                         WHERE x.racer_id = ? AND x.is_lol = 1 AND x.gpid LIKE 's%'
+                           AND x.id NOT IN (SELECT CAST(ref AS INTEGER) FROM omk_cosmetics WHERE kind = 'lol_offset')
+                         ORDER BY x.race_date DESC, x.id DESC");
+    $st->execute([$racer_id]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** Offset one of your own LOLs. It stays on the record and in every LOL count; it just gets a tag. */
+function omkBuyOffset(PDO $pdo, int $racer_id, int $result_id): array {
+    return omkTxn($pdo, function () use ($pdo, $racer_id, $result_id) {
+        $st = $pdo->prepare("SELECT id, gpid FROM results WHERE id = ? AND racer_id = ? AND is_lol = 1");
+        $st->execute([$result_id, $racer_id]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) throw new OmkRefused('That is not one of your LOLs. You can only clear your own conscience.');
+        $st = $pdo->prepare("SELECT 1 FROM omk_cosmetics WHERE kind = 'lol_offset' AND ref = ?");
+        $st->execute([(string)$result_id]);
+        if ($st->fetchColumn()) throw new OmkRefused('That LOL has already been offset.');
+        omkSpend($pdo, $racer_id, OMK_PRICES['offset'], 'offset', 'Offset a LOL in ' . strtoupper($r['gpid']));
+        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, ref) VALUES (?, 'lol_offset', ?)")->execute([$racer_id, (string)$result_id]);
+        return $r;
+    });
+}
+
+/** [results.id => true] for the offset LOLs in one GP. Must never be able to break the GP page. */
+function omkLolOffsets(PDO $pdo, string $gpid): array {
+    try {
+        $st = $pdo->prepare("SELECT x.id FROM omk_cosmetics c JOIN results x ON x.id = CAST(c.ref AS INTEGER)
+                             WHERE c.kind = 'lol_offset' AND x.gpid = ?");
+        $st->execute([$gpid]);
+        return array_fill_keys(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)), true);
+    } catch (Throwable $e) { error_log('omk offsets: ' . $e->getMessage()); return []; }
+}
+
+/** [racer_id => serial] for every Founder. */
+function omkFounders(PDO $pdo): array {
+    try {
+        $out = [];
+        foreach ($pdo->query("SELECT racer_id, serial FROM omk_cosmetics WHERE kind = 'founder' ORDER BY serial ASC")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(int)$r['racer_id']] = (int)$r['serial'];
+        }
+        return $out;
+    } catch (Throwable $e) { error_log('omk founders: ' . $e->getMessage()); return []; }
+}
+
+/** The badge a Founder wears. Built here, because it is bought and so not in the catalogue. */
+function omkFounderBadge(int $serial): array {
+    return ['icon' => '🪪', 'title' => sprintf('Founder #%03d', $serial),
+            'desc' => sprintf("Founder's Edition, %03d of %d. Bought and paid for. It does nothing.", $serial, OMK_FOUNDER_LIMIT)];
+}
+
+function omkBuyFounder(PDO $pdo, int $racer_id): int {
+    return omkTxn($pdo, function () use ($pdo, $racer_id) {
+        $all = omkFounders($pdo);
+        if (isset($all[$racer_id])) throw new OmkRefused(sprintf('You are already Founder #%03d. There is no Founder Plus. Yet.', $all[$racer_id]));
+        if (count($all) >= OMK_FOUNDER_LIMIT) throw new OmkRefused('All ' . OMK_FOUNDER_LIMIT . " Founder's Editions are gone.");
+        $serial = ($all ? max($all) : 0) + 1;
+        omkSpend($pdo, $racer_id, OMK_PRICES['founder'], 'founder', sprintf("Bought Founder's Edition #%03d", $serial));
+        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, serial) VALUES (?, 'founder', ?)")->execute([$racer_id, $serial]);
+        return $serial;
+    });
+}
+
+/**
+ * A loot box: one ordinary sticker pack, unopened in the album, so its contents follow
+ * the ordinary odds. One in OMK_GOLDEN_ODDS also holds a Golden Kartificial: the
+ * published odds are real, so the prize has to be. $roll is for testing.
+ * Returns ['golden' => bool].
+ */
+function omkBuyLootBox(PDO $pdo, int $racer_id, ?int $roll = null): array {
+    $roll ??= random_int(1, OMK_GOLDEN_ODDS);
+    return omkTxn($pdo, function () use ($pdo, $racer_id, $roll) {
+        omkSpend($pdo, $racer_id, OMK_PRICES['loot'], 'loot', 'Bought a loot box');
+        grantAdminPacks($pdo, $racer_id, 1, STICKER_PACK_SIZE, 'loot_box');
+        if ($roll !== 1) return ['golden' => false];
+        grantSticker($pdo, $racer_id, 'lore_kartificial');
+        omkEntry($pdo, $racer_id, 0, 'golden', 'Pulled a Golden Kartificial');
+        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind) VALUES (?, 'golden')")->execute([$racer_id]);
+        return ['golden' => true];
+    });
+}
+
+/** Names of everyone who has pulled a Golden Kartificial. */
+function omkGoldenPulls(PDO $pdo): array {
+    return $pdo->query("SELECT r.name FROM omk_cosmetics c JOIN racers r ON r.id = c.racer_id WHERE c.kind = 'golden' ORDER BY c.id ASC")->fetchAll(PDO::FETCH_COLUMN);
+}
+
+/**
+ * The real odds, from the real weights: per card, and for a whole pack holding at least
+ * one of that rarity. [['label','card','pack'], …] in percent.
+ */
+function omkLootOdds(): array {
+    $total = array_sum(STICKER_WEIGHTS);
+    $out = [];
+    foreach (array_reverse(STICKER_WEIGHTS, true) as $rarity => $w) {
+        $p = $w / $total;
+        $out[] = ['label' => ucfirst($rarity), 'card' => 100 * $p, 'pack' => 100 * (1 - (1 - $p) ** STICKER_PACK_SIZE)];
+    }
+    return $out;
 }
 
 // ── Sponsoring a broadcast ───────────────────────────────────────────────

@@ -32,7 +32,7 @@ require_once __DIR__ . '/settings.php';
  *
  * Each row: id, name, score, char, raceCount, qualifies, rank, rank_change,
  * tie, badges (each with icon/title/desc/held/is_new), badge_overflow,
- * breakdown, tooltip, cupsCounted, mikko, team.
+ * breakdown, tooltip, cupsCounted, mikko, team, gold.
  */
 function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $withBadges = true): array {
     static $cache = [];
@@ -54,6 +54,13 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
         foreach (getTeamConfig($pdo, $seasonId) as $t) {
             foreach (array_keys($t['members']) as $mid) $teamOf[(int)$mid] = ['name' => $t['name'], 'color' => $t['color']];
         }
+    }
+
+    // Gold names, bought at the OMK Exchange: one query, and it cannot break the table.
+    $goldNames = [];
+    if (moduleEnabled($pdo, 'omk')) {
+        require_once __DIR__ . '/omk.php';
+        $goldNames = omkGoldNames($pdo);
     }
 
     // Mikkoliiga rank per racer, when the module is on.
@@ -109,6 +116,7 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
             'cupsCounted' => (int)($breakdown['components']['cups_counted'] ?? 0),
             'mikko'       => $mikkoByRacer[$rid] ?? null,
             'team'        => $teamOf[$rid] ?? null,   // ['name','color'] on a season with teams
+            'gold'        => isset($goldNames[$rid]),  // bought at the OMK Exchange
         ];
     }
 

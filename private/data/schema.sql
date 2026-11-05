@@ -519,3 +519,15 @@ CREATE TABLE IF NOT EXISTS omk_sponsorships (
     recap_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS omk_cosmetics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    racer_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    ref TEXT,
+    serial INTEGER,
+    until_ts INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_omk_lol_offset ON omk_cosmetics(ref) WHERE kind = 'lol_offset';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_omk_founder ON omk_cosmetics(serial) WHERE kind = 'founder';

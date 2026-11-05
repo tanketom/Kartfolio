@@ -13,7 +13,7 @@ Built with PHP, SQLite, and vanilla JavaScript. No frameworks, no build step —
 - **GP result logging** with auto-incrementing GPID (`s03gp14`), smart character/kart auto-fill from each racer's last result, and a four-digit wall code that has to be entered at the Gameslab to prevent remote submissions
 - **Fourteen scoring systems**, picked per-season — GPScore™ (avg + attendance), Pre-Season, Cup-Based, Best-N GPs, Drop Worst, Perfect Hunt, Top 12 Unique Cups, Random Cup Draw, Black Box, **MONSTER HUNT** (XP-based RPG mode), **Bounty Hunter** (Elo-above-median collection), **Pari-Mutuel** (zero-sum ante and payout), and the relative **Positional Points** and **Head-to-Head** systems
 - **Team seasons** — Roll Call: per week, a point for your team for racing and three for beating your own average. Teams are drawn from pots, newcomers join on their first race, and an automatic swap at halfway keeps it close. Built for a league where people come and go.
-- **OMKredits (Ω)** — fake money, earned by racing and by trading in duplicate stickers, spent at the OMK Exchange Counter on bribing the host and sponsoring broadcasts. Nothing bought changes a score.
+- **OMKredits (Ω̈)** — fake money, earned by racing and by trading in duplicate stickers, spent at the OMK Exchange Counter on bribing the host and sponsoring broadcasts. Nothing bought changes a score.
 - **League in numbers** — totals, a calendar of every race day, and GPs and racers per month at `/league-in-numbers`.
 - **RSS** — the league's news at `/feed`. Links to racers, GPs and broadcasts carry previews when pasted into a chat.
 - **Season management** with start/end dates, status (upcoming → active → archived), per-system rule knobs, and finals weeks
