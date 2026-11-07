@@ -723,6 +723,13 @@ a:not(.btn):not(.racer-card):hover {
     -ms-overflow-style: none;
 }
 
+/* A long row scrolls sideways; the fade says so, instead of cutting the last
+   badge off hard against the score. A short row never reaches the fade. */
+.badge-container {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    padding-right: 28px;
+}
 .badge-container::-webkit-scrollbar {
     display: none;
 }

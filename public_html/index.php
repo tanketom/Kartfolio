@@ -251,9 +251,9 @@ $liveFormatLabels = [
     // On a team season the teams are the season, so their table leads the page;
     // otherwise it sits further down as a side competition.
     $teamsLead = isTeamSeason($pdo, $seasonId);
-    $renderTeamSection = function () use ($teamStandings, $pdo, $seasonId) { ?>
+    $renderTeamSection = function (bool $leads = false) use ($teamStandings, $pdo, $seasonId) { ?>
     <?php if (!empty($teamStandings) && moduleEnabled($pdo, 'teams')): ?>
-    <section class="team-home-section">
+    <section class="team-home-section<?= $leads ? ' team-home-section--lead' : '' ?>">
         <div class="section-header">
             <h3 class="section-title">🤝 Team Standings</h3>
             <span class="section-meta"><?= htmlspecialchars(teamScoringLine($pdo, $seasonId)) ?> · <a href="/teams" class="mikko-full-link">all teams →</a></span>
@@ -279,7 +279,7 @@ $liveFormatLabels = [
         </div>
     </section>
     <?php endif; ?>
-    <?php }; if ($teamsLead) $renderTeamSection(); ?>
+    <?php }; if ($teamsLead) $renderTeamSection(true); ?>
 
     <?php if ($scoringInfo['system'] === 'territory' && !empty($standings)):
         // Territory seasons get the overworld map above the fold, with a
@@ -422,7 +422,7 @@ $liveFormatLabels = [
                         <?php endif; ?>
                     </div>
                 <?php else: ?>
-                    <?= number_format($row['score'], 2) ?>
+                    <?= htmlspecialchars($row['score_text']) ?>
                 <?php endif; ?>
                 <?php if (in_array($bdSystem, ['cup_based', 'drop_worst', 'perfect_hunt'])): ?>
                     <?php $cupsCompleted = $c['cups_completed'] ?? 0; $cupsRequired = $c['cups_required'] ?? 0; ?>
@@ -689,6 +689,9 @@ $liveFormatLabels = [
     padding-top: 24px;
     border-top: 1px solid var(--gray-200);
 }
+/* Leading the page (a team season): it sits under the season header, not under
+   the news, so it needs room below it rather than a rule above it. */
+.team-home-section--lead { margin: 4px 0 32px; padding-top: 0; border-top: 0; }
 .team-home-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

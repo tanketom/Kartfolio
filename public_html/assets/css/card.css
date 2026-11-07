@@ -56,6 +56,9 @@
 }
 @keyframes tcsheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 .tc-capturing .tc-sheen { animation: none; transform: translateX(-18%); }
+/* html2canvas paints an inset box-shadow as solid grey blocks around a rotated
+   child, so the 1px pinstripe goes for the capture. */
+.tc-capturing .tc-inner { box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .tc-sheen { animation: none; transform: translateX(-18%); } }
 
 /* Diagonal banners (name, nickname, foot) */
@@ -113,6 +116,9 @@
   box-shadow: 0 var(--p) calc(var(--p) * 3) rgba(0, 0, 0, .25);
 }
 .tc-stamp--rookie   { left: calc(var(--p) * 8); bottom: calc(var(--p) * 10); color: var(--red); transform: rotate(6deg); }
+/* Bought, so it says so. Ink on gold rather than a colour off the card's own. */
+.tc-stamp--founder  { right: calc(var(--p) * 8); bottom: calc(var(--p) * 10); color: #3a2c00; background: #ffe9a8; white-space: nowrap; transform: rotate(-5deg); }
+.tc-stamp--founder small { display: block; font-size: calc(var(--p) * 5); font-weight: 800; letter-spacing: calc(var(--p) * 1); text-align: center; }
 
 /* Stats block */
 .tc-teambar { height: calc(var(--p) * 4); background: linear-gradient(90deg, var(--cup1, var(--red)) 0%, var(--cup2, var(--red-deep)) 100%); }

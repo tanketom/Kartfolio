@@ -345,9 +345,11 @@ function omkFounders(PDO $pdo): array {
     } catch (Throwable $e) { error_log('omk founders: ' . $e->getMessage()); return []; }
 }
 
+const OMK_FOUNDER_ICON = '🪪';
+
 /** The badge a Founder wears. Built here, because it is bought and so not in the catalogue. */
 function omkFounderBadge(int $serial): array {
-    return ['icon' => '🪪', 'title' => sprintf('Founder #%03d', $serial),
+    return ['icon' => OMK_FOUNDER_ICON, 'title' => sprintf('Founder #%03d', $serial),
             'desc' => sprintf("Founder's Edition, %03d of %d. Bought and paid for. It does nothing.", $serial, OMK_FOUNDER_LIMIT)];
 }
 

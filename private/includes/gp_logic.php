@@ -356,6 +356,7 @@ function getScoringSystemRegistry(): array {
                 'both'   => 'Level on points and weeks beating their number',
             ],
             'team_season'            => true,               // the table leads, racers join by racing
+            'whole_points'           => true,               // 3, not 3.00
             'team_standings'         => 'rollCallTeamStandings',
             'page'                   => '/teams',
             'page_label'             => 'The team table',
@@ -1948,6 +1949,11 @@ function scoringSystemBanner(PDO $pdo, string $season_id): ?array {
     $system = getSeasonRules($pdo, $season_id)['scoring_system'] ?? 'average_attendance';
     $fn = getScoringSystemDef($system)['banner'] ?? null;
     return ($fn !== null && function_exists($fn)) ? $fn($pdo, $season_id) : null;
+}
+
+/** A standings score as text: whole numbers for a system that only scores whole points, two decimals otherwise. */
+function scoreText(string $system, $score): string {
+    return number_format((float)$score, !empty(getScoringSystemDef($system)['whole_points']) ? 0 : 2);
 }
 
 /** scoreDisplayFromBreakdown() for one racer, skipping the breakdown entirely when the system has no display. */

@@ -104,7 +104,7 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
         $rows[] = [
             'id'          => $rid,
             'name'        => $r['name'],
-            'score'       => calculateGPScore($pdo, $rid, $seasonId),
+            'score'       => $score = calculateGPScore($pdo, $rid, $seasonId),
             'char'        => getMostUsedCharacter($pdo, $rid, $seasonId),
             'raceCount'   => $raceCount,
             'qualifies'   => racerQualifies($raceCount, $rules),
@@ -113,6 +113,7 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
             'breakdown'   => $breakdown,
             'tooltip'     => scoringTooltipFromBreakdown($breakdown),
             'display'     => scoreDisplayFromBreakdown($breakdown),   // null = print the number
+            'score_text'  => scoreText($system, $score),   // the number, as the system writes it
             'cupsCounted' => (int)($breakdown['components']['cups_counted'] ?? 0),
             'mikko'       => $mikkoByRacer[$rid] ?? null,
             'team'        => $teamOf[$rid] ?? null,   // ['name','color'] on a season with teams

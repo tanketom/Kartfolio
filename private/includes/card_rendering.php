@@ -16,6 +16,7 @@ require_once __DIR__ . '/mk_data.php';
 require_once __DIR__ . '/gp_logic.php';
 require_once __DIR__ . '/badges.php';
 require_once __DIR__ . '/settings.php';
+require_once __DIR__ . '/omk.php';
 
 /**
  * Foil tier from career: the border finish on the card. Highest match wins.
@@ -62,7 +63,9 @@ function cardSunburst(): string {
         $a1 = deg2rad($i * 15); $a2 = deg2rad(($i + 1) * 15);
         $rays .= sprintf('<path d="M50 50 L%.1f %.1f L%.1f %.1f Z"/>', 50 + 90 * cos($a1), 50 + 90 * sin($a1), 50 + 90 * cos($a2), 50 + 90 * sin($a2));
     }
-    $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><g fill="#fff" fill-opacity="0.16">' . $rays . '</g></svg>';
+    // width/height as well as viewBox: html2canvas reads an image's natural size, and
+    // an SVG with only a viewBox has none, so the downloaded card came out without rays.
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><g fill="#fff" fill-opacity="0.16">' . $rays . '</g></svg>';
     return $uri = 'data:image/svg+xml;charset=utf-8,' . rawurlencode($svg);
 }
 
@@ -78,7 +81,7 @@ function cardTint(string $hex, float $toWhite): string {
 function cardChecker(): string {
     static $uri = null;
     if ($uri !== null) return $uri;
-    $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 4" preserveAspectRatio="none" shape-rendering="crispEdges"><rect width="8" height="4" fill="#fff"/><rect x="0" y="0" width="2" height="2" fill="#111"/><rect x="4" y="0" width="2" height="2" fill="#111"/><rect x="2" y="2" width="2" height="2" fill="#111"/><rect x="6" y="2" width="2" height="2" fill="#111"/></svg>';
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="4" viewBox="0 0 8 4" preserveAspectRatio="none" shape-rendering="crispEdges"><rect width="8" height="4" fill="#fff"/><rect x="0" y="0" width="2" height="2" fill="#111"/><rect x="4" y="0" width="2" height="2" fill="#111"/><rect x="2" y="2" width="2" height="2" fill="#111"/><rect x="6" y="2" width="2" height="2" fill="#111"/></svg>';
     return $uri = 'data:image/svg+xml;charset=utf-8,' . rawurlencode($svg);
 }
 
@@ -122,7 +125,11 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
     // Honour: a unique badge first, else the rarest badge held this season.
     $featuredBadge = null;
     $uniqueBadges = getUniqueBadges($pdo, $racerId, $currentSeason);
-    $seasonBadges = getRacerBadges($pdo, $racerId, $currentSeason);
+    // A Founder's badge is bought, not an honour: it gets its own stamp on the portrait.
+    $seasonBadges = array_values(array_filter(getRacerBadges($pdo, $racerId, $currentSeason), fn($b) => ($b['icon'] ?? '') !== OMK_FOUNDER_ICON));
+    static $founders = null;
+    $founders ??= omkFounders($pdo);   // once per request: /cards renders the whole set
+    $founderSerial = $founders[$racerId] ?? null;
     if (!empty($uniqueBadges)) { $featuredBadge = $uniqueBadges[0]; $featuredBadge['type'] = 'unique'; }
     elseif (!empty($seasonBadges)) { $featuredBadge = sortBadgesByRarity($seasonBadges, badgeHolderCounts($pdo, $currentSeason))[0]; $featuredBadge['type'] = 'season'; }
 
@@ -185,6 +192,7 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
           <div class="tc-floor"></div>
           <img src="<?= $imageSrc ?>" onerror="<?= $onError ?>" alt="<?= htmlspecialchars($mainChar) ?>" class="tc-art">
           <?php if ($isRookie): ?><div class="tc-stamp tc-stamp--rookie">Rookie</div><?php endif; ?>
+          <?php if ($founderSerial): ?><div class="tc-stamp tc-stamp--founder" title="Founder's Edition, bought at the OMK Exchange"><?= OMK_FOUNDER_ICON ?> Founder #<?= sprintf('%03d', $founderSerial) ?><small>Paid</small></div><?php endif; ?>
         </div>
 
         <div class="tc-teambar"></div>

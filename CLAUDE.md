@@ -1053,7 +1053,8 @@ Cross-reference if you find half-implemented work:
   Also on sale: a gold nameplate (15, 7 days, `leaderboardRows()['gold']`,
   always with a PAID tag), a carbon offset per LOL (5, a tag on the GP page; the LOL
   still counts everywhere), a Founder's badge (100, 10 serials; bought, so built by
-  `omkFounderBadge()` and NOT in `badgeCatalog()`, which is what can be earned) and a
+  `omkFounderBadge()` and NOT in `badgeCatalog()`, which is what can be earned; a stamp on the
+  trading card, never the card's Honors tile) and a
   loot box (8, one ordinary pack, with the real odds published from `STICKER_WEIGHTS`,
   and a real 1-in-a-million Golden Kartificial, because published odds have to be true).
   A sponsorship goes through the briefing, `omkEnsureAdRead()` appends the line if the

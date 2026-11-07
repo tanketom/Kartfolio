@@ -97,7 +97,7 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                             <?= (int)$entry['score'] ?>
                             <div class="cup-completion"><?= (int)($entry['cupsCounted'] ?? 0) ?> of 12 cups counted</div>
                         <?php else: ?>
-                            <?= number_format($entry['score'], 2) ?>
+                            <?= htmlspecialchars($entry['score_text']) ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -138,7 +138,7 @@ $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . u
                             <?= (int)$entry['score'] ?>
                             <div class="cup-completion"><?= (int)($entry['cupsCounted'] ?? 0) ?> of 12 cups counted</div>
                         <?php else: ?>
-                            <?= number_format($entry['score'], 2) ?>
+                            <?= htmlspecialchars($entry['score_text']) ?>
                         <?php endif; ?>
                     </div>
                 </div>

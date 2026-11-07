@@ -254,7 +254,7 @@ while($row = $newsStmt->fetch()) {
                         <?= (int)$row['score'] ?>
                         <div class="cup-completion"><?= $row['cupsCounted'] ?? 0 ?> of 12 cups counted</div>
                     <?php else: ?>
-                        <?= number_format($row['score'], 2) ?>
+                        <?= htmlspecialchars($row['score_text']) ?>
                     <?php endif; ?>
                 </div>
             </div>
