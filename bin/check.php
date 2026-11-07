@@ -227,6 +227,59 @@ foreach (['omk_ledger', 'omk_bribes', 'omk_sponsorships'] as $omkT2) $pdo->exec(
 $pdo->prepare("DELETE FROM racer_stickers WHERE racer_id = ? AND sticker_key IN (?, ?)")->execute([$omkR, $omkPlain, $omkFoil]);
 $pdo->exec("DELETE FROM settings WHERE setting_key = 'omk_epoch'");
 settingsMap($pdo, true);
+// OMK badges, on a clean slate: earned ones from the catalogue, bought ones built in omk.php.
+$omkBought = omkBoughtBadgeDefs();
+$omkIcons = array_merge(array_column($omkBought, 'icon'), [OMK_FOUNDER_ICON]);
+$ok('bought badges have their own icons, none in the earned catalogue', count(array_unique($omkIcons)) === count($omkIcons) && !array_intersect($omkIcons, array_column(badgeCatalog(), 'icon')) && !array_filter($omkBought, fn($b) => empty($b['bought'])));
+$ok('the earned OMK badges are in the catalogue', count(array_filter(badgeCatalog(), fn($b) => $b['category'] === 'omk')) === 8);
+$omkHas = fn(array $f, int $rid, string $key) => isset($f['earned'][$rid]['omk_' . $key]);
+$omkBuys = fn(array $f, int $rid, string $key) => in_array($omkBought[$key]['title'], array_column($f['bought'][$rid] ?? [], 'title'), true);
+omkEntry($pdo, $omkR, 60, 'gift', 'x'); omkSpend($pdo, $omkR, 60, 'billboard', 'x');
+omkEntry($pdo, $omkR2, 49, 'gift', 'x');
+$ok('Piggy Bank at 50 held, not 49', $omkHas(omkBadgeFacts($pdo), $omkR, 'piggy_bank') && !$omkHas(omkBadgeFacts($pdo), $omkR2, 'piggy_bank'));
+omkEntry($pdo, $omkR, 30, 'trade', 'Traded in 30 duplicates'); omkEntry($pdo, $omkR, 20, 'trade', 'Traded in 20 duplicates', '20');
+omkEntry($pdo, $omkR2, 49, 'trade', 'Traded in 49 duplicates', '49');
+$omkF = omkBadgeFacts($pdo);
+$ok('spending down to exactly nothing is the grant badge, and it is bought', $omkBuys($omkF, $omkR, 'new_grant') && !$omkBuys($omkF, $omkR2, 'new_grant'));
+$ok('Recycler at 50 duplicates, old trades counted from their wording', $omkHas($omkF, $omkR, 'recycler') && !$omkHas($omkF, $omkR2, 'recycler'));
+$ok('Big Spender needs 150 spent', !$omkBuys($omkF, $omkR, 'big_spender'));
+omkEntry($pdo, $omkR2, 200, 'gift', 'x'); omkSpend($pdo, $omkR2, 150, 'founder', 'x');
+$ok('and 150 spent is Big Spender', $omkBuys(omkBadgeFacts($pdo), $omkR2, 'big_spender'));
+$omkRow = $pdo->query("SELECT gpid, cup_name FROM results WHERE racer_id = $omkR AND gpid LIKE 's%' AND cup_name IS NOT NULL LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+$pdo->prepare("INSERT INTO omk_bribes (racer_id, cup_name, status, settled_gpid) VALUES (?, ?, 'spent', ?), (?, 'Nowhere', 'spent', ?)")->execute([$omkR, $omkRow['cup_name'], $omkRow['gpid'], $omkR2, $omkRow['gpid']]);
+$pdo->prepare("INSERT INTO omk_bribes (racer_id, cup_name, status, countered_by) VALUES (?, 'Nowhere', 'closed', ?)")->execute([$omkR2, $omkR]);
+$pdo->exec("INSERT INTO recap_archive (season_id, recap_text, headline, status) VALUES ('s01', 'x', 'x', 'published')"); $omkRecap = (int)$pdo->lastInsertId();
+$pdo->prepare("INSERT INTO omk_sponsorships (racer_id, recap_id) VALUES (?, ?), (?, NULL)")->execute([$omkR2, $omkRecap, $omkR]);
+$pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind) VALUES (?, 'golden')")->execute([$omkR]);
+foreach (array_keys(OMK_PLATES) as $i => $k) {
+    $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, ref, until_ts) VALUES (?, 'gold_name', ?, 1)")->execute([$omkR2, $i === 0 ? null : $k]);   // no colour = gold
+    if ($i) $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, ref, until_ts) VALUES (?, 'gold_name', ?, 1)")->execute([$omkR, $k]);
+}
+$omkF = omkBadgeFacts($pdo);
+$ok('It Worked: the bribed cup was the cup they raced', $omkHas($omkF, $omkR, 'it_worked') && !$omkHas($omkF, $omkR2, 'it_worked'));
+$ok('a counter-bribe is a Hostile Takeover for one and Outbid for the other', $omkHas($omkF, $omkR, 'hostile_takeover') && $omkHas($omkF, $omkR2, 'outbid') && !$omkHas($omkF, $omkR, 'outbid'));
+$ok('On Air needs the sponsored newscast published', $omkHas($omkF, $omkR2, 'on_air') && !$omkHas($omkF, $omkR, 'on_air'));
+$ok('One in a Million is the golden pull', $omkHas($omkF, $omkR, 'one_in_a_million') && !$omkHas($omkF, $omkR2, 'one_in_a_million'));
+$ok('Full Spectrum is all six colours, an uncoloured plate counting as gold', $omkBuys($omkF, $omkR2, 'full_spectrum') && !$omkBuys($omkF, $omkR, 'full_spectrum'));
+$omkLols = array_map('intval', $pdo->query("SELECT id FROM results WHERE racer_id = $omkR AND gpid LIKE 's%' ORDER BY id LIMIT 2")->fetchAll(PDO::FETCH_COLUMN));
+$omkLolWas = $pdo->query("SELECT id, is_lol FROM results WHERE racer_id = $omkR AND gpid LIKE 's%'")->fetchAll(PDO::FETCH_KEY_PAIR);
+$pdo->exec("UPDATE results SET is_lol = 0 WHERE racer_id = $omkR AND gpid LIKE 's%'");
+$pdo->exec("UPDATE results SET is_lol = 1 WHERE id IN (" . implode(',', $omkLols) . ")");
+$pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, ref) VALUES (?, 'lol_offset', ?)")->execute([$omkR, (string)$omkLols[0]]);
+$ok('one LOL still on the conscience is no Clean Conscience', !$omkHas(omkBadgeFacts($pdo), $omkR, 'clean_conscience'));
+$pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, ref) VALUES (?, 'lol_offset', ?)")->execute([$omkR, (string)$omkLols[1]]);
+$ok('every LOL offset is', $omkHas(omkBadgeFacts($pdo), $omkR, 'clean_conscience'));
+$omkSet = $pdo->prepare("UPDATE results SET is_lol = ? WHERE id = ?");
+foreach ($omkLolWas as $omkId => $omkWas) $omkSet->execute([(int)$omkWas, (int)$omkId]);
+$pdo->exec("DELETE FROM omk_sponsorships");
+omkEntry($pdo, $omkR2, 100, 'gift', 'x');
+omkBuyHype($pdo, $omkR2); omkBuyBillboard($pdo, $omkR2);
+$ok('a hype package and a billboard are not yet a Media Empire', !$omkBuys(omkBadgeFacts($pdo), $omkR2, 'media_empire'));
+omkBuySponsor($pdo, $omkR2);
+$ok('the sponsorship on top makes one, recorded once, and the billboard still nests its transaction', $omkBuys(omkBadgeFacts($pdo), $omkR2, 'media_empire') && (int)$pdo->query("SELECT COUNT(*) FROM omk_cosmetics WHERE kind = 'media_empire'")->fetchColumn() === 1);
+$ok('every earned key is a real badge', !array_diff(array_keys(array_merge(...array_values(omkBadgeFacts($pdo)['earned']))), array_keys(badgeCatalog())));
+$pdo->exec("DELETE FROM recap_archive WHERE id = $omkRecap");
+foreach (['omk_ledger', 'omk_bribes', 'omk_sponsorships', 'omk_cosmetics'] as $omkT2) $pdo->exec("DELETE FROM $omkT2");
 
 echo "wrapped\n";
 require_once "$root/private/includes/wrapped_personas.php";

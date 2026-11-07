@@ -146,8 +146,9 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0, bool $wit
     // Honour: a unique badge first, else the rarest badge held this season.
     $featuredBadge = null;
     $uniqueBadges = getUniqueBadges($pdo, $racerId, $currentSeason);
-    // A Founder's badge is bought, not an honour: it gets its own stamp on the portrait.
-    $seasonBadges = array_values(array_filter(getRacerBadges($pdo, $racerId, $currentSeason), fn($b) => ($b['icon'] ?? '') !== OMK_FOUNDER_ICON));
+    // A bought badge (the Founder's, Big Spender, …) is not an honour, so never the card's
+    // Honors tile. The Founder's gets its own stamp on the portrait instead.
+    $seasonBadges = array_values(array_filter(getRacerBadges($pdo, $racerId, $currentSeason), fn($b) => empty($b['bought'])));
     static $founders = null;
     $founders ??= omkFounders($pdo);   // once per request: /cards renders the whole set
     $founderSerial = $founders[$racerId] ?? null;

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../private/includes/db.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/badges.php';
 require_once __DIR__ . '/../private/includes/mk_data.php';
+require_once __DIR__ . '/../private/includes/settings.php';
 
 $currentSeason = $_GET['season'] ?? getCurrentSeasonNumber();
 $isAllTime = ($currentSeason === 'all');
@@ -26,6 +27,8 @@ $racers = $racersStmt->fetchAll(PDO::FETCH_ASSOC);
 // The catalogue (private/includes/badge_catalog.php) is the one place badges
 // are defined; this page used to carry its own copy of all 91.
 $allBadgeDefinitions = badgeCatalogByCategory();
+// The OMK Exchange's badges only exist where the Exchange does.
+if (!moduleEnabled($pdo, 'omk')) unset($allBadgeDefinitions['omk']);
 
 // 3. Calculate badges and progress for all racers
 $badgeData = [];
@@ -549,7 +552,11 @@ function hasBadge($badges, $title) {
 
     <?php foreach ($allBadgeDefinitions as $categoryName => $badges): ?>
         <div class="badge-category">
-            <h2><?= htmlspecialchars(['monster_hunt' => 'MONSTER HUNT', 'team_season' => 'Team season'][$categoryName] ?? ucfirst($categoryName)) ?> Badges</h2>
+            <h2><?= htmlspecialchars(['monster_hunt' => 'MONSTER HUNT', 'team_season' => 'Team season', 'omk' => 'OMK Exchange'][$categoryName] ?? ucfirst($categoryName)) ?> Badges</h2>
+            <?php if ($categoryName === 'omk'): ?>
+                <p class="badge-category-note">Also for sale, and kept out of this catalogue because they are bought rather than earned:
+                    <?= implode(', ', array_map(fn($b) => htmlspecialchars($b['icon'] . ' ' . $b['title']), array_merge(array_values(omkBoughtBadgeDefs()), [['icon' => OMK_FOUNDER_ICON, 'title' => "Founder's Edition"]]))) ?>.</p>
+            <?php endif; ?>
 
             <?php foreach ($badges as $badgeDef): ?>
                 <div class="badge-card">

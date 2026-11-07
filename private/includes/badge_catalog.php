@@ -9,7 +9,7 @@
  */
 
 function badgeCategoryOrder(): array {
-    return ['performance', 'playstyle', 'volatility', 'progression', 'special', 'attendance', 'cups', 'characters', 'streaks', 'career', 'elo', 'monster_hunt', 'haunted', 'team_season', 'collection', 'honours', 'territory', 'legacy'];
+    return ['performance', 'playstyle', 'volatility', 'progression', 'special', 'attendance', 'cups', 'characters', 'streaks', 'career', 'elo', 'monster_hunt', 'haunted', 'team_season', 'omk', 'collection', 'honours', 'territory', 'legacy'];
 }
 
 /** key => ['icon','title','desc' (earned text),'criteria' (short rule for the overview),'category'] */
@@ -153,6 +153,17 @@ function badgeCatalog(): array {
         'haunt_full_moon' => ['icon' => '🌕', 'title' => 'Full Moon', 'desc' => 'Beat their ghost by ten points or more in one GP.', 'criteria' => 'Beat your ghost by 10+ in a GP', 'category' => 'haunted'],
         'haunt_lazarus' => ['icon' => '🔦', 'title' => 'Lazarus', 'desc' => 'Bought a heart back in the soul shop.', 'criteria' => 'Bought a heart in the soul shop', 'category' => 'haunted'],
         'haunt_fled' => ['icon' => '🚪', 'title' => 'Fled the House', 'desc' => 'Still alive when the haunting ended — but never raced enough GPs to count. Staying home is not surviving.', 'criteria' => 'Alive at the season’s end, under the minimum GPs', 'category' => 'haunted'],
+        // ── The OMK Exchange: things done at the counter, not things bought there.
+        // The spending ones (Big Spender, Full Spectrum, the grant, Media Empire) are
+        // built in omk.php like the Founder's badge and are NOT in this catalogue.
+        'omk_piggy_bank' => ['icon' => '🐷', 'title' => 'Piggy Bank', 'desc' => 'Saved up 50 OMKredits at once.', 'criteria' => 'Held 50 OMKredits or more at one time', 'category' => 'omk'],
+        'omk_recycler' => ['icon' => '🏧', 'title' => 'Recycler', 'desc' => 'Traded in 50 duplicate stickers at the OMK Exchange.', 'criteria' => 'Traded in 50 duplicates', 'category' => 'omk'],
+        'omk_it_worked' => ['icon' => '🤝', 'title' => 'It Worked', 'desc' => 'Bribed Kartificial, and then raced the cup they paid for.', 'criteria' => 'Raced the bribed cup while the bribe was live', 'category' => 'omk'],
+        'omk_hostile_takeover' => ['icon' => '🦈', 'title' => 'Hostile Takeover', 'desc' => 'Paid Kartificial to forget somebody else\'s envelope.', 'criteria' => 'Counter-bribed someone', 'category' => 'omk'],
+        'omk_outbid' => ['icon' => '🥀', 'title' => 'Outbid', 'desc' => 'Bribed Kartificial and was counter-bribed. He kept both envelopes.', 'criteria' => 'Had a bribe counter-bribed', 'category' => 'omk'],
+        'omk_on_air' => ['icon' => '🎙️', 'title' => 'On Air', 'desc' => 'Sponsored a newscast that went out.', 'criteria' => 'Sponsored a published broadcast', 'category' => 'omk'],
+        'omk_clean_conscience' => ['icon' => '🌱', 'title' => 'Clean Conscience', 'desc' => 'Every LOL on their record is carbon-offset.', 'criteria' => 'Offset every LOL (at least one)', 'category' => 'omk'],
+        'omk_one_in_a_million' => ['icon' => '💫', 'title' => 'One in a Million', 'desc' => 'Pulled a Golden Kartificial from a loot box. The odds were published.', 'criteria' => 'Pulled the 1-in-1,000,000 Golden Kartificial', 'category' => 'omk'],
     ];
 }
 

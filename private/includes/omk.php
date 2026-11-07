@@ -71,7 +71,15 @@ function omkBalances(PDO $pdo): array {
     return $out;
 }
 
+/** One transaction. A purchase built from another runs inside the outer one rather than nesting (SQLite cannot). */
 function omkTxn(PDO $pdo, callable $fn) {
+    static $depth = 0;
+    if ($depth > 0) return $fn();
+    $depth++;
+    try { return omkTxnOuter($pdo, $fn); } finally { $depth--; }
+}
+
+function omkTxnOuter(PDO $pdo, callable $fn) {
     $pdo->exec('BEGIN IMMEDIATE');
     try {
         $out = $fn();
@@ -182,7 +190,7 @@ function omkTradeIn(PDO $pdo, int $racer_id, array $qty): array {
             if ($cat[$key]['rarity'] === 'foil') $foils += $n;
         }
         if ($copies === 0) throw new OmkRefused('Pick at least one duplicate to trade in.');
-        omkEntry($pdo, $racer_id, $credits, 'trade', 'Traded in ' . $copies . ' duplicate' . ($copies === 1 ? '' : 's') . ($foils ? " ($foils foil)" : ''));
+        omkEntry($pdo, $racer_id, $credits, 'trade', 'Traded in ' . $copies . ' duplicate' . ($copies === 1 ? '' : 's') . ($foils ? " ($foils foil)" : ''), (string)$copies);
         return ['copies' => $copies, 'credits' => $credits];
     });
 }
@@ -362,7 +370,11 @@ function omkBillboards(PDO $pdo): array {
 }
 
 function omkBuyBillboard(PDO $pdo, int $racer_id, ?int $now = null): int {
-    return omkBuyTimed($pdo, $racer_id, 'billboard', 'billboard', OMK_BILLBOARD_HOURS * 3600, 'Bought a day on the billboard', null, $now);
+    return omkTxn($pdo, function () use ($pdo, $racer_id, $now) {
+        $until = omkBuyTimed($pdo, $racer_id, 'billboard', 'billboard', OMK_BILLBOARD_HOURS * 3600, 'Bought a day on the billboard', null, $now);
+        omkNoteMediaEmpire($pdo, $racer_id);
+        return $until;
+    });
 }
 
 // ── The hype package ─────────────────────────────────────────────────────
@@ -388,6 +400,7 @@ function omkBuyHype(PDO $pdo, int $racer_id): int {
     return omkTxn($pdo, function () use ($pdo, $racer_id) {
         omkSpend($pdo, $racer_id, OMK_PRICES['hype'], 'hype', 'Bought a hype package');
         $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, serial) VALUES (?, 'hype', ?)")->execute([$racer_id, OMK_HYPE_GPS]);
+        omkNoteMediaEmpire($pdo, $racer_id);
         return omkHyped($pdo)[$racer_id] ?? OMK_HYPE_GPS;
     });
 }
@@ -463,7 +476,7 @@ const OMK_FOUNDER_ICON = '🪪';
 
 /** The badge a Founder wears. Built here, because it is bought and so not in the catalogue. */
 function omkFounderBadge(int $serial): array {
-    return ['icon' => OMK_FOUNDER_ICON, 'title' => sprintf('Founder #%03d', $serial),
+    return ['icon' => OMK_FOUNDER_ICON, 'title' => sprintf('Founder #%03d', $serial), 'bought' => true,
             'desc' => sprintf("Founder's Edition, %03d of %d. Bought and paid for. It does nothing.", $serial, OMK_FOUNDER_LIMIT)];
 }
 
@@ -544,6 +557,7 @@ function omkBuySponsor(PDO $pdo, int $racer_id): void {
         if ($st->fetchColumn()) throw new OmkRefused('You are already sponsoring the next newscast you are due. One at a time.');
         omkSpend($pdo, $racer_id, OMK_PRICES['sponsor'], 'sponsor', 'Sponsored a broadcast');
         $pdo->prepare("INSERT INTO omk_sponsorships (racer_id) VALUES (?)")->execute([$racer_id]);
+        omkNoteMediaEmpire($pdo, $racer_id);
     });
 }
 
@@ -586,4 +600,112 @@ function omkAfterGpSaved(PDO $pdo, string $gpid): void {
                          WHERE id IN (SELECT MIN(id) FROM omk_cosmetics WHERE kind = 'hype' AND serial > 0
                                       AND racer_id IN (SELECT racer_id FROM results WHERE gpid = ?) GROUP BY racer_id)");
     $st->execute([$gpid]);
+}
+
+// ── Badges ───────────────────────────────────────────────────────────────
+//
+// Two kinds. What a racer DID at the counter is earned and lives in badgeCatalog()
+// (category 'omk'). What they simply SPENT their way to is built here, like the
+// Founder's badge, outside the catalogue, so the earned badges keep their meaning.
+
+const OMK_BIG_SPENDER = 150;     // Ω̈ spent in all
+const OMK_PIGGY_BANK = 50;       // Ω̈ held at once
+const OMK_RECYCLER = 50;         // duplicates traded in
+
+/** The badges that are bought, not earned. Each carries 'bought' => true. */
+function omkBoughtBadgeDefs(): array {
+    return [
+        'big_spender'   => ['icon' => '💸', 'title' => 'Big Spender', 'bought' => true, 'desc' => 'Spent ' . OMK_BIG_SPENDER . ' OMKredits at the OMK Exchange. The OMK thanks you for your continued support.'],
+        'full_spectrum' => ['icon' => '🎨', 'title' => 'Full Spectrum', 'bought' => true, 'desc' => 'Has had a nameplate in all ' . count(OMK_PLATES) . ' colours. Bought, one week at a time.'],
+        'new_grant'     => ['icon' => '🪫', 'title' => 'Time to apply for a new grant!', 'bought' => true, 'desc' => 'Spent their OMKredits down to exactly nothing.'],
+        'media_empire'  => ['icon' => '📡', 'title' => 'Media Empire', 'bought' => true, 'desc' => 'Had a hype package, a billboard and a broadcast sponsorship running at the same time.'],
+    ];
+}
+
+/**
+ * A hype package, a billboard and a sponsorship all live at once. Recorded the
+ * moment it happens, because "when did the hype run out" is not stored anywhere
+ * else. Called inside each of the three purchases.
+ */
+function omkNoteMediaEmpire(PDO $pdo, int $racer_id): void {
+    $now = time();
+    $st = $pdo->prepare("SELECT
+        (SELECT COUNT(*) FROM omk_cosmetics WHERE racer_id = :r AND kind = 'hype' AND serial > 0),
+        (SELECT COUNT(*) FROM omk_cosmetics WHERE racer_id = :r AND kind = 'billboard' AND until_ts > :t),
+        (SELECT COUNT(*) FROM omk_sponsorships WHERE racer_id = :r AND (recap_id IS NULL OR recap_id NOT IN (SELECT id FROM recap_archive))),
+        (SELECT COUNT(*) FROM omk_cosmetics WHERE racer_id = :r AND kind = 'media_empire')");
+    $st->execute([':r' => $racer_id, ':t' => $now]);
+    [$hype, $board, $sponsor, $had] = array_map('intval', $st->fetch(PDO::FETCH_NUM));
+    if ($hype && $board && $sponsor && !$had) {
+        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind) VALUES (?, 'media_empire')")->execute([$racer_id]);
+    }
+}
+
+/**
+ * Every OMK badge for every racer, from the ledger, the bribes, the sponsorships and
+ * the cosmetics: a handful of queries, once per request (badgeCareerContext()).
+ * Returns ['earned' => [racer_id => [catalogue key => true]], 'bought' => [racer_id => [badge, …]]].
+ * Never throws: the badges are decoration on pages that must render.
+ */
+function omkBadgeFacts(PDO $pdo): array {
+    $earned = []; $boughtKeys = [];
+    $give = function (int $rid, string $key) use (&$earned) { $earned[$rid]['omk_' . $key] = true; };
+    $buy  = function (int $rid, string $key) use (&$boughtKeys) { $boughtKeys[$rid][$key] = true; };
+    try {
+        // The ledger, in order: running balance, spending, trade-ins.
+        $spendKinds = array_keys(OMK_PRICES);
+        $bal = []; $spent = []; $traded = [];
+        foreach ($pdo->query("SELECT racer_id, amount, kind, detail, ref FROM omk_ledger ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC) as $l) {
+            $rid = (int)$l['racer_id']; $amt = (int)$l['amount'];
+            $bal[$rid] = ($bal[$rid] ?? 0) + $amt;
+            if ($bal[$rid] >= OMK_PIGGY_BANK) $give($rid, 'piggy_bank');
+            if ($amt < 0 && in_array($l['kind'], $spendKinds, true)) {
+                $spent[$rid] = ($spent[$rid] ?? 0) - $amt;
+                if ($spent[$rid] >= OMK_BIG_SPENDER) $buy($rid, 'big_spender');
+                if ($bal[$rid] === 0) $buy($rid, 'new_grant');
+            }
+            if ($l['kind'] === 'trade') {
+                // The count is in ref; trades from before it was stored say it in the detail.
+                $n = is_numeric($l['ref']) ? (int)$l['ref'] : (preg_match('/Traded in (\d+)/', (string)$l['detail'], $m) ? (int)$m[1] : 0);
+                $traded[$rid] = ($traded[$rid] ?? 0) + $n;
+                if ($traded[$rid] >= OMK_RECYCLER) $give($rid, 'recycler');
+            }
+        }
+        // Bribes: one that paid off, a counter-bribe given, one received.
+        foreach ($pdo->query("SELECT b.racer_id, b.cup_name, b.status, b.countered_by,
+                                     (SELECT x.cup_name FROM results x WHERE x.gpid = b.settled_gpid AND x.racer_id = b.racer_id LIMIT 1) AS raced
+                              FROM omk_bribes b")->fetchAll(PDO::FETCH_ASSOC) as $b) {
+            if ($b['status'] === 'spent' && $b['raced'] !== null && $b['raced'] === $b['cup_name']) $give((int)$b['racer_id'], 'it_worked');
+            if ($b['countered_by'] !== null) { $give((int)$b['countered_by'], 'hostile_takeover'); $give((int)$b['racer_id'], 'outbid'); }
+        }
+        // A sponsorship that went out in a published newscast.
+        foreach ($pdo->query("SELECT DISTINCT s.racer_id FROM omk_sponsorships s JOIN recap_archive a ON a.id = s.recap_id WHERE a.status = 'published'")->fetchAll(PDO::FETCH_COLUMN) as $rid) {
+            $give((int)$rid, 'on_air');
+        }
+        // Cosmetics: the golden pull, the colours worn, a media empire.
+        $colours = [];
+        foreach ($pdo->query("SELECT racer_id, kind, ref FROM omk_cosmetics WHERE kind IN ('golden', 'gold_name', 'media_empire')")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $rid = (int)$c['racer_id'];
+            if ($c['kind'] === 'golden') $give($rid, 'one_in_a_million');
+            if ($c['kind'] === 'media_empire') $buy($rid, 'media_empire');
+            if ($c['kind'] === 'gold_name') $colours[$rid][isset(OMK_PLATES[(string)$c['ref']]) ? (string)$c['ref'] : 'gold'] = true;
+        }
+        foreach ($colours as $rid => $seen) if (count($seen) === count(OMK_PLATES)) $buy($rid, 'full_spectrum');
+        // Every LOL offset, for racers who have offset any. Season GPs, as the shop counts them.
+        foreach ($pdo->query("SELECT x.racer_id, COUNT(*) AS lols,
+                                     SUM(CASE WHEN x.id IN (SELECT CAST(ref AS INTEGER) FROM omk_cosmetics WHERE kind = 'lol_offset') THEN 1 ELSE 0 END) AS offset
+                              FROM results x WHERE x.is_lol = 1 AND x.gpid LIKE 's%'
+                                AND x.racer_id IN (SELECT racer_id FROM omk_cosmetics WHERE kind = 'lol_offset')
+                              GROUP BY x.racer_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if ((int)$r['lols'] > 0 && (int)$r['offset'] === (int)$r['lols']) $give((int)$r['racer_id'], 'clean_conscience');
+        }
+    } catch (Throwable $e) {
+        error_log('omk badges: ' . $e->getMessage());
+    }
+    $defs = omkBoughtBadgeDefs();
+    $bought = [];
+    foreach ($boughtKeys as $rid => $keys) {
+        foreach ($defs as $key => $def) if (isset($keys[$key])) $bought[$rid][] = $def;   // in definition order
+    }
+    return ['earned' => $earned, 'bought' => $bought];
 }

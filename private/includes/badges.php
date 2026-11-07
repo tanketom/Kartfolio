@@ -57,6 +57,7 @@ function badgeCareerContext($pdo) {
 
     require_once __DIR__ . '/omk.php';
     $omkFounders = omkFounders($pdo);   // racer_id => serial, bought at the OMK Exchange
+    $omkBadges = omkBadgeFacts($pdo);   // ['earned' => catalogue keys, 'bought' => built badges], per racer
 
     $stickerHoldings = [];  // racer_id => ['distinct','total','foil','maxDup','kart','sets'=>[set=>owned]]
     try {
@@ -256,7 +257,7 @@ function badgeCareerContext($pdo) {
     } catch (PDOException $e) { /* fantasy tables absent */ }
 
     return $cache = compact(
-        'omkFounders', 'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart',
+        'omkFounders', 'omkBadges', 'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart',
         'careerWins', 'debutPodium', 'maxGpsInDay', 'lockedIn'
     );
 }
@@ -803,6 +804,10 @@ function appendSeasonEventBadges(array &$badges, array $ctx, $pdo, int $racer_id
     }
     // 🪪 Founder's Edition: bought, so built in omk.php rather than the catalogue.
     if (isset($ctx['omkFounders'][$racer_id])) $badges[] = omkFounderBadge((int)$ctx['omkFounders'][$racer_id]);
+    // 🐷 The OMK Exchange: what they did at the counter (catalogue), then what they
+    // only spent their way to (built in omk.php, outside it, like the Founder's).
+    foreach (array_keys($ctx['omkBadges']['earned'][$racer_id] ?? []) as $key) $badges[] = badgeDef($key);
+    foreach ($ctx['omkBadges']['bought'][$racer_id] ?? [] as $b) $badges[] = $b;
     // 📣 Team-season honours. Before the gate too: 🎟️ Cameo is for someone who
     // raced one week, which may be one GP.
     if (!empty($ctx['teamFacts'][$racer_id])) {

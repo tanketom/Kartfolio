@@ -1068,6 +1068,16 @@ Cross-reference if you find half-implemented work:
   because a draw is a GET anyone can respin) and a **billboard** (30, 24 hours: the buyer's
   card gets its own SPONSORED slide on `/display/auto-vertical`). Timed cosmetics share
   `omkBuyTimed()` / `omkUntil()` / `omkActive()`: buying more adds to the end.
+  **OMK badges** come in two kinds. Eight things DONE at the counter are earned and live
+  in `badgeCatalog()` under category `omk` (Piggy Bank 50 held, Recycler 50 dupes, It
+  Worked, Hostile Takeover, Outbid, On Air, Clean Conscience, One in a Million). Four
+  things merely SPENT towards (Big Spender 150, Full Spectrum, "Time to apply for a new
+  grant!" at exactly 0, Media Empire) are built by `omkBoughtBadgeDefs()` outside the
+  catalogue like the Founder's, carry `'bought' => true`, and never reach the card's
+  Honors tile. All from `omkBadgeFacts()`, once per request in `badgeCareerContext()`.
+  Media Empire is recorded when it happens (`omkNoteMediaEmpire()`), because when a hype
+  package ran out is stored nowhere. `omkTxn()` nests by running inner calls in the
+  outer transaction. Plain badge text says "OMKredits" in words: the Ω̈ drifts there
   A sponsorship goes through the briefing, `omkEnsureAdRead()` appends the line if the
   writer dropped it, and it is attached rather than spent: deleting a rejected draft
   frees it. Test the broadcast path without paying by running with
