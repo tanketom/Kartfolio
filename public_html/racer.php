@@ -1869,6 +1869,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+<script src="<?= assetUrl('/assets/js/card_capture.js') ?>"></script>
 <script>
 // ── Score Distribution toggle ────────────────────────────────────────────
 let distView = 'career';
@@ -1911,6 +1912,7 @@ function downloadCard() {
     button.textContent = 'Generating...';
     button.disabled = true;
     document.body.classList.add('tc-capturing');
+    const removeHalos = tcAddCaptureHalos(card, 3);   // the art's drop-shadow, which html2canvas cannot draw
 
     html2canvas(card, {
         scale: 3,
@@ -1918,6 +1920,7 @@ function downloadCard() {
         logging: false,
         useCORS: true
     }).then(canvas => {
+        removeHalos();
         const link = document.createElement('a');
         link.download = '<?= htmlspecialchars($racer['name']) ?>_card.png';
         link.href = canvas.toDataURL();

@@ -90,6 +90,7 @@ include __DIR__ . '/../private/templates/header.php';
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+<script src="<?= assetUrl('/assets/js/card_capture.js') ?>"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
 
 <script>
@@ -131,7 +132,9 @@ async function downloadPDF() {
         isFirstPage = false;
 
         const card = racerCards[i];
+        const removeHalos = tcAddCaptureHalos(card, capture.scale);   // the art's drop-shadow, which html2canvas cannot draw
         const canvas = await html2canvas(card, capture);
+        removeHalos();
 
         const imgData = canvas.toDataURL('image/jpeg', 0.9);
 
