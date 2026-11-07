@@ -101,7 +101,10 @@
 .tc-floor {
   position: absolute; left: 50%; bottom: calc(var(--p) * 10); width: calc(var(--p) * 130); height: calc(var(--p) * 22);
   transform: translateX(-50%); border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, .28) 0%, rgba(0, 0, 0, 0) 70%);
+  /* farthest-side, not "ellipse at center": html2canvas drops a gradient written that
+     way, and the downloaded card lost its shadow. 100% of farthest-side is the size the
+     old 70% of farthest-corner came to, so the card on screen is unchanged. */
+  background: radial-gradient(farthest-side, rgba(0, 0, 0, .28) 0%, rgba(0, 0, 0, 0) 100%);
 }
 .tc-art { position: relative; max-width: calc(var(--p) * 180); max-height: calc(var(--p) * 138); object-fit: contain; filter: drop-shadow(0 calc(var(--p) * 5) calc(var(--p) * 12) rgba(0, 0, 0, .35)); }
 
