@@ -173,7 +173,7 @@ include __DIR__ . '/../../private/templates/header.php';
                 <label>Reason <input type="text" name="reason" maxlength="80" placeholder="Optional. Admins see it"></label>
             </div>
             <button type="submit" class="btn btn-primary">Give OMKredits</button>
-            <small class="sb-note">A minus takes OMKredits back, never below zero. Everything shows in the ledger on the <a href="/omk-exchange">Exchange Counter</a>.</small>
+            <small class="sb-note">A minus takes OMKredits back, never below zero. Everything shows in the ledger on <a href="/admin/omk">OMKredits</a>.</small>
         </form>
     </section>
     <?php endif; ?>

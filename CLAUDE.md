@@ -1037,8 +1037,8 @@ Cross-reference if you find half-implemented work:
   `private/includes/omk.php`, proposals in the OMK Microtransactions doc. A balance is
   only ever `SUM(omk_ledger.amount)`. The profile code opens a racer's account for one racer at a time, for
   20 idle minutes (`omkCounterIsOpen()`, session), and their balance, trade-ins and
-  purchases appear only then. The ledger and all balances show to admins only; pending
-  bribes stay public because a counter-bribe needs them. Admins give OMKredits on the
+  purchases appear only then. The ledger and all balances are on `/admin/omk` (admins only), never the public
+  counter; pending bribes stay public because a counter-bribe needs them. Admins give OMKredits on the
   Sticker Board (`omkGift()`). The sign is an omega with a trema. In plain text that is `OMK_SYMBOL`
   (U+03A9 + U+0308), but Inter and Fredoka drift the mark off to the right, so in HTML
   always use `omkSign()` / `omkFormatHtml()`, which draw the dots with CSS. Earned two ways: 2Ω̈ per week raced
@@ -1078,6 +1078,11 @@ Cross-reference if you find half-implemented work:
   Media Empire is recorded when it happens (`omkNoteMediaEmpire()`), because when a hype
   package ran out is stored nowhere. `omkTxn()` nests by running inner calls in the
   outer transaction. Plain badge text says "OMKredits" in words: the Ω̈ drifts there
+  **`/admin/omk`** is the admin overview: totals, circulation and weekly in/out drawn as
+  inline SVG, sources, a central bank report, sanity checks, sortable balances with
+  give/take per row, shop sales, what is running now, and the full ledger (filters, paging,
+  CSV). All arithmetic is in `omkEconomy()` / `omkLiveNow()` / `omkCentralBankLines()` /
+  `omkSanity()`, tested in check.php. There is no refund: the OMK has a no-returns policy
   A sponsorship goes through the briefing, `omkEnsureAdRead()` appends the line if the
   writer dropped it, and it is attached rather than spent: deleting a rejected draft
   frees it. Test the broadcast path without paying by running with

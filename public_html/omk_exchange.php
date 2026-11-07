@@ -5,8 +5,8 @@
  * Trade in duplicate stickers for OMKredits (Ω̈), and spend them on bribes and
  * sponsorships. Anyone can read the rules and what is on the table, because a
  * counter-bribe needs it. A racer's balance, trade-ins and purchases only appear once
- * their profile code has opened their account. The ledger and everyone's balances are
- * for admins.
+ * their profile code has opened their account. The ledger and everyone's balances are on
+ * /admin/omk, for admins only.
  * All the rules are in private/includes/omk.php. This page only asks and answers.
  */
 require_once __DIR__ . '/../private/includes/session.php';
@@ -151,10 +151,7 @@ if ($open) {
     $myFounder = $founders[$racerId] ?? null;
 }
 
-$isAdmin = ($_SESSION['is_admin'] ?? false) === true;
-$balances = $isAdmin ? omkBalances($pdo) : [];
-$ledger = $isAdmin ? $pdo->query("SELECT l.amount, l.detail, l.created_at, l.racer_id FROM omk_ledger l
-                                  WHERE l.kind != 'race_week' ORDER BY l.id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC) : [];
+$isAdmin = ($_SESSION['is_admin'] ?? false) === true;   // the ledger and balances are on /admin/omk
 
 $pageTitle = 'OMK Exchange Counter';
 $ogTitle = 'The OMK Exchange Counter';
@@ -357,39 +354,17 @@ include __DIR__ . '/../private/templates/header.php';
         <p class="omk-note omk-odds-note">These are the real odds. Golden Kartificials pulled to date: <?= count($goldenPulls) ?><?= $goldenPulls ? ' (' . htmlspecialchars(implode(', ', $goldenPulls)) . ')' : '' ?>. Past performance is not indicative of anything.</p>
     </section>
 
-    <div class="<?= $isAdmin ? 'omk-two' : '' ?>">
-        <section class="omk-card">
-            <h2 class="omk-h">On the table</h2>
-            <?php if (!$pending && !$queue && !$billboards): ?><p class="omk-note">Nobody is paying anybody. Kartificial is disappointed.</p><?php endif; ?>
-            <ul class="omk-list">
-                <?php foreach ($pending as $b): ?><li>✉️ <strong><?= htmlspecialchars($b['name']) ?></strong> has bribed Kartificial for <?= htmlspecialchars($b['cup_name']) ?> Cup</li><?php endforeach; ?>
-                <?php foreach ($bribes as $b): if ($b['status'] !== 'countered') continue; ?><li>✉️✉️ <strong><?= htmlspecialchars((string)$b['counter_name']) ?></strong> out-bribed <?= htmlspecialchars($b['name']) ?> on <?= htmlspecialchars($b['cup_name']) ?> Cup</li><?php endforeach; ?>
-                <?php foreach ($billboards as $b): ?><li>📢 <strong><?= htmlspecialchars($b['name']) ?></strong> is on the billboard until <?= date('j F, H:i', (int)$b['until_ts']) ?></li><?php endforeach; ?>
-                <?php foreach ($queue as $i => $s): ?><li>📺 <strong><?= htmlspecialchars($s['name']) ?></strong> <?= $i === 0 ? 'sponsors the next newscast' : 'is next in line to sponsor one' ?></li><?php endforeach; ?>
-            </ul>
-        </section>
-
-        <?php if ($isAdmin): ?>
-        <section class="omk-card">
-            <h2 class="omk-h">The ledger <small class="omk-note">admins only</small></h2>
-            <?php if (!$ledger): ?><p class="omk-note">Nothing yet.</p><?php else: ?>
-            <ul class="omk-list omk-ledger">
-                <?php foreach ($ledger as $l): ?>
-                    <li><span><strong><?= htmlspecialchars($names[(int)$l['racer_id']] ?? '?') ?></strong> <?= htmlspecialchars(lcfirst($l['detail'])) ?> <small><?= date('j M', strtotime($l['created_at'])) ?></small></span><span class="<?= (int)$l['amount'] > 0 ? 'is-in' : 'is-out' ?>"><?= ((int)$l['amount'] > 0 ? '+' : '−') . omkFormatHtml(abs((int)$l['amount'])) ?></span></li>
-                <?php endforeach; ?>
-            </ul>
-            <?php endif; ?>
-            <h2 class="omk-h omk-h2">Balances <small class="omk-note">admins only</small></h2>
-            <?php if (!$balances): ?><p class="omk-note">Nobody has any OMKredits yet.</p><?php else: ?>
-            <ul class="omk-list omk-balances">
-                <?php foreach ($balances as $rid => $b): if (!isset($names[$rid])) continue; ?>
-                    <li><span><?= htmlspecialchars($names[$rid]) ?></span><span><?= omkFormatHtml($b) ?></span></li>
-                <?php endforeach; ?>
-            </ul>
-            <?php endif; ?>
-        </section>
-        <?php endif; ?>
-    </div>
+    <section class="omk-card">
+        <h2 class="omk-h">On the table</h2>
+        <?php if (!$pending && !$queue && !$billboards): ?><p class="omk-note">Nobody is paying anybody. Kartificial is disappointed.</p><?php endif; ?>
+        <ul class="omk-list">
+            <?php foreach ($pending as $b): ?><li>✉️ <strong><?= htmlspecialchars($b['name']) ?></strong> has bribed Kartificial for <?= htmlspecialchars($b['cup_name']) ?> Cup</li><?php endforeach; ?>
+            <?php foreach ($bribes as $b): if ($b['status'] !== 'countered') continue; ?><li>✉️✉️ <strong><?= htmlspecialchars((string)$b['counter_name']) ?></strong> out-bribed <?= htmlspecialchars($b['name']) ?> on <?= htmlspecialchars($b['cup_name']) ?> Cup</li><?php endforeach; ?>
+            <?php foreach ($billboards as $b): ?><li>📢 <strong><?= htmlspecialchars($b['name']) ?></strong> is on the billboard until <?= date('j F, H:i', (int)$b['until_ts']) ?></li><?php endforeach; ?>
+            <?php foreach ($queue as $i => $s): ?><li>📺 <strong><?= htmlspecialchars($s['name']) ?></strong> <?= $i === 0 ? 'sponsors the next newscast' : 'is next in line to sponsor one' ?></li><?php endforeach; ?>
+        </ul>
+    </section>
+    <?php if ($isAdmin): ?><p class="omk-note omk-admin-link">The ledger and every balance are on <a href="/admin/omk">Admin → OMKredits</a>.</p><?php endif; ?>
 </div>
 
 <?php if ($open && $dupes): ?>

@@ -280,6 +280,24 @@ $ok('the sponsorship on top makes one, recorded once, and the billboard still ne
 $ok('every earned key is a real badge', !array_diff(array_keys(array_merge(...array_values(omkBadgeFacts($pdo)['earned']))), array_keys(badgeCatalog())));
 $pdo->exec("DELETE FROM recap_archive WHERE id = $omkRecap");
 foreach (['omk_ledger', 'omk_bribes', 'omk_sponsorships', 'omk_cosmetics'] as $omkT2) $pdo->exec("DELETE FROM $omkT2");
+// The admin overview's arithmetic (/admin/omk).
+omkEntry($pdo, $omkR, 10, 'race_week', 'x', 'w1'); omkEntry($pdo, $omkR, 20, 'trade', 'Traded in 20 duplicates', '20');
+omkSpend($pdo, $omkR, 15, 'gold', 'x'); omkSpend($pdo, $omkR, 10, 'bribe', 'x');
+omkEntry($pdo, $omkR2, 5, 'gift', 'x'); omkEntry($pdo, $omkR2, -5, 'gift', 'taken back');
+$omkE = omkEconomy($pdo);
+$ok('the economy adds up: minted, spent, taken back, in circulation', $omkE['totals'] === ['minted' => 35, 'spent' => 25, 'taken' => 5, 'circulation' => 5]);
+$ok('circulation at the end of the last week is the total, and every week is there', end($omkE['weeks'])['circ'] === 5 && array_key_last($omkE['weeks']) === omkWeekOf(time()));
+$ok('accounts: balance, earned, spent and what they spend most on', $omkE['accounts'][$omkR]['balance'] === 5 && $omkE['accounts'][$omkR]['earned'] === 30 && $omkE['accounts'][$omkR]['spent'] === 25 && $omkE['accounts'][$omkR]['top'] === 'gold' && $omkE['accounts'][$omkR2]['spent'] === 0);
+$ok('sales by item, and an admin take-back is not a sale', $omkE['sales']['gold']['units'] === 1 && $omkE['sales']['gold']['revenue'] === 15 && $omkE['sales']['bribe']['revenue'] === 10 && !isset($omkE['sales']['gift']));
+$ok('sources of new money', $omkE['sources'] === ['trade' => 20, 'race_week' => 10, 'gift' => 5]);
+$omkBank = omkCentralBankLines($omkE, [$omkR => 'Hanna', $omkR2 => 'Tom']);
+$ok('the central bank report', str_contains($omkBank[0], 'Hanna holds 100%') && (bool)array_filter($omkBank, fn($l) => str_contains($l, 'Biggest single purchase: Hanna, 15')));
+$ok('the sanity checks are clear on a clean ledger', omkSanity($pdo, $omkE, [$omkR => 'Hanna', $omkR2 => 'Tom']) === []);
+omkEntry($pdo, $omkR2, -3, 'test', 'x');
+$pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, ref, until_ts) VALUES (?, 'gold_name', 'mauve', 1)")->execute([$omkR]);
+$omkIss = omkSanity($pdo, omkEconomy($pdo), [$omkR => 'Hanna', $omkR2 => 'Tom']);
+$ok('and catch a negative balance and a colour the shop does not sell', count($omkIss) === 2 && str_contains($omkIss[0][1], 'below zero') && str_contains($omkIss[1][1], 'mauve'));
+foreach (['omk_ledger', 'omk_cosmetics'] as $omkT2) $pdo->exec("DELETE FROM $omkT2");
 
 echo "wrapped\n";
 require_once "$root/private/includes/wrapped_personas.php";

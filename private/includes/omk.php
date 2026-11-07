@@ -709,3 +709,163 @@ function omkBadgeFacts(PDO $pdo): array {
     }
     return ['earned' => $earned, 'bought' => $bought];
 }
+
+// ── The admin overview (/admin/omk) ──────────────────────────────────────
+//
+// Read-only arithmetic over the ledger and the shop tables. The ledger is small
+// (one row per week raced, trade-in or purchase), so it is read whole, once.
+
+/** What each ledger kind is called on the overview. Unknown kinds show as themselves. */
+const OMK_KIND_LABELS = [
+    'race_week' => 'Race weeks', 'trade' => 'Trade-ins', 'gift' => 'Admin gifts',
+    'bribe' => 'Bribes', 'counter' => 'Counter-bribes', 'sponsor' => 'Sponsorships', 'gold' => 'Nameplates',
+    'offset' => 'Carbon offsets', 'founder' => "Founder's Editions", 'loot' => 'Loot boxes',
+    'rental' => 'Foil rentals', 'hype' => 'Hype packages', 'billboard' => 'Billboards',
+];
+
+function omkKindLabel(string $kind): string { return OMK_KIND_LABELS[$kind] ?? $kind; }
+
+/** The Monday a timestamp falls in, as Y-m-d. */
+function omkWeekOf(int $ts): string { return date('Y-m-d', strtotime('monday this week', strtotime(date('Y-m-d', $ts)))); }
+
+/**
+ * The whole economy in one pass over the ledger.
+ *   totals   minted (everything that came in), spent (shop purchases), taken (admin take-backs), circulation
+ *   weeks    [monday => ['in','out','circ']], every week from the first entry to $now, circ at the week's end
+ *   sources  [kind => Ω̈ in]          sales [kind => ['units','revenue','last']]
+ *   accounts [racer_id => ['balance','earned','spent','top','last','lastSpend']]
+ *   biggest  the largest single purchase, or null
+ */
+function omkEconomy(PDO $pdo, ?int $now = null): array {
+    $now ??= time();
+    $spendKinds = array_keys(OMK_PRICES);
+    $totals = ['minted' => 0, 'spent' => 0, 'taken' => 0, 'circulation' => 0];
+    $weeks = []; $sources = []; $sales = []; $accounts = []; $biggest = null; $spentBy = [];
+    $rows = $pdo->query("SELECT id, racer_id, amount, kind, detail, created_at FROM omk_ledger ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $l) {
+        $rid = (int)$l['racer_id']; $amt = (int)$l['amount']; $kind = (string)$l['kind'];
+        $ts = strtotime((string)$l['created_at']) ?: $now;
+        $wk = omkWeekOf($ts);
+        $weeks[$wk] ??= ['in' => 0, 'out' => 0];
+        $a = &$accounts[$rid];
+        $a ??= ['balance' => 0, 'earned' => 0, 'spent' => 0, 'top' => null, 'last' => null, 'lastSpend' => null];
+        $a['balance'] += $amt;
+        $a['last'] = $l['created_at'];
+        $totals['circulation'] += $amt;
+        if ($amt > 0) {
+            $totals['minted'] += $amt; $a['earned'] += $amt; $weeks[$wk]['in'] += $amt;
+            $sources[$kind] = ($sources[$kind] ?? 0) + $amt;
+        } elseif ($amt < 0) {
+            $weeks[$wk]['out'] -= $amt;
+            if (in_array($kind, $spendKinds, true)) {
+                $totals['spent'] -= $amt; $a['spent'] -= $amt; $a['lastSpend'] = $l['created_at'];
+                $s = &$sales[$kind];
+                $s ??= ['units' => 0, 'revenue' => 0, 'last' => null];
+                $s['units']++; $s['revenue'] -= $amt; $s['last'] = $l['created_at'];
+                unset($s);
+                $spentBy[$rid][$kind] = ($spentBy[$rid][$kind] ?? 0) - $amt;
+                if ($biggest === null || -$amt > $biggest['amount']) $biggest = ['racer_id' => $rid, 'amount' => -$amt, 'kind' => $kind, 'at' => $l['created_at']];
+            } else {
+                $totals['taken'] -= $amt;
+            }
+        }
+        unset($a);
+    }
+    foreach ($spentBy as $rid => $kinds) { arsort($kinds); $accounts[$rid]['top'] = array_key_first($kinds); }
+    // Every week from the first to now, empty ones included, with the running total at each week's end.
+    $filled = [];
+    if ($weeks) {
+        $circ = 0;
+        for ($wk = min(array_keys($weeks)), $last = omkWeekOf($now); $wk <= $last; $wk = date('Y-m-d', strtotime($wk . ' +7 days'))) {
+            $w = $weeks[$wk] ?? ['in' => 0, 'out' => 0];
+            $circ += $w['in'] - $w['out'];
+            $filled[$wk] = $w + ['circ' => $circ];
+        }
+    }
+    arsort($sources);
+    uasort($sales, fn($x, $y) => $y['revenue'] <=> $x['revenue']);
+    uasort($accounts, fn($x, $y) => $y['balance'] <=> $x['balance']);
+    return ['totals' => $totals, 'weeks' => $filled, 'sources' => $sources, 'sales' => $sales, 'accounts' => $accounts, 'biggest' => $biggest];
+}
+
+/** What is running right now: nameplates, rentals, billboards, hype, bribes, the sponsor queue. */
+function omkLiveNow(PDO $pdo): array {
+    $plates = [];
+    $st = $pdo->prepare("SELECT racer_id, ref, MAX(until_ts) AS until_ts FROM omk_cosmetics WHERE kind = 'gold_name' AND until_ts > ? GROUP BY racer_id");
+    $st->execute([time()]);
+    $colour = omkPlates($pdo);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $plates[(int)$r['racer_id']] = ['colour' => $colour[(int)$r['racer_id']] ?? 'gold', 'until' => (int)$r['until_ts']];
+    $until = function (string $kind) use ($pdo): array {
+        $out = [];
+        foreach (array_keys(omkActive($pdo, $kind)) as $rid) $out[$rid] = omkUntil($pdo, (int)$rid, $kind);
+        return $out;
+    };
+    return [
+        'plates' => $plates, 'rentals' => $until('foil_rental'), 'billboards' => $until('billboard'),
+        'hype' => omkHyped($pdo), 'bribes' => omkOpenBribes($pdo), 'sponsors' => omkSponsorQueue($pdo),
+    ];
+}
+
+/** A few true sentences about who holds what. $names: racer_id => name. */
+function omkCentralBankLines(array $econ, array $names, ?int $now = null): array {
+    $now ??= time();
+    $t = $econ['totals']; $lines = [];
+    $holders = array_filter($econ['accounts'], fn($a) => $a['balance'] > 0);
+    if ($t['circulation'] > 0 && $holders) {
+        $top = array_key_first($holders);
+        $share = (int)round(100 * $holders[$top]['balance'] / $t['circulation']);
+        $lines[] = ($names[$top] ?? '?') . " holds $share% of all OMKredits in circulation.";
+    }
+    if ($t['minted'] > 0) {
+        $lines[] = 'Of every 10' . OMK_SYMBOL . ' ever minted, ' . number_format(10 * $t['spent'] / $t['minted'], 1) . ' have been spent at the counter.';
+    }
+    $idle = 0; $idlers = 0;
+    foreach ($holders as $a) {
+        if ($a['lastSpend'] === null || strtotime($a['lastSpend']) < $now - 30 * 86400) { $idle += $a['balance']; $idlers++; }
+    }
+    if ($idle > 0) $lines[] = omkFormat($idle) . " sits with $idlers racer" . ($idlers === 1 ? '' : 's') . ' who have bought nothing in 30 days.';
+    if ($b = $econ['biggest']) {
+        $lines[] = 'Biggest single purchase: ' . ($names[$b['racer_id']] ?? '?') . ', ' . omkFormat($b['amount']) . ' on ' . strtolower(omkKindLabel($b['kind'])) . ' (' . date('j M', strtotime($b['at'])) . ').';
+    }
+    if ($econ['sales']) {
+        $units = array_column($econ['sales'], 'units');
+        $best = array_keys($econ['sales'])[array_search(max($units), $units, true)];
+        $lines[] = 'Best seller by units: ' . omkKindLabel($best) . ' (' . $econ['sales'][$best]['units'] . ' sold).';
+    }
+    return $lines;
+}
+
+/**
+ * Things that should not happen. Each: [what, detail, link, link text]. Empty when all is well.
+ * Most of these are prevented by constraints and transactions; this is where it shows if one slipped.
+ */
+function omkSanity(PDO $pdo, array $econ, array $names, ?int $now = null): array {
+    $now ??= time();
+    $out = [];
+    foreach ($econ['accounts'] as $rid => $a) {
+        if ($a['balance'] < 0) $out[] = [$names[$rid] ?? "racer $rid", 'balance is ' . omkFormat($a['balance']) . ', below zero', '#balances', 'Give back'];
+        if (!isset($names[$rid])) $out[] = ["racer $rid", 'has ledger entries but is not in the racers table', '/admin/racers', 'Racers'];
+    }
+    foreach ($pdo->query("SELECT racer_id, ref, COUNT(*) AS n FROM omk_ledger WHERE kind = 'race_week' GROUP BY racer_id, ref HAVING n > 1")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [$names[(int)$r['racer_id']] ?? '?', "paid {$r['n']} times for the week of {$r['ref']}", '#ledger', 'Ledger'];
+    }
+    foreach ($pdo->query("SELECT b.racer_id, b.cup_name, b.status, b.created_at, r.name FROM omk_bribes b JOIN racers r ON r.id = b.racer_id
+                          WHERE b.status IN ('pending', 'countered')")->fetchAll(PDO::FETCH_ASSOC) as $b) {
+        $age = (int)floor(($now - (strtotime((string)$b['created_at']) ?: $now)) / 86400);
+        if ($age >= 30) $out[] = [$b['name'], "{$b['status']} bribe for {$b['cup_name']} Cup, $age days old: nobody involved has raced since", '/racer/' . (int)$b['racer_id'], 'Profile'];
+    }
+    foreach ($pdo->query("SELECT s.racer_id, s.recap_id, a.created_at FROM omk_sponsorships s JOIN recap_archive a ON a.id = s.recap_id WHERE a.status = 'draft'")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if (strtotime((string)$r['created_at']) < $now - 14 * 86400) $out[] = [$names[(int)$r['racer_id']] ?? '?', "sponsorship is stuck on a draft broadcast from " . date('j M', strtotime($r['created_at'])) . '. Publish or delete it to free the slot', '/admin/news', 'News desk'];
+    }
+    foreach ($pdo->query("SELECT racer_id, serial FROM omk_cosmetics WHERE kind = 'hype' AND serial < 0")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [$names[(int)$r['racer_id']] ?? '?', "a hype package is at {$r['serial']} GPs", '', ''];
+    }
+    $known = ['gold_name', 'lol_offset', 'founder', 'golden', 'foil_rental', 'billboard', 'hype', 'media_empire'];
+    foreach ($pdo->query("SELECT kind, COUNT(*) AS n FROM omk_cosmetics GROUP BY kind")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if (!in_array($r['kind'], $known, true)) $out[] = ["omk_cosmetics", "{$r['n']} rows of unknown kind '{$r['kind']}'", '', ''];
+    }
+    foreach ($pdo->query("SELECT DISTINCT ref FROM omk_cosmetics WHERE kind = 'gold_name' AND ref IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN) as $c) {
+        if (!isset(OMK_PLATES[$c])) $out[] = ['Nameplates', "a plate in '$c', a colour the shop does not sell (shown as gold)", '', ''];
+    }
+    return $out;
+}

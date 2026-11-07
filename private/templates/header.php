@@ -128,6 +128,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                             <a href="/admin/close-season">🏁 Close Season</a>
                             <a href="/admin/racers">Racers</a>
                             <a href="/admin/sticker-board">🩹 Sticker Board</a>
+                            <?php if (moduleEnabled($pdo, 'omk')): ?><a href="/admin/omk">💱 OMKredits</a><?php endif; ?>
                             <a href="/admin/results">Results</a>
                             <a href="/admin/commissioner-desk">🗒️ Commissioner's Desk</a>
                             <a href="/admin/news">📰 News desk</a>

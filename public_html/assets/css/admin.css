@@ -3295,3 +3295,43 @@
 .profile-code-value { font-family: var(--font-mono, monospace); font-size: 2rem; font-weight: 800; letter-spacing: .12em; margin: 6px 0; user-select: all; }
 .profile-code-note { margin: 0; font-size: .85rem; color: var(--gray-600, #4b5563); }
 .racer-code-form, .racer-delete-form { display: inline; margin: 0; }
+
+/* ── /admin/omk: the OMKredits overview. Blue = in (minted), orange = out (spent),
+   the same validated pair as League in numbers. Text stays in ink, never series colour. */
+.omk-admin { --oa-in: #2a78d6; --oa-out: #eb6834; }
+.oa-flash { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: #e8f7ec; color: #14602c; font-weight: 600; }
+.oa-note { color: var(--gray-600); font-size: 0.88rem; margin: 6px 0; }
+.oa-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0 0 14px; }
+.oa-tile { background: #fff; border: 2px solid var(--gray-200, #e5e7eb); border-radius: 12px; padding: 14px 10px; text-align: center; min-width: 0; }
+.oa-tile-value { font-family: 'DM Mono', monospace; font-size: 1.5rem; line-height: 1.15; white-space: nowrap; }
+.oa-tile-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-600); margin-top: 6px; }
+.oa-card { background: #fff; border: 2px solid var(--gray-200, #e5e7eb); border-radius: 12px; padding: 16px 18px; margin: 0 0 16px; min-width: 0; }
+.oa-card.audit-section--ok, .oa-card.audit-section--bad { border-left-width: 8px; }
+.oa-h { font-size: 1.1rem; margin: 0 0 10px; }
+.oa-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.oa-chart { width: 100%; height: auto; display: block; }
+.oa-chart .oa-axis { font-size: 11px; fill: var(--gray-600, #6b7280); }
+.oa-chart .oa-value { font-size: 12px; font-weight: 700; fill: var(--text-primary, #1a1a1a); }
+.oa-chart .oa-grid { stroke: var(--gray-200, #e5e7eb); stroke-width: 1; }
+.oa-chart .oa-base { stroke: var(--gray-600, #6b7280); stroke-width: 1; }
+.oa-chart .oa-line { fill: none; stroke: var(--oa-in); stroke-width: 2; stroke-linejoin: round; }
+.oa-chart .oa-dot { fill: var(--oa-in); stroke: #fff; stroke-width: 2; }
+.oa-chart .oa-in { fill: var(--oa-in); }
+.oa-chart .oa-out { fill: var(--oa-out); }
+.oa-chart .oa-hit:hover .oa-in, .oa-chart .oa-hit:hover .oa-out, .oa-chart .oa-hit:hover .oa-dot { opacity: 0.75; }
+.oa-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 0.8rem; color: var(--gray-600); }
+.oa-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.oa-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.oa-sw--in { background: var(--oa-in); } .oa-sw--out { background: var(--oa-out); }
+.oa-table .oa-num { text-align: right; white-space: nowrap; }
+.oa-table .oa-when { white-space: nowrap; color: var(--gray-600); }
+.oa-table .oa-plus { color: #14602c; font-weight: 700; }
+.oa-table .oa-minus { color: #9b1c1c; font-weight: 700; }
+.oa-sortable th[data-sort] { cursor: pointer; user-select: none; }
+.oa-sortable th[data-dir="asc"]::after { content: ' ▲'; } .oa-sortable th[data-dir="desc"]::after { content: ' ▼'; }
+.oa-bank { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
+.oa-give { display: flex; gap: 6px; align-items: center; }
+.oa-give input[type="number"] { width: 70px; } .oa-give input[type="text"] { width: 130px; }
+.oa-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.oa-pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 12px; }
+@media (max-width: 900px) { .oa-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .oa-two { grid-template-columns: minmax(0, 1fr); } }
