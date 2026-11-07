@@ -217,8 +217,8 @@ include __DIR__ . '/../private/templates/header.php';
             </div>
             
             <div class="meta-item">
-                <label>Cup Selection</label>
-                <select name="cup_name" required class="add-result-cup-select">
+                <label for="ar-cup">Cup Selection</label>
+                <select name="cup_name" id="ar-cup" required class="add-result-cup-select">
                     <option value="">- Select Cup -</option>
                     <?php foreach($mk8Cups as $group => $cups): ?>
                         <optgroup label="<?= $group ?>">
@@ -231,8 +231,8 @@ include __DIR__ . '/../private/templates/header.php';
             </div>
 
             <div class="meta-item">
-                <label>Race Date</label>
-                <input type="date" name="race_date" value="<?= htmlspecialchars((string)$old('race_date', date('Y-m-d'))) ?>" required>
+                <label for="ar-date">Race Date</label>
+                <input type="date" name="race_date" id="ar-date" value="<?= htmlspecialchars((string)$old('race_date', date('Y-m-d'))) ?>" required>
             </div>
         </div>
 
@@ -260,7 +260,7 @@ include __DIR__ . '/../private/templates/header.php';
                     ?>
                     <tr id="row_<?= $i ?>" class="input-row <?= $rowClass ?>">
                         <td data-label="Racer">
-                            <select name="racer_<?= $i ?>" id="r_<?= $i ?>" onchange="activateRow(<?= $i ?>); autoFill(<?= $i ?>)" class="racer-select">
+                            <select name="racer_<?= $i ?>" id="r_<?= $i ?>" aria-label="Racer, row <?= $i ?>" onchange="activateRow(<?= $i ?>); autoFill(<?= $i ?>)" class="racer-select">
                                 <option value="">- Empty Slot -</option>
                                 <?php foreach($racerQuery as $r): ?>
                                     <option value="<?= $r['id'] ?>"
@@ -275,17 +275,17 @@ include __DIR__ . '/../private/templates/header.php';
                             </select>
                         </td>
                         <td data-label="Points">
-                            <input type="number" name="points_<?= $i ?>" id="pts_<?= $i ?>" class="pts-input" min="0" max="60" placeholder="0" value="<?= htmlspecialchars((string)$old("points_$i")) ?>">
+                            <input type="number" name="points_<?= $i ?>" id="pts_<?= $i ?>" aria-label="Points, row <?= $i ?>" class="pts-input" min="0" max="60" placeholder="0" value="<?= htmlspecialchars((string)$old("points_$i")) ?>">
                         </td>
                         <td data-label="Rank">
-                            <input type="number" name="rank_<?= $i ?>" id="rank_<?= $i ?>" min="1" max="12" placeholder="-" class="add-result-rank-input" value="<?= htmlspecialchars((string)$old("rank_$i")) ?>">
+                            <input type="number" name="rank_<?= $i ?>" id="rank_<?= $i ?>" aria-label="Place, row <?= $i ?>" min="1" max="12" placeholder="-" class="add-result-rank-input" value="<?= htmlspecialchars((string)$old("rank_$i")) ?>">
                         </td>
                         <td data-label="Character">
                             <div class="char-input-group">
                                 <div class="portrait-preview">
-                                    <img id="p_<?= $i ?>" src="" style="display:none;" class="portrait-img">
+                                    <img id="p_<?= $i ?>" src="" alt="" style="display:none;" class="portrait-img">
                                 </div>
-                                <select name="char_<?= $i ?>" id="c_<?= $i ?>" onchange="updatePortrait(<?= $i ?>)" id="char_<?= $i ?>">
+                                <select name="char_<?= $i ?>" id="c_<?= $i ?>" aria-label="Character, row <?= $i ?>" onchange="updatePortrait(<?= $i ?>)">
                                     <option value="">- Char -</option>
                                     <?php foreach($mk8Characters as $char): ?>
                                         <option value="<?= $char ?>" <?= (string)$old("char_$i") === (string)$char ? 'selected' : '' ?>><?= $char ?></option>
@@ -293,9 +293,9 @@ include __DIR__ . '/../private/templates/header.php';
                                 </select>
                             </div>
                         </td>
-                        <td data-label="Kart Setup"><input type="text" name="kart_<?= $i ?>" id="k_<?= $i ?>" placeholder="Kart Setup" value="<?= htmlspecialchars((string)$old("kart_$i")) ?>"></td>
-                        <td data-label="Ludwig Obstruction Law" class="add-result-lol-cell"><input type="checkbox" name="lol_<?= $i ?>" class="add-result-lol-checkbox" <?= $old("lol_$i") ? 'checked' : '' ?>></td>
-                        <td data-label="Monster" class="add-result-lol-cell"><input type="checkbox" name="monster_<?= $i ?>" class="add-result-monster-checkbox" onchange="setMonster(<?= $i ?>)" <?= $old("monster_$i", ($prefillMonsterId !== null && $prefRid === $prefillMonsterId) ? '1' : '') ? 'checked' : '' ?>></td>
+                        <td data-label="Kart Setup"><input type="text" name="kart_<?= $i ?>" id="k_<?= $i ?>" aria-label="Kart setup, row <?= $i ?>" placeholder="Kart Setup" value="<?= htmlspecialchars((string)$old("kart_$i")) ?>"></td>
+                        <td data-label="Ludwig Obstruction Law" class="add-result-lol-cell"><input type="checkbox" name="lol_<?= $i ?>" aria-label="Ludwig Obstruction, row <?= $i ?>" class="add-result-lol-checkbox" <?= $old("lol_$i") ? 'checked' : '' ?>></td>
+                        <td data-label="Monster" class="add-result-lol-cell"><input type="checkbox" name="monster_<?= $i ?>" aria-label="Monster, row <?= $i ?>" class="add-result-monster-checkbox" onchange="setMonster(<?= $i ?>)" <?= $old("monster_$i", ($prefillMonsterId !== null && $prefRid === $prefillMonsterId) ? '1' : '') ? 'checked' : '' ?>></td>
                     </tr>
                     <?php endfor; ?>
                 </tbody>
@@ -303,8 +303,8 @@ include __DIR__ . '/../private/templates/header.php';
         </div>
 
         <div class="wall-code-group">
-            <label class="wall-code-label">Gameslab wall code</label>
-            <input type="text" name="wall_code" inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="····" required class="wall-code-input" autocomplete="off">
+            <label class="wall-code-label" for="ar-wall-code">Gameslab wall code</label>
+            <input type="text" name="wall_code" id="ar-wall-code" inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="····" required class="wall-code-input" autocomplete="off">
         </div>
 
         <button type="submit" class="btn-generate" id="gp-submit-btn" disabled>🚀 Submit Race Results</button>

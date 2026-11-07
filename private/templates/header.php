@@ -57,6 +57,14 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     <link rel="icon" type="image/png" sizes="64x64" href="/assets/img/omk-favicon-64.png">
     <link rel="icon" type="image/png" sizes="512x512" href="/assets/img/omk-favicon-512.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/omk-favicon-180.png">
+    <?php // Add to home screen: the manifest (manifest.php) and what an installed page looks like.
+    $themeColour = (string)getSetting($pdo, 'primary_color', '#E60012'); if (!preg_match('/^#[0-9a-fA-F]{6}$/', $themeColour)) $themeColour = '#E60012'; ?>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="<?= $themeColour ?>">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="<?= htmlspecialchars(leagueShortName((string)getSetting($pdo, 'league_name', 'Kartfolio'), (string)getSetting($pdo, 'app_short_name', ''))) ?>">
     <!-- KART POP type system: Fredoka (display) · Inter (body/UI) · DM Mono (numerals) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,6 +87,7 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <header class="main-header">
     <div class="container header-flex">
@@ -157,4 +166,4 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
     </div>
 </header>
 
-<div class="container main-content">
+<div class="container main-content" id="main-content" tabindex="-1">

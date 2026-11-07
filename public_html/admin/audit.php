@@ -17,6 +17,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '')
     header('Location: /admin/audit', true, 303);
     exit;
 }
+// Retiring from the roster list below. Nothing is deleted: a retired racer keeps every
+// result and can be brought back from /admin/racers.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'retire_racer') {
+    verify_csrf();
+    $pdo->prepare("UPDATE racers SET is_retired = 1 WHERE id = ?")->execute([(int)($_POST['racer_id'] ?? 0)]);
+    header('Location: /admin/audit#roster', true, 303);
+    exit;
+}
 
 $q = fn(string $sql, array $args = []) => (function () use ($pdo, $sql, $args) { $st = $pdo->prepare($sql); $st->execute($args); return $st->fetchAll(PDO::FETCH_ASSOC); })();
 $names = racerNamesMap($pdo);
@@ -101,6 +109,19 @@ foreach ($q("SELECT id, name, created_at FROM tournaments WHERE status NOT IN ('
     $rows[] = [$r['name'], 'still open after 60 days (since ' . substr($r['created_at'], 0, 10) . ')', "/admin/tournament_bracket.php?id={$r['id']}", 'Bracket'];
 $add('Tournaments', 'info', $rows, 'Half-finished brackets keep showing as live on the hub and never award their badges.');
 
+// ── Roster ─────────────────────────────────────────────────────────────────
+// Active racers who have not raced in six months. They sit in the team-draw pool,
+// the What cup? line-up picker, the Exchange's "who's at the counter?" and every
+// roster list. Retiring keeps their history; it only takes them off those lists.
+$rows = [];
+foreach ($q("SELECT r.id, r.name, MAX(date(x.race_date)) AS last FROM racers r LEFT JOIN results x ON x.racer_id = r.id
+             WHERE COALESCE(r.is_retired, 0) = 0 GROUP BY r.id
+             HAVING last IS NULL OR last < date('now', '-180 days') ORDER BY last IS NULL DESC, last ASC, r.name ASC") as $r) {
+    $detail = $r['last'] === null ? 'has never raced' : 'last raced ' . date('j M Y', strtotime($r['last'])) . ', ' . (int)floor((time() - strtotime($r['last'])) / 86400) . ' days ago';
+    $rows[] = [$r['name'], $detail, '/racer/' . (int)$r['id'], 'Profile', null, (int)$r['id']];
+}
+$add('Racers who have stopped racing', 'info', $rows, 'Not retired, but no GP in six months. They still appear in the team draw, the What cup? line-up and every roster. Retiring keeps all their results and can be undone on the Racers page.');
+
 // ── Configuration ──────────────────────────────────────────────────────────
 $rows = [];
 $cfg = kartfolioConfig();
@@ -127,7 +148,7 @@ include __DIR__ . '/../../private/templates/header.php';
     </div>
 
     <?php foreach ($sections as $s): $n = count($s['rows']); ?>
-    <section class="audit-section audit-section--<?= $n ? $s['severity'] : 'ok' ?>">
+    <section class="audit-section audit-section--<?= $n ? $s['severity'] : 'ok' ?>"<?= $s['title'] === 'Racers who have stopped racing' ? ' id="roster"' : '' ?>>
         <div class="audit-head">
             <h2><?= htmlspecialchars($s['title']) ?></h2>
             <span class="audit-count"><?= $n === 0 ? '✓ clear' : $n ?></span>
@@ -136,12 +157,14 @@ include __DIR__ . '/../../private/templates/header.php';
         <?php if ($n): ?>
         <table class="admin-table audit-table">
             <tbody>
-            <?php foreach ($s['rows'] as $auditRow): [$label, $detail, $link, $linkText] = $auditRow; $flagId = $auditRow[4] ?? null; ?>
+            <?php foreach ($s['rows'] as $auditRow): [$label, $detail, $link, $linkText] = $auditRow; $flagId = $auditRow[4] ?? null; $retireId = $auditRow[5] ?? null; ?>
                 <tr>
                     <td class="audit-label"><?= htmlspecialchars($label) ?></td>
                     <td><?= htmlspecialchars($detail) ?></td>
                     <td class="audit-fix"><?php if ($link): ?><a href="<?= htmlspecialchars($link) ?>" class="btn-secondary btn-sm"><?= htmlspecialchars($linkText) ?> →</a><?php endif; ?><?php if ($flagId): ?>
                         <form method="POST" style="display:inline;"><?= csrf_field() ?><input type="hidden" name="action" value="close_flag"><input type="hidden" name="flag_id" value="<?= (int)$flagId ?>"><button type="submit" class="btn-secondary">Close</button></form>
+                    <?php endif; ?><?php if ($retireId): ?>
+                        <form method="POST" style="display:inline;"><?= csrf_field() ?><input type="hidden" name="action" value="retire_racer"><input type="hidden" name="racer_id" value="<?= (int)$retireId ?>"><button type="submit" class="btn-secondary">Retire</button></form>
                     <?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>

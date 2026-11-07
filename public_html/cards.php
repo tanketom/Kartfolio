@@ -51,7 +51,7 @@ include __DIR__ . '/../private/templates/header.php';
 
         <div class="cards-controls">
             <!-- Season Filter -->
-            <select id="seasonFilter" onchange="window.location.href='/cards?season=' + this.value" class="cards-season-select">
+            <select id="seasonFilter" aria-label="Season" onchange="window.location.href='/cards?season=' + this.value" class="cards-season-select">
                 <?php foreach ($seasons as $season): ?>
                     <option value="<?= htmlspecialchars($season) ?>" <?= $season === $selectedSeason ? 'selected' : '' ?>>
                         <?= strtoupper($season) ?>

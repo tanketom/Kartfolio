@@ -86,7 +86,7 @@ if ($racerId === 0) {
             <div class="wr-grid">
                 <?php foreach ($roster as $r): ?>
                     <a href="/wrapped/<?= $r['id'] ?>?year=<?= htmlspecialchars($year) ?>" class="wr-mini">
-                        <img src="/assets/img/<?= htmlspecialchars($r['char']) ?>.png" class="wr-mini-portrait" onerror="this.src='/assets/img/Mii.png'">
+                        <img src="/assets/img/<?= htmlspecialchars($r['char']) ?>.png" class="wr-mini-portrait" alt="" onerror="this.src='/assets/img/Mii.png'">
                         <div class="wr-mini-name"><?= htmlspecialchars($r['name']) ?></div>
                         <div class="wr-mini-stat"><?= $r['gps'] ?> GPs · <?= $r['wins'] ?>🥇</div>
                         <div class="wr-mini-cta">Open Wrapped →</div>
@@ -404,7 +404,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
     <!-- 3. #1 racer -->
     <section class="wr-slide">
         <div class="wr-kicker">YOUR #1 RACER</div>
-        <img src="<?= $portrait($sigChar) ?>" class="wr-portrait" onerror="this.src='/assets/img/Mii.png'">
+        <img src="<?= $portrait($sigChar) ?>" class="wr-portrait" alt="<?= htmlspecialchars($sigChar) ?>" onerror="this.src='/assets/img/Mii.png'">
         <div class="wr-big"><?= htmlspecialchars($sigChar) ?></div>
         <div class="wr-lead">rode shotgun <?= (int)reset($charTally) ?> times.</div>
     </section>
@@ -442,7 +442,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
         <div class="wr-kicker">YOUR WARDROBE</div>
         <div class="wr-strip">
             <?php foreach (array_keys($charTally) as $ci => $c): ?>
-                <img src="<?= $portrait($c) ?>" class="wr-strip-img" style="--i:<?= $ci ?>" title="<?= htmlspecialchars($c) ?> × <?= (int)$charTally[$c] ?>" onerror="this.src='/assets/img/Mii.png'">
+                <img src="<?= $portrait($c) ?>" class="wr-strip-img" alt="<?= htmlspecialchars($c) ?> × <?= (int)$charTally[$c] ?>" style="--i:<?= $ci ?>" title="<?= htmlspecialchars($c) ?> × <?= (int)$charTally[$c] ?>" onerror="this.src='/assets/img/Mii.png'">
             <?php endforeach; ?>
         </div>
         <div class="wr-big"><?= $distinctChars ?></div>
@@ -592,7 +592,7 @@ $portrait = fn($c) => '/assets/img/' . rawurlencode($c) . '.png';
         <div class="wr-card" id="wr-card">
             <div class="wr-card-top"><span class="wr-year"><?= htmlspecialchars(mb_strtoupper($yearLabel)) ?></span><span class="wr-brand">WRAPPED</span></div>
             <div class="wr-card-hero">
-                <img src="<?= $portrait($sigChar) ?>" class="wr-card-portrait" onerror="this.src='/assets/img/Mii.png'">
+                <img src="<?= $portrait($sigChar) ?>" class="wr-card-portrait" alt="<?= htmlspecialchars($sigChar) ?>" onerror="this.src='/assets/img/Mii.png'">
                 <div>
                     <div class="wr-card-name"><?= htmlspecialchars($name) ?></div>
                     <div class="wr-card-persona"><?= htmlspecialchars($personality['label']) ?> · <?= htmlspecialchars($aura['label']) ?></div>

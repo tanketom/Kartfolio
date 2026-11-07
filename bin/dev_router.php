@@ -17,7 +17,8 @@ if (preg_match('#^/season/([a-z0-9]+)$#', $uri, $m)) { $_GET['season'] = $m[1]; 
 // Pages that merged into another; the live .htaccess 301s these too.
 $gone = ['/vault' => '/records#vault', '/animate-season' => '/season-chart', '/uml' => '/admin/uml'];
 if (isset($gone[$uri])) { header('Location: ' . $gone[$uri], true, 301); return true; }
-if ($uri === '/season-yearbook') { require $root . '/yearbook.php'; return true; }   // .htaccess names it differently from the file
+if ($uri === '/season-yearbook') { require $root . '/yearbook.php'; return true; }
+if ($uri === '/manifest.webmanifest') { require $root . '/manifest.php'; return true; }   // the home-screen manifest   // .htaccess names it differently from the file
 // The signs live under /display/ in .htaccess; the files sit in the web root.
 if (preg_match('#^/display/(vertical|horizontal|auto-vertical|overlay|ceremony)$#', $uri, $m)) { require $root . '/' . $m[1] . '.php'; return true; }
 

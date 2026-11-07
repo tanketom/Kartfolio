@@ -51,16 +51,16 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
             <?= csrf_field() ?>
             <input type="hidden" name="draft" value="1">
             <div class="admin-input-group">
-                <label>Select Program</label>
-                <select name="program" class="admin-select">
+                <label for="gen-program">Select Program</label>
+                <select name="program" id="gen-program" class="admin-select">
                     <?php foreach ($aiPrograms as $val => $data): ?>
                         <option value="<?= $val ?>"><?= $data['label'] ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="admin-input-group">
-                <label>Director Notes (Optional)</label>
-                <textarea name="notes" placeholder="Specify focus, time range, or length (e.g. 'Tom's dominance', 'last 3 days', '500 words', 'short', 'detailed')..." class="admin-textarea"></textarea>
+                <label for="gen-notes">Director Notes (Optional)</label>
+                <textarea name="notes" id="gen-notes" placeholder="Specify focus, time range, or length (e.g. 'Tom's dominance', 'last 3 days', '500 words', 'short', 'detailed')..." class="admin-textarea"></textarea>
             </div>
             <button type="submit" class="btn-generate">Generate draft → News desk</button>
         </form>
@@ -77,20 +77,20 @@ $aiPrograms = getAIProgramsCatalog(); // for the "generate broadcast" dropdown
         <form action="/api/press-release" method="POST" class="admin-gen-form">
             <?= csrf_field() ?>
             <div class="admin-input-group">
-                <label>Headline</label>
-                <input type="text" name="headline" maxlength="200" required class="admin-select" placeholder="e.g. OMK confirms s03 finals schedule">
+                <label for="press-headline">Headline</label>
+                <input type="text" name="headline" id="press-headline" maxlength="200" required class="admin-select" placeholder="e.g. OMK confirms s03 finals schedule">
             </div>
             <div class="admin-input-group">
-                <label>Key Quote (optional — shown as the pull quote on cards)</label>
-                <input type="text" name="key_quote" maxlength="300" class="admin-select" placeholder="A short attention-grabbing line">
+                <label for="press-quote">Key Quote (optional — shown as the pull quote on cards)</label>
+                <input type="text" name="key_quote" id="press-quote" maxlength="300" class="admin-select" placeholder="A short attention-grabbing line">
             </div>
             <div class="admin-input-group">
-                <label>Body</label>
-                <textarea name="body" required class="admin-textarea" placeholder="The full press release text. Plain text — line breaks are preserved."></textarea>
+                <label for="press-body">Body</label>
+                <textarea name="body" id="press-body" required class="admin-textarea" placeholder="The full press release text. Plain text — line breaks are preserved."></textarea>
             </div>
             <div class="admin-input-group">
-                <label>Linked GPIDs (optional, comma-separated — e.g. s03gp14, s03gp15)</label>
-                <input type="text" name="linked_gpids" class="admin-select" placeholder="s03gp14, s03gp15">
+                <label for="press-gpids">Linked GPIDs (optional, comma-separated — e.g. s03gp14, s03gp15)</label>
+                <input type="text" name="linked_gpids" id="press-gpids" class="admin-select" placeholder="s03gp14, s03gp15">
             </div>
             <label class="admin-inline-check"><input type="checkbox" name="draft" value="1"> Save as a draft on the News desk instead of publishing</label>
             <button type="submit" class="btn-generate btn-publish">📢 Publish</button>

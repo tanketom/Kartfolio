@@ -19,6 +19,7 @@ INSERT OR IGNORE INTO settings (setting_key, setting_value, setting_type, catego
     ('league_tagline', 'Premier Mario Kart Racing League', 'text', 'league_identity', 'League tagline/slogan'),
     ('primary_color', '#E60012', 'color', 'league_identity', 'Primary brand color (Mario Red)'),
     ('secondary_color', '#0066CC', 'color', 'league_identity', 'Secondary accent color'),
+    ('app_short_name', '', 'text', 'league_identity', 'Name under the icon when the site is added to a phone home screen (12 characters or so). Blank = the league name, shortened to whole words.'),
     ('new_here_join', '', 'textarea', 'league_identity', 'How to join, on the New here? page. Blank = come to a race night and race.'),
     ('footer_about', 'The premier competitive Mario Kart 8 Deluxe league, governed by the Organisation Mondial du Karting. Racing excellence since 2024.', 'textarea', 'league_identity', 'Short about text in footer'),
     ('enable_tournaments', '1', 'boolean', 'features', 'Enable tournament system'),

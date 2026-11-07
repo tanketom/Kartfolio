@@ -133,7 +133,7 @@ include __DIR__ . '/../private/templates/header.php';
             <?php foreach ($revealed as $i => $s): ?>
                 <div class="stk <?= $frameClass($s['rarity']) ?> stk-pop" style="animation-delay: <?= $i * 0.25 ?>s;">
                     <div class="stk-face">
-                        <img src="<?= htmlspecialchars(stickerArtUrl($s)) ?>" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <img src="<?= htmlspecialchars(stickerArtUrl($s)) ?>" alt="<?= htmlspecialchars($s['title']) ?>" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
                         <span class="stk-emoji" style="display:none;"><?= $s['emoji'] ?></span>
                         <?php if ($s['rarity'] === 'foil'): ?><span class="stk-sheen"></span><?php endif; ?>
                     </div>
@@ -187,7 +187,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <?php if ($have): ?>
                 <div class="stk <?= $frameClass($s['rarity']) ?>" title="<?= htmlspecialchars($s['title']) ?> · <?= $s['rarity'] ?>">
                     <div class="stk-face">
-                        <img src="<?= htmlspecialchars(stickerArtUrl($s)) ?>" loading="lazy"
+                        <img src="<?= htmlspecialchars(stickerArtUrl($s)) ?>" alt="<?= htmlspecialchars($s['title']) ?>" loading="lazy"
                              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
                         <span class="stk-emoji" style="display:none;"><?= $s['emoji'] ?></span>
                         <?php if ($s['rarity'] === 'foil'): ?><span class="stk-sheen"></span><?php endif; ?>

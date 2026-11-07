@@ -379,7 +379,7 @@ $liveFormatLabels = [
                 <?php endif; ?>
             </div>
             <div class="racer-portrait">
-                <img src="/assets/img/<?= htmlspecialchars($row['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'">
+                <img src="/assets/img/<?= htmlspecialchars($row['char']) ?>.png" alt="" onerror="this.src='/assets/img/Mii.png'">
             </div>
             <div class="racer-info">
                 <div class="racer-name-row">
@@ -558,7 +558,7 @@ $liveFormatLabels = [
                 $pInfo = $programs[$pKey] ?? $programs['core_team'];
             ?>
             <a href="/view-recap/<?= $news['id'] ?>" class="news-card-home">
-                <img src="/assets/img/<?= $pInfo['img'] ?>" class="news-program-icon" onerror="this.src='/assets/img/program_default.png'">
+                <img src="/assets/img/<?= $pInfo['img'] ?>" class="news-program-icon" alt="" onerror="this.src='/assets/img/program_default.png'">
                 <div class="news-text-col">
                     <div class="news-meta">
                         <span class="news-program"><?= htmlspecialchars($pInfo['label']) ?></span>
@@ -588,7 +588,7 @@ $liveFormatLabels = [
             ?>
             <a href="/racer/<?= $m['id'] ?>" class="mikko-card">
                 <div class="mikko-medal"><?= $medals[$idx] ?? '' ?></div>
-                <img src="/assets/img/<?= htmlspecialchars($mainChar) ?>.png" class="mikko-portrait" onerror="this.src='/assets/img/Mii.png'">
+                <img src="/assets/img/<?= htmlspecialchars($mainChar) ?>.png" class="mikko-portrait" alt="" onerror="this.src='/assets/img/Mii.png'">
                 <div class="mikko-card-body">
                     <div class="mikko-name"><?= htmlspecialchars($m['name']) ?></div>
                     <div class="mikko-score"><?= $m['score'] ?> pts</div>

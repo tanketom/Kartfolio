@@ -266,7 +266,7 @@ include __DIR__ . '/../private/templates/header.php';
             ?>
                 <a href="/racer/<?= (int)$c['id'] ?>" class="champion-tile">
                     <img src="/assets/img/<?= htmlspecialchars($char) ?>.png"
-                         class="champion-portrait"
+                         class="champion-portrait" alt=""
                          onerror="this.src='/assets/img/Mii.png'">
                     <div class="champion-name"><?= htmlspecialchars($c['name']) ?></div>
                     <div class="champion-wins"><?= (int)$c['wins'] ?>× 🥇</div>

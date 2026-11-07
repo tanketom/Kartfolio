@@ -154,3 +154,45 @@ function requireModule($pdo, string $module): void {
     exit;
 }
 
+/**
+ * The name under the icon when the site is added to a phone's home screen: the
+ * `app_short_name` setting, else the league name's leading words that fit in 12
+ * characters ("CDN Driftsmidler" → "CDN"), else the name whole. Phones cut a long
+ * label off mid-word, which reads worse than a short one.
+ */
+function leagueShortName(string $name, string $override = ''): string {
+    $override = trim($override);
+    if ($override !== '') return $override;
+    $name = trim($name);
+    if (mb_strlen($name) <= 12) return $name;
+    $out = '';
+    foreach (preg_split('/\s+/u', $name) as $word) {
+        $try = $out === '' ? $word : "$out $word";
+        if (mb_strlen($try) > 12) break;
+        $out = $try;
+    }
+    return $out !== '' ? $out : $name;
+}
+
+/** The web app manifest (served by public_html/manifest.php): the league's own name and colour, the OMK seal. */
+function kartfolioManifest(PDO $pdo): array {
+    $name = trim((string)getSetting($pdo, 'league_name', 'Kartfolio')) ?: 'Kartfolio';
+    $colour = (string)getSetting($pdo, 'primary_color', '#E60012');
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $colour)) $colour = '#E60012';
+    return [
+        'name'             => $name . ' League',
+        'short_name'       => leagueShortName($name, (string)getSetting($pdo, 'app_short_name', '')),
+        'description'      => trim((string)getSetting($pdo, 'league_tagline', '')) ?: 'Mario Kart league standings',
+        'start_url'        => '/?source=home-screen',
+        'scope'            => '/',
+        'display'          => 'standalone',
+        'background_color' => '#fdf8ef',   // the page's cream, --gray-100
+        'theme_color'      => $colour,
+        'icons'            => [
+            ['src' => '/assets/img/omk-favicon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => '/assets/img/omk-favicon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => '/assets/img/omk-icon-maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+        ],
+    ];
+}
+

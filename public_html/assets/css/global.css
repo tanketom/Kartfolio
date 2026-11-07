@@ -768,6 +768,8 @@ a:not(.btn):not(.racer-card):hover {
 [data-tooltip] {
     cursor: help;
 }
+/* Reached by keyboard (footer.php gives every tooltip focus): show where focus is. */
+[data-tooltip]:focus-visible { outline: 3px solid var(--secondary-color, #0066CC); outline-offset: 2px; border-radius: 4px; }
 
 /* ========================================================================
    EMPTY STATES
@@ -2368,22 +2370,23 @@ select, textarea {
 }
 
 /* A name somebody paid to have in colour (a nameplate), and the tag that says so.
-   Mid-tones that read on the cream cards and on the dark signs alike; the plain colour
-   is the fallback where clipped text is not supported. .omk-gold is the shop's own
+   Every stop, the highlight included, is at least 3:1 against the white, cream and
+   medal cards: the names are large bold text, and 3:1 is that size's contrast floor.
+   The plain colour is the fallback where clipped text is not supported. .omk-gold is the shop's own
    sample of gold. */
 .omk-plate, .omk-gold {
-    --plate: linear-gradient(90deg, #8f6a00, #c79a12 45%, #8f6a00);
-    color: #9a7400;
+    --plate: linear-gradient(90deg, #7a5a00, #a7810f 45%, #7a5a00);
+    color: #8f6a00;
     background: var(--plate);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
 }
-.omk-plate--chrome  { --plate: linear-gradient(90deg, #474f5b, #98a3b0 45%, #474f5b); color: #5d6672; }
-.omk-plate--neon    { --plate: linear-gradient(90deg, #0b8f45, #1fd36b 45%, #0b8f45); color: #0fa954; }
-.omk-plate--diamond { --plate: linear-gradient(90deg, #11679e, #3fb0e6 45%, #11679e); color: #1a7fc0; }
-.omk-plate--omk     { --plate: linear-gradient(90deg, #b3000d, #ff3b3b 45%, #b3000d); color: #d0000f; }
-.omk-plate--rainbow { --plate: linear-gradient(90deg, #d8261b, #e57f00 22%, #2c9a3c 44%, #1e6bd0 66%, #8a3fd1 88%, #d8261b); color: #8a3fd1; }
+.omk-plate--chrome  { --plate: linear-gradient(90deg, #3d444e, #7e8792 45%, #3d444e); color: #5d6672; }
+.omk-plate--neon    { --plate: linear-gradient(90deg, #076b33, #179a4e 45%, #076b33); color: #0b8443; }
+.omk-plate--diamond { --plate: linear-gradient(90deg, #0e5583, #3490bd 45%, #0e5583); color: #11679e; }
+.omk-plate--omk     { --plate: linear-gradient(90deg, #b3000d, #fc3a3a 45%, #b3000d); color: #c4000f; }
+.omk-plate--rainbow { --plate: linear-gradient(90deg, #d8261b, #ca7000 22%, #2c9a3c 44%, #1e6bd0 66%, #8a3fd1 88%, #d8261b); color: #8a3fd1; }
 .omk-paid { display: inline-block; font-size: 0.55em; font-weight: 800; letter-spacing: 0.06em; padding: 0.1em 0.45em; border-radius: 999px; background: #ffe9a8; color: #3a2c00; vertical-align: middle; margin-left: 0.5em; -webkit-text-fill-color: #3a2c00; font-family: var(--font-body); font-style: normal; }
 
 /* The league's birthday card on the homepage (anniversary.php). */
@@ -2400,3 +2403,8 @@ select, textarea {
 .anniv-note { font-size: 0.9rem; color: var(--gray-700, #444); }
 .anniv-links { display: flex; flex-wrap: wrap; gap: 6px 18px; font-weight: 800; margin-bottom: 0 !important; }
 @media (max-width: 640px) { .anniv-card { padding: 16px; gap: 4px; flex-direction: column; } .anniv-cake { font-size: 2.2rem; } .anniv-title { font-size: 1.3rem; } }
+
+/* Keyboard users jump past the navigation: hidden until focused. */
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 100000; padding: 10px 16px; background: var(--dark-bg, #1a1a1a); color: #fff; border-radius: 8px; font-weight: 800; text-decoration: none; }
+.skip-link:focus { top: 12px; }
+#main-content:focus { outline: none; }

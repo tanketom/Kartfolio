@@ -317,6 +317,27 @@ $ok('and groups the same problem with different numbers, newest first', count($e
 $errTmp = tempnam(sys_get_temp_dir(), 'kfe'); file_put_contents($errTmp, $errLog);
 $ok('read back from a file', count(kartfolioErrorEntries($errTmp)) === 4); unlink($errTmp);
 
+echo "accessibility and home screen\n";
+// The nameplates are large bold text, so every colour in them, highlight included,
+// must clear 3:1 against every card it sits on (WCAG's floor for large text).
+$lum = function (string $hex): float {
+    $c = array_map(fn($i) => hexdec(substr($hex, $i, 2)) / 255, [1, 3, 5]);
+    $c = array_map(fn($v) => $v <= 0.03928 ? $v / 12.92 : (($v + 0.055) / 1.055) ** 2.4, $c);
+    return 0.2126 * $c[0] + 0.7152 * $c[1] + 0.0722 * $c[2];
+};
+$contrast = fn(string $a, string $b) => (max($lum($a), $lum($b)) + 0.05) / (min($lum($a), $lum($b)) + 0.05);
+$css = file_get_contents("$root/public_html/assets/css/global.css");
+$plateCss = substr($css, strpos($css, '.omk-plate, .omk-gold {'), strpos($css, '.omk-paid {') - strpos($css, '.omk-plate, .omk-gold {'));
+preg_match_all('/#[0-9a-fA-F]{6}\b/', $plateCss, $m);
+$weak = [];
+foreach (array_unique($m[0]) as $hex) foreach (['#ffffff', '#fff6dc', '#f4f4f2', '#fdf0e8', '#fdf8ef'] as $bg) if ($contrast($hex, $bg) < 3.0) $weak[] = "$hex on $bg";
+$ok('every nameplate colour is at least 3:1 on every card', count($m[0]) >= 12 && !$weak);
+$manifest = kartfolioManifest($pdo);
+$ok('the home-screen manifest is valid, named after the league, and its icons exist at their sizes', is_array($manifest) && str_starts_with($manifest['name'], getSetting($pdo, 'league_name', 'Kartfolio'))
+    && !array_filter($manifest['icons'], fn($i) => !is_file("$root/public_html" . $i['src']) || getimagesize("$root/public_html" . $i['src'])[0] . 'x' . getimagesize("$root/public_html" . $i['src'])[1] !== $i['sizes'])
+    && in_array('maskable', array_column($manifest['icons'], 'purpose'), true));
+$ok('a home-screen label is whole words that fit, or the name as it is', leagueShortName('CDN Driftsmidler') === 'CDN' && leagueShortName('Kartfolio') === 'Kartfolio' && leagueShortName('Supercalifragilistic') === 'Supercalifragilistic' && leagueShortName('Mario Kart Friends') === 'Mario Kart');
+
 echo "wrapped\n";
 require_once "$root/private/includes/wrapped_personas.php";
 $wp = wrappedPeriodFor('2025-11-19', 2026);

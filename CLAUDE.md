@@ -1156,6 +1156,24 @@ Cross-reference if you find half-implemented work:
   wide on a 375px phone, and an ancestor clipped the overflow so the last column was
   silently cut rather than scrollable: measure with a script, not by eye
 
+- **Add to home screen** — `/manifest.webmanifest` (`manifest.php`, contents from
+  `kartfolioManifest()` in settings.php so check.php can test them): league name, primary
+  colour, the OMK seal at 192/512 plus a full-bleed maskable 512. The label under the icon
+  is `leagueShortName()`: the `app_short_name` setting, else whole words that fit 12
+  characters ("CDN Driftsmidler" → "CDN"). No service worker on purpose: an offline copy
+  would show last week's table on race night
+- **Racers who have stopped racing** — a section on `/admin/audit`: not retired, no GP in
+  180 days (or never raced), each with a one-click Retire (POST + CSRF; it only sets
+  `is_retired`, every result stays)
+- **Accessibility** — every `[data-tooltip]` element gets keyboard focus and an accessible
+  name (an emoji-only one becomes `role="img"` named by its tooltip) or a description, in
+  ONE place: the tooltip system in footer.php, with a MutationObserver for cards fetched
+  later. Focus shows the tooltip, Escape hides it. Pages never add this themselves.
+  Images carry `alt` (`alt=""` where a name sits beside a portrait), form labels are tied
+  to their fields with `for`/`id`, and the result-entry rows have `aria-label`s. A "Skip to
+  content" link jumps to `#main-content`. Every nameplate colour is at least 3:1 on every
+  card, checked in check.php: a new colour that is too light fails the build
+
 ## Parked work — pick up from here
 
 ### Results-screen scanner (photo → add-result form)

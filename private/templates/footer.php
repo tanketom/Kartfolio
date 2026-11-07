@@ -616,6 +616,51 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.closest('[data-tooltip]')) hideTip();
     });
 
+    // Keyboard and screen readers. A tooltip used to be hover- and tap-only: a badge
+    // is an emoji in a span, which a keyboard cannot reach and a screen reader reads as
+    // the emoji's name, or not at all. Every [data-tooltip] element gets focus and an
+    // accessible name (an emoji-only one becomes an image named by its tooltip) or a
+    // description (a score keeps its number and gains the explanation). Done here, once,
+    // so no page has to remember; the observer catches cards fetched after load.
+    let ttSeq = 0;
+    function a11yTip(el) {
+        if (el.dataset.ttA11y) return;
+        el.dataset.ttA11y = '1';
+        const text = el.dataset.tooltip || '';
+        if (!text) return;
+        if (!el.matches('a[href], button, input, select, textarea, [tabindex]')) el.tabIndex = 0;
+        const ownText = el.textContent.replace(/[\s\p{Extended_Pictographic}\u200d\ufe0f\u20e3]/gu, '');
+        if (ownText === '' && !el.hasAttribute('aria-label')) {
+            el.setAttribute('role', 'img');
+            el.setAttribute('aria-label', text);
+        } else if (!el.hasAttribute('aria-describedby')) {
+            const d = document.createElement('span');
+            d.id = 'tt-desc-' + (++ttSeq);
+            d.hidden = true;
+            d.textContent = text;
+            document.body.appendChild(d);
+            el.setAttribute('aria-describedby', d.id);
+        }
+    }
+    document.querySelectorAll('[data-tooltip]').forEach(a11yTip);
+    new MutationObserver(function(muts) {
+        muts.forEach(function(m) {
+            m.addedNodes.forEach(function(n) {
+                if (n.nodeType !== 1) return;
+                if (n.matches('[data-tooltip]')) a11yTip(n);
+                n.querySelectorAll('[data-tooltip]').forEach(a11yTip);
+            });
+        });
+    }).observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('focusin', function(e) {
+        const el = e.target.closest && e.target.closest('[data-tooltip]');
+        if (el) showTip(el);
+    });
+    document.addEventListener('focusout', function(e) {
+        if (e.target.closest && e.target.closest('[data-tooltip]')) hideTip();
+    });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideTip(); });
+
     // Touch: tap to show, tap elsewhere to hide
     document.addEventListener('touchstart', function(e) {
         const el = e.target.closest('[data-tooltip]');

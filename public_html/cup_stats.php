@@ -205,8 +205,8 @@ foreach ($radarCups as $rc) {
     <!-- Season Filter -->
     <div class="cup-filter-box">
         <form method="GET" action="/cup-stats" class="cup-filter-form">
-            <label class="cup-filter-label">Filter by Season:</label>
-            <select name="season" onchange="this.form.submit()" class="cup-filter-select">
+            <label class="cup-filter-label" for="cup-season">Filter by Season:</label>
+            <select name="season" id="cup-season" onchange="this.form.submit()" class="cup-filter-select">
                 <option value="all" <?= $isAllTime ? 'selected' : '' ?>>All-Time</option>
                 <?php foreach ($availableSeasons as $s): ?>
                     <option value="<?= htmlspecialchars($s) ?>" <?= ($selectedSeason === $s) ? 'selected' : '' ?>>

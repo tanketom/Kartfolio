@@ -55,7 +55,7 @@ $tournaments = $tournamentsStmt->fetchAll(PDO::FETCH_ASSOC);
 
                 <div class="archive-card-top">
                     <img src="/assets/img/<?= htmlspecialchars($s['champion_char'] ?: 'Mii') ?>.png"
-                         class="archive-champion-img"
+                         class="archive-champion-img" alt=""
                          onerror="this.src='/assets/img/Mii.png'">
 
                     <h2 class="archive-champion-name">

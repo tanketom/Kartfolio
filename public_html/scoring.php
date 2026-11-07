@@ -253,7 +253,7 @@ $minThreshold = (int)($rules['min_races_threshold'] ?? 3);
                 <p class="scr-subtitle"><?= htmlspecialchars(strtoupper($seasonId)) ?> &mdash; <?= htmlspecialchars($scoringInfo['name']) ?></p>
             </div>
             <form method="GET" action="/scoring" class="season-selector-form">
-                <select name="season" onchange="this.form.submit()" class="season-selector-select">
+                <select name="season" onchange="this.form.submit()" class="season-selector-select" aria-label="Season">
                     <?php foreach ($availableSeasons as $s): ?>
                         <option value="<?= htmlspecialchars($s['season_id']) ?>" <?= ($s['season_id'] === $seasonId) ? 'selected' : '' ?>>
                             <?= 'Season ' . strtoupper($s['season_id']) . ($s['status'] === 'archived' ? ' (Archived)' : '') ?>

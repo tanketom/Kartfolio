@@ -499,8 +499,8 @@ document.addEventListener('keydown', function(e) {
     <div class="compare-picker">
         <form method="GET" action="/rivalries" class="compare-picker-form">
             <div class="compare-picker-slot">
-                <label>Racer A</label>
-                <select name="a" required>
+                <label for="cmp-a">Racer A</label>
+                <select name="a" id="cmp-a" required>
                     <option value="">Select racer...</option>
                     <?php foreach ($allRacers as $r): ?>
                     <option value="<?= $r['id'] ?>" <?= $racerA == $r['id'] ? 'selected' : '' ?>>
@@ -511,8 +511,8 @@ document.addEventListener('keydown', function(e) {
             </div>
             <div class="compare-picker-vs">VS</div>
             <div class="compare-picker-slot">
-                <label>Racer B</label>
-                <select name="b" required>
+                <label for="cmp-b">Racer B</label>
+                <select name="b" id="cmp-b" required>
                     <option value="">Select racer...</option>
                     <?php foreach ($allRacers as $r): ?>
                     <option value="<?= $r['id'] ?>" <?= $racerB == $r['id'] ? 'selected' : '' ?>>
