@@ -121,6 +121,9 @@
 .tc-stamp--rookie   { left: calc(var(--p) * 8); bottom: calc(var(--p) * 10); color: var(--red); transform: rotate(6deg); }
 /* Bought, so it says so. Ink on gold rather than a colour off the card's own. */
 .tc-stamp--founder  { right: calc(var(--p) * 8); bottom: calc(var(--p) * 10); color: #3a2c00; background: #ffe9a8; white-space: nowrap; transform: rotate(-5deg); }
+.tc-stamp--rental   { right: calc(var(--p) * 8); top: calc(var(--p) * 62); color: #5b2aa8; background: #f1e9ff; white-space: nowrap; transform: rotate(7deg); }
+.tc-portrait--nick .tc-stamp--rental { top: calc(var(--p) * 74); }
+.tc-stamp--rental small,
 .tc-stamp--founder small { display: block; font-size: calc(var(--p) * 5); font-weight: 800; letter-spacing: calc(var(--p) * 1); text-align: center; }
 
 /* Stats block */

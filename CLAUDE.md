@@ -1050,13 +1050,24 @@ Cross-reference if you find half-implemented work:
   chance in What cup? for the buyer's best-average cup with 3+ GPs, never a free
   choice; only in draws they are in, used up by the next GP they race), a counter-bribe
   (15Ω̈) and a broadcast sponsorship (20Ω̈). No free text anywhere, so no approval queue.
-  Also on sale: a gold nameplate (15, 7 days, `leaderboardRows()['gold']`,
-  always with a PAID tag), a carbon offset per LOL (5, a tag on the GP page; the LOL
+  Also on sale: a nameplate (15, 7 days, six colours in `OMK_PLATES`, the newest purchase
+  sets the colour; `leaderboardRows()['plate']`, printed through `omkPlateClass()` /
+  `omkPlateTag()` so it always carries PAID; stored as kind `gold_name` because gold came
+  first), a carbon offset per LOL (5, a tag on the GP page; the LOL
   still counts everywhere), a Founder's badge (100, 10 serials; bought, so built by
   `omkFounderBadge()` and NOT in `badgeCatalog()`, which is what can be earned; a stamp on the
   trading card, never the card's Honors tile) and a
   loot box (8, one ordinary pack, with the real odds published from `STICKER_WEIGHTS`,
   and a real 1-in-a-million Golden Kartificial, because published odds have to be true).
+  The second cosmetics drop: a **foil rental** (25, 7 days of the Holographic finish
+  stamped RENTAL; `renderRacerCard(..., $withRental)` is true on the profile and the
+  billboard and false on `/cards`, so a printed tier is always earned; refused if already
+  holo, via `racerCardTier()`), a **hype package** (10, a paid compliment from
+  `OMK_HYPE_LINES` in every What cup? draw the buyer is in for their next 3 GPs: counted in
+  GPs in `omk_cosmetics.serial`, ticked down by `omkAfterGpSaved()`, never in draws,
+  because a draw is a GET anyone can respin) and a **billboard** (30, 24 hours: the buyer's
+  card gets its own SPONSORED slide on `/display/auto-vertical`). Timed cosmetics share
+  `omkBuyTimed()` / `omkUntil()` / `omkActive()`: buying more adds to the end.
   A sponsorship goes through the briefing, `omkEnsureAdRead()` appends the line if the
   writer dropped it, and it is attached rather than spent: deleting a rejected draft
   frees it. Test the broadcast path without paying by running with

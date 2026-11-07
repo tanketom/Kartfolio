@@ -2367,13 +2367,21 @@ select, textarea {
     box-shadow: 0.27em 0 0 currentColor;
 }
 
-/* A name somebody paid to have in gold, and the tag that says so. Dark enough to read
-   on the cream cards; the plain colour is the fallback where clipped text is not supported. */
-.omk-gold {
+/* A name somebody paid to have in colour (a nameplate), and the tag that says so.
+   Mid-tones that read on the cream cards and on the dark signs alike; the plain colour
+   is the fallback where clipped text is not supported. .omk-gold is the shop's own
+   sample of gold. */
+.omk-plate, .omk-gold {
+    --plate: linear-gradient(90deg, #8f6a00, #c79a12 45%, #8f6a00);
     color: #9a7400;
-    background: linear-gradient(90deg, #8f6a00, #c79a12 45%, #8f6a00);
+    background: var(--plate);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
 }
+.omk-plate--chrome  { --plate: linear-gradient(90deg, #474f5b, #98a3b0 45%, #474f5b); color: #5d6672; }
+.omk-plate--neon    { --plate: linear-gradient(90deg, #0b8f45, #1fd36b 45%, #0b8f45); color: #0fa954; }
+.omk-plate--diamond { --plate: linear-gradient(90deg, #11679e, #3fb0e6 45%, #11679e); color: #1a7fc0; }
+.omk-plate--omk     { --plate: linear-gradient(90deg, #b3000d, #ff3b3b 45%, #b3000d); color: #d0000f; }
+.omk-plate--rainbow { --plate: linear-gradient(90deg, #d8261b, #e57f00 22%, #2c9a3c 44%, #1e6bd0 66%, #8a3fd1 88%, #d8261b); color: #8a3fd1; }
 .omk-paid { display: inline-block; font-size: 0.55em; font-weight: 800; letter-spacing: 0.06em; padding: 0.1em 0.45em; border-radius: 999px; background: #ffe9a8; color: #3a2c00; vertical-align: middle; margin-left: 0.5em; -webkit-text-fill-color: #3a2c00; font-family: var(--font-body); font-style: normal; }

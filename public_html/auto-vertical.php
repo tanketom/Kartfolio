@@ -9,6 +9,7 @@ require_once __DIR__ . '/../private/includes/assets.php';
 require_once __DIR__ . '/../private/includes/gp_logic.php';
 require_once __DIR__ . '/../private/includes/leaderboard.php';
 require_once __DIR__ . '/../private/includes/settings.php';
+require_once __DIR__ . '/../private/includes/card_rendering.php';
 
 $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
 $seasonId = getCurrentSeasonNumber();
@@ -58,6 +59,16 @@ $newsStmt = $pdo->prepare("SELECT headline, key_quote FROM recap_archive WHERE s
 $newsStmt->execute();
 $latestNews = $newsStmt->fetch(PDO::FETCH_ASSOC);
 
+// 4b. Billboards: a day on this sign, bought at the OMK Exchange. One slide each,
+//     after the standings, every one marked as paid for. Never allowed to break the sign.
+$billboards = [];
+if (moduleEnabled($pdo, 'omk')) {
+    foreach (omkBillboards($pdo) as $b) {
+        try { $billboards[] = ['name' => $b['name'], 'card' => renderRacerCard($pdo, (int)$b['racer_id'], $seasonId, 4.6, true)]; }
+        catch (Throwable $e) { error_log('billboard: ' . $e->getMessage()); }
+    }
+}
+
 // 5. Ticker Lines (Common for all slides)
 $tickerLines = [];
 if ($topFeud) $tickerLines[] = ['h' => 'RIVALRY WATCH', 'q' => strtoupper($topFeud['p1'])." VS ".strtoupper($topFeud['p2'])." IS LOCKED IN!"];
@@ -70,6 +81,7 @@ if ($latestNews) $tickerLines[] = ['h' => $latestNews['headline'], 'q' => $lates
     <title>Auto-Rotator - <?= htmlspecialchars($leagueName) ?></title>
     <link rel="stylesheet" href="<?= assetUrl('/assets/css/global.css') ?>">
     <link rel="stylesheet" href="<?= assetUrl('/assets/css/screen-v.css') ?>">
+    <?php if ($billboards): ?><link rel="stylesheet" href="<?= assetUrl('/assets/css/card.css') ?>"><?php endif; ?>
 </head>
 <body class="ghost-body">
     <div class="v-container">
@@ -99,7 +111,7 @@ if ($latestNews) $tickerLines[] = ['h' => $latestNews['headline'], 'q' => $lates
                     </div>
                     <div class="v-portrait-wrap"><img src="/assets/img/<?= rawurlencode($entry['char']) ?>.png" onerror="this.src='/assets/img/Mii.png'"></div>
                     <div class="v-name-box">
-                        <div class="v-name<?= !empty($entry['gold']) ? ' omk-gold' : '' ?>"><?= htmlspecialchars($entry['name']) ?><?php if (!empty($entry['gold'])): ?><span class="omk-paid" title="Gold nameplate, paid for at the OMK Exchange">PAID</span><?php endif; ?><?php if (!empty($entry['team'])): ?><span class="racer-team-dot" style="background:<?= htmlspecialchars($entry['team']['color']) ?>" title="<?= htmlspecialchars($entry['team']['name']) ?>"></span><?php endif; ?><?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?><?php if (!empty($entry['mikko'])): ?><span class="mikko-leaderboard-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?></div>
+                        <div class="v-name<?= omkPlateClass($entry['plate'] ?? null) ?>"><?= htmlspecialchars($entry['name']) ?><?= omkPlateTag($entry['plate'] ?? null) ?><?php if (!empty($entry['team'])): ?><span class="racer-team-dot" style="background:<?= htmlspecialchars($entry['team']['color']) ?>" title="<?= htmlspecialchars($entry['team']['name']) ?>"></span><?php endif; ?><?php if (!empty($entry['tie'])): ?><span class="rank-tie" title="<?= htmlspecialchars($entry['tie']) ?>">TIE</span><?php endif; ?><?php if (!empty($entry['mikko'])): ?><span class="mikko-leaderboard-badge">🌟 #<?= (int)$entry['mikko']['rank'] ?></span><?php endif; ?></div>
                         <div class="v-meta-small"><?= (int)$entry['raceCount'] ?> GPs Raced<?php if (!empty($entry['badges'])): ?><span class="badge-container badge-container--inline"><?php foreach ($entry['badges'] as $b): ?><span class="badge-icon<?= !empty($b['is_new']) ? ' badge-icon--new' : '' ?>" title="<?= htmlspecialchars($b['title']) ?>"><?= $b['icon'] ?></span><?php endforeach; ?><?php if (!empty($entry['badge_overflow'])): ?><span class="badge-more">+<?= (int)$entry['badge_overflow'] ?></span><?php endif; ?></span><?php endif; ?></div>
                     </div>
                     <div class="v-score"><?= !empty($entry['display']) ? '<span class="score-display">' . htmlspecialchars($entry['display']) . '</span>' : htmlspecialchars($entry['score_text']) ?></div>
@@ -107,6 +119,19 @@ if ($latestNews) $tickerLines[] = ['h' => $latestNews['headline'], 'q' => $lates
                 <?php endforeach; ?>
             </main>
         </div>
+
+        <?php foreach ($billboards as $b): ?>
+        <div class="slide slide-billboard">
+            <header class="v-header">
+                <div class="v-logo">SPONSORED</div>
+                <div class="v-season-label">A PAID MESSAGE FROM <?= htmlspecialchars(mb_strtoupper($b['name'])) ?></div>
+            </header>
+            <main class="v-main-large full-center">
+                <div class="v-billboard-card"><?= $b['card'] ?></div>
+                <p class="v-billboard-note">This space was bought at the OMK Exchange: <?= omkFormatHtml(OMK_PRICES['billboard']) ?> a day. It does nothing for their points.</p>
+            </main>
+        </div>
+        <?php endforeach; ?>
 
         <div class="slide" id="slide-nemesis">
             <header class="v-header">

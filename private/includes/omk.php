@@ -24,8 +24,16 @@ require_once __DIR__ . '/stickers.php';
 const OMK_SYMBOL = "\u{03A9}\u{0308}";
 const OMK_PER_WEEK = 2;
 const OMK_EPOCH_DEFAULT = '2026-11-02';   // racing before this week earned nothing
-const OMK_PRICES = ['bribe' => 10, 'counter' => 15, 'sponsor' => 20, 'gold' => 15, 'offset' => 5, 'founder' => 100, 'loot' => 8];
-const OMK_GOLD_DAYS = 7;
+const OMK_PRICES = ['bribe' => 10, 'counter' => 15, 'sponsor' => 20, 'gold' => 15, 'offset' => 5, 'founder' => 100, 'loot' => 8,
+                    'rental' => 25, 'hype' => 10, 'billboard' => 30];
+const OMK_GOLD_DAYS = 7;                  // a nameplate, in any colour
+const OMK_RENTAL_DAYS = 7;                // a rented holographic finish
+const OMK_HYPE_GPS = 3;                   // GPs a hype package lasts
+const OMK_BILLBOARD_HOURS = 24;           // a card on the rotating sign
+// Nameplate colours. The key is stored, the label is shown; each has a .omk-plate--key
+// rule in global.css. Mid-tones on purpose: the same name sits on the cream homepage
+// cards and on the dark signs.
+const OMK_PLATES = ['gold' => 'Gold', 'chrome' => 'Chrome', 'neon' => 'Neon', 'diamond' => 'Diamond', 'omk' => 'OMK Red', 'rainbow' => 'Rainbow'];
 const OMK_FOUNDER_LIMIT = 10;
 const OMK_GOLDEN_ODDS = 1000000;          // one loot box in this many holds a Golden Kartificial
 const OMK_COUNTER_MINUTES = 20;           // how long an account stays open at the counter
@@ -271,31 +279,137 @@ function omkBribeLine(array $bribes, string $drawn, array $racerIds): ?string {
 // shows. The Founder's badge is deliberately not in badgeCatalog(): the catalogue is
 // what you can earn, and this is what you can buy.
 
-/** Racer ids with a gold name right now. Must never be able to break a standings page. */
-function omkGoldNames(PDO $pdo): array {
-    try {
-        $st = $pdo->prepare("SELECT DISTINCT racer_id FROM omk_cosmetics WHERE kind = 'gold_name' AND until_ts > ?");
-        $st->execute([time()]);
-        return array_fill_keys(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)), true);
-    } catch (Throwable $e) { error_log('omk gold: ' . $e->getMessage()); return []; }
-}
-
-/** When this racer's gold runs out (a timestamp), or 0. */
-function omkGoldUntil(PDO $pdo, int $racer_id): int {
-    $st = $pdo->prepare("SELECT COALESCE(MAX(until_ts), 0) FROM omk_cosmetics WHERE kind = 'gold_name' AND racer_id = ?");
-    $st->execute([$racer_id]);
+/** When this racer's $kind runs out (a timestamp), or 0. For the cosmetics sold by time. */
+function omkUntil(PDO $pdo, int $racer_id, string $kind): int {
+    $st = $pdo->prepare("SELECT COALESCE(MAX(until_ts), 0) FROM omk_cosmetics WHERE kind = ? AND racer_id = ?");
+    $st->execute([$kind, $racer_id]);
     return (int)$st->fetchColumn();
 }
 
-/** Seven days of gold. Buying more while you have it adds to the end. Returns the new end. */
-function omkBuyGold(PDO $pdo, int $racer_id, ?int $now = null): int {
+/**
+ * [racer_id => the newest live row's ref] for a cosmetic sold by time. One query, and
+ * it must never be able to break the page it decorates: those are the standings,
+ * the signs and the cards.
+ */
+function omkActive(PDO $pdo, string $kind): array {
+    try {
+        $st = $pdo->prepare("SELECT racer_id, ref FROM omk_cosmetics WHERE kind = ? AND until_ts > ? ORDER BY id ASC");
+        $st->execute([$kind, time()]);
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out[(int)$r['racer_id']] = (string)($r['ref'] ?? '');
+        return $out;
+    } catch (Throwable $e) { error_log("omk $kind: " . $e->getMessage()); return []; }
+}
+
+/** Buy $seconds of a timed cosmetic. Buying more while you have it adds to the end. Returns the new end. */
+function omkBuyTimed(PDO $pdo, int $racer_id, string $kind, string $priceKey, int $seconds, string $detail, ?string $ref = null, ?int $now = null): int {
     $now ??= time();
-    return omkTxn($pdo, function () use ($pdo, $racer_id, $now) {
-        $until = max($now, omkGoldUntil($pdo, $racer_id)) + OMK_GOLD_DAYS * 86400;
-        omkSpend($pdo, $racer_id, OMK_PRICES['gold'], 'gold', 'Bought a gold nameplate');
-        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, until_ts) VALUES (?, 'gold_name', ?)")->execute([$racer_id, $until]);
+    return omkTxn($pdo, function () use ($pdo, $racer_id, $kind, $priceKey, $seconds, $detail, $ref, $now) {
+        $until = max($now, omkUntil($pdo, $racer_id, $kind)) + $seconds;
+        omkSpend($pdo, $racer_id, OMK_PRICES[$priceKey], $priceKey, $detail);
+        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, ref, until_ts) VALUES (?, ?, ?, ?)")->execute([$racer_id, $kind, $ref, $until]);
         return $until;
     });
+}
+
+/**
+ * [racer_id => colour key] for every nameplate on show. Stored as kind 'gold_name'
+ * because gold was the only colour at first; a row without a colour is gold. The
+ * newest purchase sets the colour, so repainting is buying another week.
+ */
+function omkPlates(PDO $pdo): array {
+    return array_map(fn($c) => isset(OMK_PLATES[$c]) ? $c : 'gold', omkActive($pdo, 'gold_name'));
+}
+
+/** The CSS classes for a name with a nameplate. */
+function omkPlateClass(?string $colour): string {
+    return $colour ? ' omk-plate omk-plate--' . (isset(OMK_PLATES[$colour]) ? $colour : 'gold') : '';
+}
+
+/** The PAID tag that goes beside it. */
+function omkPlateTag(?string $colour): string {
+    if (!$colour) return '';
+    $label = OMK_PLATES[$colour] ?? 'Gold';
+    return '<span class="omk-paid" title="' . htmlspecialchars($label) . ' nameplate, paid for at the OMK Exchange">PAID</span>';
+}
+
+/** Seven days of nameplate in $colour. Returns the new end. */
+function omkBuyGold(PDO $pdo, int $racer_id, string $colour = 'gold', ?int $now = null): int {
+    if (!isset(OMK_PLATES[$colour])) throw new OmkRefused('The OMK does not stock that colour.');
+    return omkBuyTimed($pdo, $racer_id, 'gold_name', 'gold', OMK_GOLD_DAYS * 86400,
+                       'Bought a ' . strtolower(OMK_PLATES[$colour]) . ' nameplate', $colour, $now);
+}
+
+/** [racer_id => true] for every card wearing a rented holographic finish. */
+function omkFoilRentals(PDO $pdo): array {
+    return array_map(fn() => true, omkActive($pdo, 'foil_rental'));
+}
+
+/** A week of the Holographic finish for someone who has not earned it. */
+function omkBuyFoilRental(PDO $pdo, int $racer_id, bool $alreadyHolo, ?int $now = null): int {
+    if ($alreadyHolo) throw new OmkRefused('Your card is already holographic. Renting you your own finish would be a scam, even for the OMK.');
+    return omkBuyTimed($pdo, $racer_id, 'foil_rental', 'rental', OMK_RENTAL_DAYS * 86400, 'Rented a holographic finish', null, $now);
+}
+
+/** Cards on the rotating sign right now: racer_id, name, until. Oldest purchase first. */
+function omkBillboards(PDO $pdo): array {
+    try {
+        $st = $pdo->prepare("SELECT c.racer_id, r.name, MAX(c.until_ts) AS until_ts FROM omk_cosmetics c JOIN racers r ON r.id = c.racer_id
+                             WHERE c.kind = 'billboard' AND c.until_ts > ? GROUP BY c.racer_id ORDER BY MIN(c.id) ASC");
+        $st->execute([time()]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) { error_log('omk billboards: ' . $e->getMessage()); return []; }
+}
+
+function omkBuyBillboard(PDO $pdo, int $racer_id, ?int $now = null): int {
+    return omkBuyTimed($pdo, $racer_id, 'billboard', 'billboard', OMK_BILLBOARD_HOURS * 3600, 'Bought a day on the billboard', null, $now);
+}
+
+// ── The hype package ─────────────────────────────────────────────────────
+//
+// Kartificial says something nice about you in What cup?, from a fixed list, for
+// your next OMK_HYPE_GPS GPs. Counted in GPs, not draws: the draw is a GET that
+// anyone can spin again, and a reroll should not eat what was paid for. The count
+// sits in `serial` and comes down by one each time a GP you race is saved.
+
+/** [racer_id => GPs left] for everyone with hype still to come. */
+function omkHyped(PDO $pdo): array {
+    try {
+        $out = [];
+        foreach ($pdo->query("SELECT racer_id, SUM(serial) AS n FROM omk_cosmetics WHERE kind = 'hype' AND serial > 0 GROUP BY racer_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(int)$r['racer_id']] = (int)$r['n'];
+        }
+        return $out;
+    } catch (Throwable $e) { error_log('omk hype: ' . $e->getMessage()); return []; }
+}
+
+/** Buys OMK_HYPE_GPS more GPs of it. Returns how many are now to come. */
+function omkBuyHype(PDO $pdo, int $racer_id): int {
+    return omkTxn($pdo, function () use ($pdo, $racer_id) {
+        omkSpend($pdo, $racer_id, OMK_PRICES['hype'], 'hype', 'Bought a hype package');
+        $pdo->prepare("INSERT INTO omk_cosmetics (racer_id, kind, serial) VALUES (?, 'hype', ?)")->execute([$racer_id, OMK_HYPE_GPS]);
+        return omkHyped($pdo)[$racer_id] ?? OMK_HYPE_GPS;
+    });
+}
+
+/** What he has been paid to say. {n} is the name. Each line admits it was bought. */
+const OMK_HYPE_LINES = [
+    '{n} is here. {n} paid for this sentence. {n} is wonderful.',
+    'A word from my sponsor: {n} is, and I am reading from the invoice, "the best driver in the building".',
+    'I have been asked to say that {n} looks very fast tonight. I have been paid to say it, which is different.',
+    '{n}. What a racer. What a person. What a generous person.',
+    'Please welcome {n}! The applause is included in the package.',
+    'My honest, independent opinion, purchased in advance: {n} cannot lose. Terms and conditions apply.',
+    'The OMK would like everyone to know that {n} smells of victory. And of OMKredits.',
+    'Fun fact about {n}: they bought this fact.',
+];
+
+/** One hype line for a draw, about one of the hyped racers who is in it. Null if none is. */
+function omkHypeLine(array $hyped, array $racerIds, array $names): ?string {
+    $in = array_values(array_filter($racerIds, fn($id) => !empty($hyped[(int)$id]) && isset($names[(int)$id])));
+    if (!$in) return null;
+    $who = $names[(int)$in[mt_rand(0, count($in) - 1)]];
+    return str_replace('{n}', $who, OMK_HYPE_LINES[mt_rand(0, count(OMK_HYPE_LINES) - 1)]);
 }
 
 /** The racer's LOLs still on the planet's conscience: id, gpid, cup_name, d. Newest first. */
@@ -467,4 +581,9 @@ function omkAfterGpSaved(PDO $pdo, string $gpid): void {
                          WHERE status = 'pending' AND racer_id IN (SELECT racer_id FROM results WHERE gpid = ?)");
     $st->execute([$gpid, $gpid]);
     $pdo->prepare("UPDATE omk_bribes SET status = 'closed', settled_gpid = ? WHERE status = 'countered'")->execute([$gpid]);
+    // One GP of hype used up per racer in this GP: from their oldest package first.
+    $st = $pdo->prepare("UPDATE omk_cosmetics SET serial = serial - 1
+                         WHERE id IN (SELECT MIN(id) FROM omk_cosmetics WHERE kind = 'hype' AND serial > 0
+                                      AND racer_id IN (SELECT racer_id FROM results WHERE gpid = ?) GROUP BY racer_id)");
+    $st->execute([$gpid]);
 }

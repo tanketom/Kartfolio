@@ -353,10 +353,10 @@ $liveFormatLabels = [
             </div>
             <div class="racer-info">
                 <div class="racer-name-row">
-                    <a href="/racer/<?= $row['id'] ?>" class="racer-name racer-name-link<?= !empty($row['gold']) ? ' omk-gold' : '' ?>">
+                    <a href="/racer/<?= $row['id'] ?>" class="racer-name racer-name-link<?= omkPlateClass($row['plate'] ?? null) ?>">
                         <?= htmlspecialchars($row['name']) ?>
                     </a>
-                    <?php if (!empty($row['gold'])): ?><span class="omk-paid" title="Gold nameplate, paid for at the OMK Exchange">PAID</span><?php endif; ?>
+                    <?= omkPlateTag($row['plate'] ?? null) ?>
                     <?php if (!empty($row['team'])): ?><a href="/teams" class="racer-team-dot" style="background:<?= htmlspecialchars($row['team']['color']) ?>" title="<?= htmlspecialchars($row['team']['name']) ?>" aria-label="<?= htmlspecialchars($row['team']['name']) ?>"></a><?php endif; ?>
                     <?php if (isset($mikkoliigaByRacer[$row['id']]) && moduleEnabled($pdo, 'mikkoliiga')):
                         $mk = $mikkoliigaByRacer[$row['id']];

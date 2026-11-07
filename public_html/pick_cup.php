@@ -471,5 +471,7 @@ $response['host'] = kartificialLine($selectedCup, [
 $pick = kartificialPick($pdo, $selectedCup, $racerIds, $names);
 if ($pick) $response['pick'] = $pick;
 if ($openBribes && ($bribeLine = omkBribeLine($openBribes, $selectedCup, $racerIds))) $response['bribe'] = ['line' => $bribeLine];
+// Hype packages: something nice about someone in the draw, from a fixed list, admitted to be paid for.
+if (moduleEnabled($pdo, 'omk') && ($hypeLine = omkHypeLine(omkHyped($pdo), $racerIds, $names))) $response['hype'] = ['line' => $hypeLine];
 
 echo json_encode($response);

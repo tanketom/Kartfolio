@@ -36,6 +36,24 @@ function cardTier(int $gps, int $titles, int $podiums): array {
     return ['key' => 'base', 'label' => 'Base', 'blurb' => ''];
 }
 
+/**
+ * A racer's earned tier: career GPs (season GPs only) and archived titles and podiums.
+ * The OMK Exchange asks too, because a racer already holographic cannot rent it.
+ */
+function racerCardTier(PDO $pdo, int $racerId, ?int $gps = null): array {
+    if ($gps === null) {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM results WHERE racer_id = ? AND gpid LIKE 's%'");
+        $st->execute([$racerId]);
+        $gps = (int)$st->fetchColumn();
+    }
+    $titles = 0; $podiums = 0;
+    foreach (archivedSeasonPlacements($pdo)[$racerId] ?? [] as [$sid, $place, $field]) {
+        if ($place === 1) $titles++;
+        if ($place <= 3) $podiums++;
+    }
+    return cardTier($gps, $titles, $podiums);
+}
+
 /** All tiers, lowest first — for the legend on /cards. */
 function cardTierLadder(): array {
     return [
@@ -89,8 +107,11 @@ function cardChecker(): string {
  * Render a racer's trading card for a season set.
  *
  * @param float $scale 1.0 = 238×332 px (63×88 mm). The profile and /cards use 1.5.
+ * @param bool $withRental Show a holographic finish rented at the OMK Exchange. The
+ *        profile and the billboard do; the printed season set (/cards) never does, so
+ *        a printed tier is always an earned one.
  */
-function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
+function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0, bool $withRental = false) {
     $racerId = (int)$racerId;
     $stmt = $pdo->prepare("SELECT * FROM racers WHERE id = ?");
     $stmt->execute([$racerId]);
@@ -158,16 +179,14 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
     $setPos = array_search($racerId, $set, true);
     $setLabel = $setPos === false ? null : sprintf('No. %d / %d', $setPos + 1, count($set));
 
-    $titles = 0; $podiums = 0; $seasonPlace = null;
-    foreach (archivedSeasonPlacements($pdo)[$racerId] ?? [] as [$sid, $place, $field]) {
-        if ($place === 1) $titles++;
-        if ($place <= 3) $podiums++;
-        if ($sid === $currentSeason) $seasonPlace = $place;
-    }
     $isRookie = ($career['first_season'] ?? null) === $currentSeason;
-    $tier = cardTier((int)$career['total_gps'], $titles, $podiums);
-    // No podium stamps on the front: the foil tier and the honours tile carry the
-    // pedigree. $seasonPlace still feeds the tier counts above.
+    $tier = racerCardTier($pdo, $racerId, (int)$career['total_gps']);
+    $rented = false;
+    if ($withRental && $tier['key'] !== 'holo' && isset(omkFoilRentals($pdo)[$racerId])) {
+        $rented = true;
+        $tier = ['key' => 'holo', 'label' => 'Holographic (rented)', 'blurb' => 'rented by the week at the OMK Exchange. The real tier is ' . $tier['label']];
+    }
+    // No podium stamps on the front: the foil tier and the honours tile carry the pedigree.
 
     $leagueName = getSetting($pdo, 'league_name', 'Kartfolio League');
     $seasonNum  = str_pad(ltrim(substr($currentSeason, 1), '0') ?: '0', 2, '0', STR_PAD_LEFT);
@@ -192,6 +211,7 @@ function renderRacerCard($pdo, $racerId, $currentSeason, $scale = 1.0) {
           <div class="tc-floor"></div>
           <img src="<?= $imageSrc ?>" onerror="<?= $onError ?>" alt="<?= htmlspecialchars($mainChar) ?>" class="tc-art">
           <?php if ($isRookie): ?><div class="tc-stamp tc-stamp--rookie">Rookie</div><?php endif; ?>
+          <?php if ($rented): ?><div class="tc-stamp tc-stamp--rental" title="A holographic finish rented at the OMK Exchange">Rental<small>Holo · weekly</small></div><?php endif; ?>
           <?php if ($founderSerial): ?><div class="tc-stamp tc-stamp--founder" title="Founder's Edition, bought at the OMK Exchange"><?= OMK_FOUNDER_ICON ?> Founder #<?= sprintf('%03d', $founderSerial) ?><small>Paid</small></div><?php endif; ?>
         </div>
 

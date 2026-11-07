@@ -28,6 +28,7 @@ require "$root/private/includes/badges.php";
 // ── Roll Call ──
 echo "roll call\n";
 require_once __DIR__ . '/../private/includes/team_season.php';
+require_once __DIR__ . '/../private/includes/card_rendering.php';
 $rcK = ['show' => 1, 'beat' => 3, 'swap' => true];
 $rcRow = fn($rid, $n, $pts, $date) => ['racer_id' => $rid, 'gpid' => sprintf('s09gp%02d', $n), 'gp_points' => $pts, 'race_date' => $date];
 $rc = rollCallFromRows([
@@ -168,13 +169,32 @@ $ok('an account is open only for that racer, and only until it times out', omkCo
 // The vanity shelf.
 omkEntry($pdo, $omkR, 1000, 'test', 'test');
 $omkT0 = 2000000000;
-$omkU1 = omkBuyGold($pdo, $omkR, $omkT0); $omkU2 = omkBuyGold($pdo, $omkR, $omkT0);
-$ok('gold lasts 7 days and buying more adds to the end', $omkU1 === $omkT0 + 7 * 86400 && $omkU2 === $omkT0 + 14 * 86400);
+$omkU1 = omkBuyGold($pdo, $omkR, 'gold', $omkT0); $omkU2 = omkBuyGold($pdo, $omkR, 'neon', $omkT0);
+$ok('a nameplate lasts 7 days and buying more adds to the end', $omkU1 === $omkT0 + 7 * 86400 && $omkU2 === $omkT0 + 14 * 86400);
+$ok('the OMK stocks only its own colours', $omkRefused(fn() => omkBuyGold($pdo, $omkR, '"><script>')));
 $pdo->exec("DELETE FROM omk_cosmetics WHERE kind = 'gold_name'");
 omkBuyGold($pdo, $omkR);
-$ok('a gold name shows for its owner, not for others, and expires', isset(omkGoldNames($pdo)[$omkR]) && !isset(omkGoldNames($pdo)[$omkR2]));
+$ok('a nameplate shows for its owner, not for others', (omkPlates($pdo)[$omkR] ?? null) === 'gold' && !isset(omkPlates($pdo)[$omkR2]));
+omkBuyGold($pdo, $omkR, 'rainbow');
+$ok('the newest purchase sets the colour', (omkPlates($pdo)[$omkR] ?? null) === 'rainbow' && omkPlateClass('rainbow') === ' omk-plate omk-plate--rainbow' && omkPlateClass(null) === '' && omkPlateTag(null) === '');
+$ok('every colour on sale has a rule in global.css', !array_filter(array_keys(OMK_PLATES), fn($k) => $k !== 'gold' && !str_contains(file_get_contents($root . '/public_html/assets/css/global.css'), '.omk-plate--' . $k . ' ')));
 $pdo->exec("UPDATE omk_cosmetics SET until_ts = 1 WHERE kind = 'gold_name'");
-$ok('an expired gold name is gone', !isset(omkGoldNames($pdo)[$omkR]));
+$ok('an expired nameplate is gone', !isset(omkPlates($pdo)[$omkR]));
+$ok('a holographic card cannot rent holo', $omkRefused(fn() => omkBuyFoilRental($pdo, $omkR, true)));
+$omkU1 = omkBuyFoilRental($pdo, $omkR, false, $omkT0);
+$ok('a foil rental is a week, shown on the profile card and never on the printed set', $omkU1 === $omkT0 + 7 * 86400 && isset(omkFoilRentals($pdo)[$omkR])
+    && str_contains(renderRacerCard($pdo, $omkR, 's01', 1.0, true), 'tc-stamp--rental') && !str_contains(renderRacerCard($pdo, $omkR, 's01', 1.0), 'tc-stamp--rental'));
+$omkU1 = omkBuyBillboard($pdo, $omkR, $omkT0);
+$ok('a billboard is a day, one slide per racer however many bought', $omkU1 === $omkT0 + 86400 && omkBuyBillboard($pdo, $omkR, $omkT0) === $omkT0 + 2 * 86400 && count(array_filter(omkBillboards($pdo), fn($b) => (int)$b['racer_id'] === $omkR)) === 1);
+$ok('hype is 3 GPs, and more adds to it', omkBuyHype($pdo, $omkR) === 3 && omkBuyHype($pdo, $omkR) === 6);
+$omkNames = [$omkR => 'Hanna', $omkR2 => 'Tom'];
+$ok('a hype line names a hyped racer in the draw, and only then', str_contains((string)omkHypeLine(omkHyped($pdo), [$omkR, $omkR2], $omkNames), 'Hanna') && omkHypeLine(omkHyped($pdo), [$omkR2], $omkNames) === null);
+$ok('every hype line names them', !array_filter(OMK_HYPE_LINES, fn($l) => !str_contains($l, '{n}')));
+omkAfterGpSaved($pdo, $omkGp); omkAfterGpSaved($pdo, $omkGp);
+$ok('each GP they race uses one up', (omkHyped($pdo)[$omkR] ?? 0) === 4);
+if ($omkElse !== '') { omkAfterGpSaved($pdo, $omkElse); $ok('a GP they did not race does not', (omkHyped($pdo)[$omkR] ?? 0) === 4); }
+for ($i = 0; $i < 4; $i++) omkAfterGpSaved($pdo, $omkGp);
+$ok('and then it is over', !isset(omkHyped($pdo)[$omkR]) && (int)$pdo->query("SELECT MIN(serial) FROM omk_cosmetics WHERE kind = 'hype'")->fetchColumn() === 0);
 $omkLol = (int)$pdo->query("SELECT id FROM results WHERE gpid LIKE 's%' AND racer_id = $omkR ORDER BY id LIMIT 1")->fetchColumn();
 $omkLolWas = (int)$pdo->query("SELECT is_lol FROM results WHERE id = $omkLol")->fetchColumn();
 $pdo->exec("UPDATE results SET is_lol = 1 WHERE id = $omkLol");

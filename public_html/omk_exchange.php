@@ -17,6 +17,7 @@ require_once __DIR__ . '/../private/includes/csrf.php';
 require_once __DIR__ . '/../private/includes/throttle.php';
 require_once __DIR__ . '/../private/includes/profile_codes.php';
 require_once __DIR__ . '/../private/includes/omk.php';
+require_once __DIR__ . '/../private/includes/card_rendering.php';   // racerCardTier(): no renting what you have earned
 if (session_status() === PHP_SESSION_NONE) kartfolioSessionStart();
 
 $names = racerNamesMap($pdo);
@@ -46,7 +47,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
     } elseif (!omkCounterIsOpen($_SESSION, $rid, time())) {
         $msg = 'Enter your profile code first.';
-    } elseif (!in_array($action, ['trade', 'bribe', 'counter', 'sponsor', 'gold', 'offset', 'founder', 'loot'], true)) {
+    } elseif (!in_array($action, ['trade', 'bribe', 'counter', 'sponsor', 'gold', 'offset', 'founder', 'loot', 'rental', 'hype', 'billboard'], true)) {
         $msg = 'Pick what you came for.';
     } elseif (!throttleAllow($pdo, 'omk_exchange', 30, 10)) {
         $msg = 'Too many attempts from this connection. Wait ten minutes and try again.';
@@ -70,7 +71,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     $msg = 'Sold. Your name goes in the next ad break.';
                     break;
                 case 'gold':
-                    $msg = 'Your name is gold until ' . date('j F', omkBuyGold($pdo, $rid)) . '. Congratulations on your purchase.';
+                    $colour = (string)($_POST['plate'] ?? 'gold');
+                    $until = omkBuyGold($pdo, $rid, $colour);
+                    $msg = 'Your name is ' . strtolower(OMK_PLATES[$colour]) . ' until ' . date('j F', $until) . '. Congratulations on your purchase.';
+                    break;
+                case 'rental':
+                    $until = omkBuyFoilRental($pdo, $rid, racerCardTier($pdo, $rid)['key'] === 'holo');
+                    $msg = 'Your card is holographic until ' . date('j F', $until) . '. Please return it in the condition you found it.';
+                    break;
+                case 'hype':
+                    $n = omkBuyHype($pdo, $rid);
+                    $msg = "Kartificial has been briefed. He will say nice things about you in What cup? for your next $n GPs.";
+                    break;
+                case 'billboard':
+                    $until = omkBuyBillboard($pdo, $rid);
+                    $msg = 'Your card is on the rotating sign until ' . date('j F, H:i', $until) . '. Stand near it.';
                     break;
                 case 'offset':
                     $r = omkBuyOffset($pdo, $rid, (int)($_POST['lol_id'] ?? 0));
@@ -114,8 +129,9 @@ $queue = omkSponsorQueue($pdo);
 $open = omkCounterIsOpen($_SESSION, $racerId, time());
 $hasCode = $racerId ? profileHasCode($pdo, $racerId) : false;
 $dupes = []; $fav = null; $balance = 0; $copiesHeld = 0; $mostOfOne = 0; $counterable = []; $myBribe = null; $mySponsor = false;
-$goldUntil = 0; $myLols = []; $myFounder = null;
+$goldUntil = 0; $myLols = []; $myFounder = null; $myPlate = null; $rentalUntil = 0; $isHolo = false; $hypeLeft = 0; $billboardUntil = 0;
 $founders = omkFounders($pdo);
+$billboards = omkBillboards($pdo);
 if ($open) {
     $_SESSION['omk_counter']['until'] = time() + OMK_COUNTER_MINUTES * 60;   // still at the counter
     $dupes = omkDuplicates($pdo, $racerId);
@@ -125,7 +141,12 @@ if ($open) {
     $counterable = array_values(array_filter($pending, fn($b) => (int)$b['racer_id'] !== $racerId));
     foreach ($pending as $b) if ((int)$b['racer_id'] === $racerId) $myBribe = $b;
     $mySponsor = (bool)array_filter($queue, fn($q) => (int)$q['racer_id'] === $racerId);
-    $goldUntil = omkGoldUntil($pdo, $racerId);
+    $goldUntil = omkUntil($pdo, $racerId, 'gold_name');
+    $myPlate = omkPlates($pdo)[$racerId] ?? null;
+    $rentalUntil = omkUntil($pdo, $racerId, 'foil_rental');
+    $isHolo = racerCardTier($pdo, $racerId)['key'] === 'holo';
+    $hypeLeft = omkHyped($pdo)[$racerId] ?? 0;
+    $billboardUntil = omkUntil($pdo, $racerId, 'billboard');
     $myLols = omkUnoffsetLols($pdo, $racerId);
     $myFounder = $founders[$racerId] ?? null;
 }
@@ -228,10 +249,36 @@ include __DIR__ . '/../private/templates/header.php';
                     <?php else: ?><button type="submit" name="action" value="sponsor" class="btn btn-primary btn-sm">Buy the ad break</button><?php endif; ?>
                 </div>
                 <div class="omk-item">
-                    <h3>Gold nameplate <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['gold']) ?></span></h3>
-                    <p>Your name in <span class="omk-gold">gold</span> on the homepage and the signs for <?= OMK_GOLD_DAYS ?> days, with a small PAID beside it so nobody thinks you earned it.</p>
-                    <?php if ($goldUntil > time()): ?><p class="omk-note">Gold until <?= date('j F', $goldUntil) ?>. More adds to that.</p><?php endif; ?>
-                    <button type="submit" name="action" value="gold" class="btn btn-primary btn-sm"><?= $goldUntil > time() ? 'Add a week' : 'Go gold' ?></button>
+                    <h3>Nameplate <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['gold']) ?></span></h3>
+                    <p>Your name in colour on the homepage and the signs for <?= OMK_GOLD_DAYS ?> days, with a small PAID beside it so nobody thinks you earned it.</p>
+                    <div class="omk-plates" role="radiogroup" aria-label="Nameplate colour">
+                        <?php foreach (OMK_PLATES as $key => $label): ?>
+                        <label class="omk-plate-pick"><input type="radio" name="plate" value="<?= $key ?>" <?= ($myPlate ?? 'gold') === $key ? 'checked' : '' ?>><span class="<?= trim(omkPlateClass($key)) ?>"><?= htmlspecialchars($label) ?></span></label>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php if ($goldUntil > time()): ?><p class="omk-note"><?= htmlspecialchars(OMK_PLATES[$myPlate] ?? 'Gold') ?> until <?= date('j F', $goldUntil) ?>. Another week adds to that, in whichever colour you pick now.</p><?php endif; ?>
+                    <button type="submit" name="action" value="gold" class="btn btn-primary btn-sm"><?= $goldUntil > time() ? 'Add a week' : 'Buy the nameplate' ?></button>
+                </div>
+                <div class="omk-item">
+                    <h3>Foil rental <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['rental']) ?></span></h3>
+                    <p>The Holographic finish on your trading card for <?= OMK_RENTAL_DAYS ?> days, stamped RENTAL. Shows on your profile and its download; the printed season set keeps your real tier.</p>
+                    <?php if ($isHolo): ?><p class="omk-note">Your card is already holographic. You earned it, so you cannot rent it.</p>
+                    <?php else: ?>
+                        <?php if ($rentalUntil > time()): ?><p class="omk-note">Rented until <?= date('j F', $rentalUntil) ?>. Another week adds to that.</p><?php endif; ?>
+                        <button type="submit" name="action" value="rental" class="btn btn-primary btn-sm"><?= $rentalUntil > time() ? 'Extend the lease' : 'Rent the foil' ?></button>
+                    <?php endif; ?>
+                </div>
+                <div class="omk-item">
+                    <h3>Hype package <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['hype']) ?></span></h3>
+                    <p>Kartificial says something nice about you in What cup? for your next <?= OMK_HYPE_GPS ?> GPs, in every draw you're in. He reads from a script, and he admits it: "<?= htmlspecialchars(str_replace('{n}', $names[$racerId], OMK_HYPE_LINES[0])) ?>"</p>
+                    <?php if ($hypeLeft > 0): ?><p class="omk-note">He's briefed for <?= $hypeLeft ?> more GP<?= $hypeLeft === 1 ? '' : 's' ?>. More adds to that.</p><?php endif; ?>
+                    <button type="submit" name="action" value="hype" class="btn btn-primary btn-sm">Brief him</button>
+                </div>
+                <div class="omk-item">
+                    <h3>Billboard <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['billboard']) ?></span></h3>
+                    <p>Your trading card gets its own slide on the rotating sign for <?= OMK_BILLBOARD_HOURS ?> hours, under a big SPONSORED. Everyone in the room will know you paid.</p>
+                    <?php if ($billboardUntil > time()): ?><p class="omk-note">On the sign until <?= date('j F, H:i', $billboardUntil) ?>. Another day adds to that.</p><?php endif; ?>
+                    <button type="submit" name="action" value="billboard" class="btn btn-primary btn-sm"><?= $billboardUntil > time() ? 'Add a day' : 'Put me up there' ?></button>
                 </div>
                 <div class="omk-item">
                     <h3>Carbon-offset a LOL <span class="omk-price"><?= omkFormatHtml(OMK_PRICES['offset']) ?></span></h3>
@@ -313,10 +360,11 @@ include __DIR__ . '/../private/templates/header.php';
     <div class="<?= $isAdmin ? 'omk-two' : '' ?>">
         <section class="omk-card">
             <h2 class="omk-h">On the table</h2>
-            <?php if (!$pending && !$queue): ?><p class="omk-note">Nobody is paying anybody. Kartificial is disappointed.</p><?php endif; ?>
+            <?php if (!$pending && !$queue && !$billboards): ?><p class="omk-note">Nobody is paying anybody. Kartificial is disappointed.</p><?php endif; ?>
             <ul class="omk-list">
                 <?php foreach ($pending as $b): ?><li>✉️ <strong><?= htmlspecialchars($b['name']) ?></strong> has bribed Kartificial for <?= htmlspecialchars($b['cup_name']) ?> Cup</li><?php endforeach; ?>
                 <?php foreach ($bribes as $b): if ($b['status'] !== 'countered') continue; ?><li>✉️✉️ <strong><?= htmlspecialchars((string)$b['counter_name']) ?></strong> out-bribed <?= htmlspecialchars($b['name']) ?> on <?= htmlspecialchars($b['cup_name']) ?> Cup</li><?php endforeach; ?>
+                <?php foreach ($billboards as $b): ?><li>📢 <strong><?= htmlspecialchars($b['name']) ?></strong> is on the billboard until <?= date('j F, H:i', (int)$b['until_ts']) ?></li><?php endforeach; ?>
                 <?php foreach ($queue as $i => $s): ?><li>📺 <strong><?= htmlspecialchars($s['name']) ?></strong> <?= $i === 0 ? 'sponsors the next newscast' : 'is next in line to sponsor one' ?></li><?php endforeach; ?>
             </ul>
         </section>

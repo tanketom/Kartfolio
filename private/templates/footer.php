@@ -1003,6 +1003,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         b.textContent = data.bribe.line;
                         cupHostLine.appendChild(b);
                     }
+                    // A hype package: a paid compliment, from a fixed list. textContent again.
+                    if (data.hype && data.hype.line) {
+                        const h = document.createElement('span');
+                        h.className = 'cup-host-pick cup-host-bribe';
+                        h.textContent = data.hype.line;
+                        cupHostLine.appendChild(h);
+                    }
                     if (data.allCups) cupAllCups = data.allCups;
 
                     // The number to beat, and on Territory seasons the holder.

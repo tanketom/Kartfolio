@@ -17,6 +17,7 @@
 require_once __DIR__ . '/gp_logic.php';
 require_once __DIR__ . '/badges.php';
 require_once __DIR__ . '/settings.php';
+require_once __DIR__ . '/omk.php';   // nameplates: the surfaces print omkPlateClass()/omkPlateTag() even with the module off
 
 /**
  * @param int  $badgeLimit  Keep at most this many badges per racer (rarest
@@ -56,11 +57,10 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
         }
     }
 
-    // Gold names, bought at the OMK Exchange: one query, and it cannot break the table.
-    $goldNames = [];
+    // Nameplates, bought at the OMK Exchange: one query, and it cannot break the table.
+    $plates = [];
     if (moduleEnabled($pdo, 'omk')) {
-        require_once __DIR__ . '/omk.php';
-        $goldNames = omkGoldNames($pdo);
+        $plates = omkPlates($pdo);
     }
 
     // Mikkoliiga rank per racer, when the module is on.
@@ -117,7 +117,7 @@ function leaderboardRows(PDO $pdo, string $seasonId, int $badgeLimit = 0, bool $
             'cupsCounted' => (int)($breakdown['components']['cups_counted'] ?? 0),
             'mikko'       => $mikkoByRacer[$rid] ?? null,
             'team'        => $teamOf[$rid] ?? null,   // ['name','color'] on a season with teams
-            'gold'        => isset($goldNames[$rid]),  // bought at the OMK Exchange
+            'plate'       => $plates[$rid] ?? null,  // a nameplate colour bought at the OMK Exchange, or null
         ];
     }
 

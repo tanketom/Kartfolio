@@ -632,3 +632,11 @@ body {
 .sp-team-member small { font-family: 'DM Mono', monospace; font-size: 30px; font-weight: 500; margin-left: 12px; opacity: 0.8; }
 .sp-team-member.is-in { background: #e3e0d6; color: #2b2723; }
 .sp-team-member.is-beat { background: #ffe9a8; color: #2b2723; }
+
+/* A card on the billboard, bought at the OMK Exchange (auto-vertical.php). */
+.slide-billboard .v-main-large { gap: 48px; }
+.v-billboard-card { transform: rotate(-2deg); }
+.v-billboard-note { margin: 0; font-size: 2.4rem; color: #555; max-width: 1500px; }
+/* The art is capped at its natural size, which is a small card's worth: on a card this
+   big it has to be stretched to the height the card allows it. */
+.v-billboard-card .tc-art { height: calc(var(--p) * 138); width: auto; }

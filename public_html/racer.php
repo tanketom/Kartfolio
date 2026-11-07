@@ -724,7 +724,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
         <!-- Left: Trading Card (1.5x scale) -->
         <div>
             <div id="racerCard">
-                <?= renderRacerCard($pdo, $racerId, $currentSeason, 1.5) ?>
+                <?= renderRacerCard($pdo, $racerId, $currentSeason, 1.5, true) ?>
             </div>
             <div class="racer-card-download">
                 <button onclick="downloadCard()" class="btn btn-primary">
