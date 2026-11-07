@@ -194,6 +194,7 @@ include __DIR__ . '/../private/templates/header.php';
                 <a href="/" class="btn btn-primary about-cta-btn">View Leaderboard</a>
                 <a href="/archive" class="btn btn-secondary about-cta-btn">Browse Broadcasts</a>
                 <a href="/league-in-numbers" class="btn btn-secondary about-cta-btn">League in numbers</a>
+                <a href="/new-here" class="btn btn-secondary about-cta-btn">New here?</a>
             </div>
         </section>
     </div>

@@ -138,6 +138,12 @@ if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true) {
                                 try { $openFlags = (int)$pdo->query("SELECT COUNT(*) FROM result_flags WHERE status = 'open'")->fetchColumn(); }
                                 catch (Throwable $e) { error_log('flag count: ' . $e->getMessage()); }
                                 if ($openFlags > 0) echo ' <strong>(' . $openFlags . ')</strong>'; ?></a>
+                            <a href="/admin/errors">🧯 Errors<?php
+                                // Same nudge as the audit's flags: a count when something went wrong today.
+                                $recentErrors = 0;
+                                try { $recentErrors = function_exists('kartfolioRecentErrorCount') ? kartfolioRecentErrorCount() : 0; }
+                                catch (Throwable $e) { /* the log reader must never break the menu */ }
+                                if ($recentErrors > 0) echo ' <strong>(' . $recentErrors . ')</strong>'; ?></a>
                             <a href="/admin/modules">🧩 Modules</a>
                             <a href="/admin/uml">🗂️ System UML</a>
                             <a href="/admin/settings">⚙️ Settings</a>

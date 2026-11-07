@@ -248,6 +248,36 @@ $liveFormatLabels = [
     <?php endif; ?>
 
 <?php
+    // The league's birthday: the anniversary of its first race (anniversary.php).
+    // ?anniversary=1 shows it on any day, to check it before the day.
+    require_once __DIR__ . '/../private/includes/anniversary.php';
+    $annN = $isCurrentSeason ? leagueAnniversaryToday($pdo, isset($_GET['anniversary'])) : null;
+    $anniv = $annN ? leagueAnniversaryFacts($pdo, $annN) : null;
+    if ($anniv):
+        $annGp = $anniv['gp'];
+        $annNames = array_column($annGp['rows'], 0);
+        $annList = count($annNames) > 1 ? implode(', ', array_slice($annNames, 0, -1)) . ' and ' . end($annNames) : ($annNames[0] ?? ''); ?>
+    <section class="anniv-card">
+        <div class="anniv-cake" aria-hidden="true">🎂</div>
+        <div class="anniv-body">
+            <div class="anniv-kicker">Year <?= (int)$anniv['number'] ?></div>
+            <h2 class="anniv-title">Happy <?= htmlspecialchars(leagueAnniversaryLabel($anniv['number'])) ?>, <?= htmlspecialchars(getSetting($pdo, 'league_name', 'Kartfolio')) ?></h2>
+            <p>On <?= date('j F Y', strtotime($anniv['first'])) ?>, <?= htmlspecialchars($annList) ?> raced the first Grand Prix: <a href="/timeline/<?= htmlspecialchars($annGp['gpid']) ?>"><?= htmlspecialchars($annGp['cup']) ?> Cup</a>, won by <?= htmlspecialchars($annGp['rows'][0][0]) ?> with <?= (int)$annGp['rows'][0][1] ?>. <?= count($anniv['night']['racers']) ?> racers raced <?= (int)$anniv['night']['gps'] ?> GPs that night.</p>
+            <div class="anniv-facts">
+                <div><strong><?= number_format($anniv['gps']) ?></strong><span>Grand Prix</span></div>
+                <div><strong><?= number_format($anniv['races']) ?></strong><span>Races</span></div>
+                <div><strong><?= number_format($anniv['racers']) ?></strong><span>Racers</span></div>
+            </div>
+            <?php if ($anniv['busiest']): ?><p class="anniv-note">Busiest this year: <?= htmlspecialchars($anniv['busiest'][0]) ?>, <?= (int)$anniv['busiest'][1] ?> GPs.<?php if ($anniv['still']): ?> Still racing from night one: <?= htmlspecialchars(implode(', ', $anniv['still'])) ?>.<?php endif; ?></p><?php endif; ?>
+            <p class="anniv-links">
+                <?php if (moduleEnabled($pdo, 'wrapped')): ?><a href="/wrapped">Your year in Wrapped →</a><?php endif; ?>
+                <a href="/new-here">New here? →</a>
+            </p>
+        </div>
+    </section>
+    <?php endif; ?>
+
+<?php
     // On a team season the teams are the season, so their table leads the page;
     // otherwise it sits further down as a side competition.
     $teamsLead = isTeamSeason($pdo, $seasonId);

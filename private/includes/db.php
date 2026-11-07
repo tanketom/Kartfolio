@@ -14,6 +14,8 @@ require_once __DIR__ . '/config.php';   // kartfolioConfig()
 /** How long a changed schema keeps re-running its migrations. See the signature comment below. */
 const MIGRATION_SETTLE_SECONDS = 300;
 require_once __DIR__ . '/http_headers.php';
+require_once __DIR__ . '/error_log.php';   // PHP's log goes to private/data/logs/, read on /admin/errors
+kartfolioErrorLogSetup();
 kartfolioSendSecurityHeaders();
 $dbPath = getenv('KARTFOLIO_DB') ?: __DIR__ . '/../data/league.db';
 

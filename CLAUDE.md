@@ -1132,6 +1132,30 @@ Cross-reference if you find half-implemented work:
   (`snlReplay()` now returns `snakeHits`). The last four are empty until
   teams/fantasy/tournaments have data
 
+- **The league's birthday** — `anniversary.php`: on the anniversary of the first race
+  (`leagueAnniversaryOn()`, the same date Wrapped opens, never hard-coded) the homepage
+  leads with a 🎂 card and the Lounge sign's panel slot shows the birthday every other
+  minute (every minute when the season has no panel of its own; the sign reloads each
+  minute). The panel is sized like the team panel, 1120px with four standings rows: at
+  1380px the five rows below were squeezed and clipped. `?anniversary=1` on either page
+  shows it on any day
+- **New here?** — `/new-here` (`new_here.php`), the page for a visitor: what the league
+  is, this season and its scoring in one sentence, a race night in four steps, a few
+  lexicon words (a fixed player-facing list, not developer terms like "LOL flag"), how
+  to join (setting `new_here_join`, blank = a sensible default), and links. Linked from
+  the footer and /about
+- **The site's own error log** — `error_log.php` points PHP's log at
+  `private/data/logs/php-errors.log` (gitignored, two files of 2 MB) on every web request,
+  never under the CLI because check.sh reads warnings off stderr. `/admin/errors` groups it
+  (numbers and quoted values folded) with a count in the Admin menu. Every try/catch that
+  logs and carries on now lands somewhere someone reads. `KARTFOLIO_ERROR_LOG` overrides
+  the path for a dev run
+- **Profiles on phones** — the season table turns into a card per season below 640px
+  (`data-label` on each cell), recent results drop the season column and use short dates
+  and headings, and the card takes `--s: 1.3` below 420px. The page used to be 637px
+  wide on a 375px phone, and an ancestor clipped the overflow so the last column was
+  silently cut rather than scrollable: measure with a script, not by eye
+
 ## Parked work — pick up from here
 
 ### Results-screen scanner (photo → add-result form)

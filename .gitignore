@@ -7,6 +7,9 @@
 # date, so neither *.db nor *.bak catches them
 *.db.bak-*
 
+# The site's own PHP error log (private/includes/error_log.php), per install
+private/data/logs/
+
 # Config with secrets (use config.example.php as template)
 private/config/config.php
 

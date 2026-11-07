@@ -36,6 +36,7 @@ $footerAbout = getSetting($pdo, 'footer_about', 'The premier competitive Mario K
             </p>
             <p>Did you fuck something up? Contact a league admin.</p>
             <p style="margin-top: 10px;">
+                <a href="/new-here" style="color: #888; text-decoration: none; font-size: 0.8rem; margin-right: 15px;">New here?</a>
                 <a href="/about" style="color: #888; text-decoration: none; font-size: 0.8rem; margin-right: 15px;">About</a>
                 <a href="/login.php" style="color: #444; text-decoration: none; font-size: 0.7rem; opacity: 0.6;">Admin Access</a>
             </p>

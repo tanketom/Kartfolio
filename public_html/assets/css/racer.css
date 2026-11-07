@@ -1013,3 +1013,27 @@
 
 /* Beaten by the computer, under the career numbers. */
 .career-cpu-line { margin: 12px 0 0; font-size: 0.9rem; color: var(--gray-600); }
+
+.racer-recent-short { display: none; }
+
+/* Phones. The season table becomes one card per season (labels from data-label),
+   the recent results drop the season column the date already implies, and the
+   trading card takes the same 1.3 scale as on /cards so it fits a 375px screen. */
+@media (max-width: 640px) {
+    .racer-seasons-table thead { display: none; }
+    .racer-seasons-table, .racer-seasons-table tbody, .racer-seasons-table tr, .racer-seasons-table td { display: block; }
+    .racer-seasons-table tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; padding: 12px 0; border-bottom: 1px solid var(--gray-200); }
+    .racer-seasons-table tr:last-child { border-bottom: 0; }
+    .racer-seasons-table td { padding: 0; border: 0; text-align: left; min-width: 0; }
+    .racer-seasons-table td::before { content: attr(data-label); display: block; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--gray-600); margin-bottom: 2px; }
+    .racer-seasons-table td.racer-seasons-badges { grid-column: 1 / -1; }
+    .racer-seasons-table td.racer-seasons-badges:empty::before, .racer-seasons-table td.racer-seasons-badges:not(:has(.badge-item)) { display: none; }
+    .racer-recent-table .racer-recent-season, .racer-recent-long { display: none; }
+    .racer-recent-short { display: inline !important; white-space: nowrap; }
+    .racer-recent-table th, .racer-recent-table td { padding: 10px 5px; font-size: 0.82rem; }
+    .racer-recent-table th { letter-spacing: 0.02em; font-size: 0.68rem; }
+}
+@media (max-width: 420px) {
+    #racerCard .tc { --s: 1.3 !important; }
+    #racerCard { display: flex; justify-content: center; }
+}

@@ -2385,3 +2385,18 @@ select, textarea {
 .omk-plate--omk     { --plate: linear-gradient(90deg, #b3000d, #ff3b3b 45%, #b3000d); color: #d0000f; }
 .omk-plate--rainbow { --plate: linear-gradient(90deg, #d8261b, #e57f00 22%, #2c9a3c 44%, #1e6bd0 66%, #8a3fd1 88%, #d8261b); color: #8a3fd1; }
 .omk-paid { display: inline-block; font-size: 0.55em; font-weight: 800; letter-spacing: 0.06em; padding: 0.1em 0.45em; border-radius: 999px; background: #ffe9a8; color: #3a2c00; vertical-align: middle; margin-left: 0.5em; -webkit-text-fill-color: #3a2c00; font-family: var(--font-body); font-style: normal; }
+
+/* The league's birthday card on the homepage (anniversary.php). */
+.anniv-card { display: flex; gap: 18px; align-items: flex-start; margin: 0 0 22px; padding: 18px 22px; border: 2.5px solid var(--dark-bg, #1a1a1a); border-radius: 16px; box-shadow: var(--shadow-card); background: linear-gradient(135deg, #fff6d6 0%, #ffe3ea 55%, #e4f0ff 100%); }
+.anniv-cake { font-size: 3rem; line-height: 1; }
+.anniv-body { min-width: 0; flex: 1; }
+.anniv-kicker { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--nintendo-red, #E60012); }
+.anniv-title { font-family: var(--font-display); font-size: 1.6rem; margin: 2px 0 8px; line-height: 1.15; }
+.anniv-body p { margin: 0 0 10px; line-height: 1.5; }
+.anniv-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 10px; max-width: 460px; }
+.anniv-facts div { background: rgba(255, 255, 255, 0.75); border-radius: 10px; padding: 8px; text-align: center; }
+.anniv-facts strong { display: block; font-family: 'DM Mono', monospace; font-size: 1.3rem; font-weight: 500; }
+.anniv-facts span { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-600); }
+.anniv-note { font-size: 0.9rem; color: var(--gray-700, #444); }
+.anniv-links { display: flex; flex-wrap: wrap; gap: 6px 18px; font-weight: 800; margin-bottom: 0 !important; }
+@media (max-width: 640px) { .anniv-card { padding: 16px; gap: 4px; flex-direction: column; } .anniv-cake { font-size: 2.2rem; } .anniv-title { font-size: 1.3rem; } }

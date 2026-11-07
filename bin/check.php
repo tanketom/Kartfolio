@@ -299,6 +299,24 @@ $omkIss = omkSanity($pdo, omkEconomy($pdo), [$omkR => 'Hanna', $omkR2 => 'Tom'])
 $ok('and catch a negative balance and a colour the shop does not sell', count($omkIss) === 2 && str_contains($omkIss[0][1], 'below zero') && str_contains($omkIss[1][1], 'mauve'));
 foreach (['omk_ledger', 'omk_cosmetics'] as $omkT2) $pdo->exec("DELETE FROM $omkT2");
 
+echo "anniversary and error log\n";
+require_once "$root/private/includes/anniversary.php";
+require_once "$root/private/includes/error_log.php";
+$ok('the birthday is the date of the first race, from year one', leagueAnniversaryOn('2025-11-19', '2026-11-19') === 1 && leagueAnniversaryOn('2025-11-19', '2027-11-19') === 2 && leagueAnniversaryOn('2025-11-19', '2025-11-19') === null && leagueAnniversaryOn('2025-11-19', '2026-11-18') === null && leagueAnniversaryOn(null, '2026-11-19') === null);
+$ok('a 29 February league has its birthday on 1 March, as Wrapped does', leagueAnniversaryOn('2024-02-29', '2025-03-01') === 1);
+$annF = leagueAnniversaryFacts($pdo, 1);
+$ok('the birthday facts: the founding GP, its winner first, and totals that add up', $annF !== null && $annF['gp']['rows'][0][1] === max(array_column($annF['gp']['rows'], 1)) && $annF['races'] === 4 * $annF['gps'] && $annF['first'] === wrappedFirstRace($pdo) && in_array($annF['gp']['rows'][0][0], $annF['night']['racers'], true));
+$ok('birthday wording', leagueAnniversaryLabel(1) === 'first birthday' && leagueAnniversaryLabel(12) === '12th birthday');
+$errLog = "[06-Nov-2026 10:01:02 UTC] omk gold: no such table: omk_cosmetics id 41\n[06-Nov-2026 10:01:09 UTC] omk gold: no such table: omk_cosmetics id 42\n"
+        . "[07-Nov-2026 09:30:00 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function foo() in /x/pick_cup.php:12\nStack trace:\n#0 {main}\n"
+        . "[07-Nov-2026 09:31:00 UTC] PHP Warning:  Undefined array key \"plate\" in /x/index.php on line 356\n";
+$errE = kartfolioParseErrorLog($errLog);
+$ok('the error log parses: levels, messages, and a stack trace kept with its entry', count($errE) === 4 && $errE[2]['level'] === 'Fatal error' && $errE[2]['more'] === ['Stack trace:', '#0 {main}'] && $errE[3]['level'] === 'Warning' && $errE[0]['level'] === 'Logged' && $errE[0]['ts'] === strtotime('06-Nov-2026 10:01:02 UTC'));
+$errG = kartfolioGroupErrors($errE);
+$ok('and groups the same problem with different numbers, newest first', count($errG) === 3 && $errG[0]['level'] === 'Warning' && $errG[2]['count'] === 2 && str_contains($errG[2]['message'], 'id 42'));
+$errTmp = tempnam(sys_get_temp_dir(), 'kfe'); file_put_contents($errTmp, $errLog);
+$ok('read back from a file', count(kartfolioErrorEntries($errTmp)) === 4); unlink($errTmp);
+
 echo "wrapped\n";
 require_once "$root/private/includes/wrapped_personas.php";
 $wp = wrappedPeriodFor('2025-11-19', 2026);
@@ -397,7 +415,7 @@ echo "pages\n";
 $pages = [];
 foreach (glob("$root/public_html/*.php") as $f) $pages[basename($f, '.php')] = [];
 unset($pages['login'], $pages['logout']);
-$variants = ['teams' => ['', 'season=s04'], 'index' => ['', 'season=s01', 'season=s02', 'season=s03', 'season=s04'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02', 'season=s03', 'season=s04'], 'stats' => ['', 'season=s01', 'season=s02', 'season=all'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'yearbook' => ['', 'season=s01', 'season=s02'], 'cup_mastery' => ['season=s02'], 'territory' => ['', 'season=s01', 'season=s02', 'season=zz'], 'predictions' => [''], 'season' => null];
+$variants = ['teams' => ['', 'season=s04'], 'index' => ['', 'season=s01', 'season=s02', 'season=s03', 'season=s04', 'anniversary=1'], 'vertical' => ['', 'anniversary=1'], 'racer' => ['id=1', 'id=2'], 'scoring' => ['season=s01', 'season=s02', 'season=s03', 'season=s04'], 'stats' => ['', 'season=s01', 'season=s02', 'season=all'], 'timeline_gp' => ['gp=s02gp01'], 'cup_detail' => ['cup=mushroom'], 'view_season_report' => ['season=s01', 'season=s02'], 'animate_season' => ['season=s02'], 'wrapped' => ['racer=1'], 'badges_overview' => ['season=s02'], 'season_chart' => ['season=s02'], 'mh_dashboard' => ['season=s02'], 'rank_graphic' => ['season=s02'], 'yearbook' => ['', 'season=s01', 'season=s02'], 'cup_mastery' => ['season=s02'], 'territory' => ['', 'season=s01', 'season=s02', 'season=zz'], 'predictions' => [''], 'season' => null];
 $racerIds = $pdo->query("SELECT id FROM racers ORDER BY id LIMIT 2")->fetchAll(PDO::FETCH_COLUMN);
 $renderer = tempnam(sys_get_temp_dir(), 'render'); file_put_contents($renderer, '<?php
 // Renders one page from the CLI. A page may exit() (a redirect, a "not found"),

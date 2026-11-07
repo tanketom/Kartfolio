@@ -3335,3 +3335,11 @@
 .oa-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
 .oa-pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 12px; }
 @media (max-width: 900px) { .oa-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .oa-two { grid-template-columns: minmax(0, 1fr); } }
+
+/* /admin/errors */
+.err-group .audit-head h2 { font-size: 1rem; }
+.err-message { margin: 8px 0 4px; overflow-wrap: anywhere; }
+.err-message code { font-size: 0.86rem; background: var(--gray-100, #f3f4f6); padding: 2px 6px; border-radius: 6px; }
+.err-more summary { cursor: pointer; font-size: 0.85rem; color: var(--gray-600); }
+.err-more pre { font-size: 0.78rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--gray-100, #f3f4f6); padding: 10px; border-radius: 8px; max-height: 320px; overflow: auto; }
+.err-clear { display: flex; gap: 12px; align-items: center; margin: 18px 0; }

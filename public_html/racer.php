@@ -1715,7 +1715,7 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
             </svg>
         </div>
         <?php endif; ?>
-        <table class="clean-table racer-mt-20">
+        <table class="clean-table racer-mt-20 racer-seasons-table">
             <thead>
                 <tr>
                     <th>Season</th>
@@ -1754,17 +1754,17 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
                     }
                 ?>
                 <tr>
-                    <td><strong><?= strtoupper($season['season']) ?></strong></td>
-                    <td class="scoring-system-cell" data-tooltip="<?= htmlspecialchars($season['scoring_info']['name']) ?>: <?= htmlspecialchars($season['scoring_info']['description']) ?>">
+                    <td data-label="Season"><strong><?= strtoupper($season['season']) ?></strong></td>
+                    <td class="scoring-system-cell" data-label="System" data-tooltip="<?= htmlspecialchars($season['scoring_info']['name']) ?>: <?= htmlspecialchars($season['scoring_info']['description']) ?>">
                         <span class="scoring-system-icon"><?= $season['scoring_info']['icon'] ?></span>
                     </td>
-                    <td class="placement-cell"><?= $placementDisplay ?></td>
-                    <td class="gp-score"><span class="gpscore-cell" data-tooltip="<?= htmlspecialchars($tooltip) ?>"><?= number_format($season['gp_score'], 2) ?></span></td>
-                    <td><?= $season['stats']['gps'] ?></td>
-                    <td><?= $season['stats']['points'] ?></td>
-                    <td><?= $season['stats']['best'] ?></td>
-                    <td><?= $season['stats']['wins'] ?></td>
-                    <td>
+                    <td class="placement-cell" data-label="Placement"><?= $placementDisplay ?></td>
+                    <td class="gp-score" data-label="Score"><span class="gpscore-cell" data-tooltip="<?= htmlspecialchars($tooltip) ?>"><?= number_format($season['gp_score'], 2) ?></span></td>
+                    <td data-label="GPs"><?= $season['stats']['gps'] ?></td>
+                    <td data-label="Points"><?= $season['stats']['points'] ?></td>
+                    <td data-label="Best GP"><?= $season['stats']['best'] ?></td>
+                    <td data-label="Wins"><?= $season['stats']['wins'] ?></td>
+                    <td class="racer-seasons-badges" data-label="Badges">
                         <?php foreach ($season['badges'] as $badge): ?>
                             <span class="badge-item badge-item--sm" data-tooltip="<?= htmlspecialchars($badge['title']) ?>: <?= htmlspecialchars($badge['desc']) ?>">
                                 <?= $badge['icon'] ?>
@@ -1792,23 +1792,23 @@ $newsItems = $newsStmt->fetchAll(PDO::FETCH_ASSOC);
     ?>
     <div class="card">
         <h2 class="card-header">Recent Grand Prix Results</h2>
-        <table class="clean-table racer-mt-20">
+        <table class="clean-table racer-mt-20 racer-recent-table">
             <thead>
                 <tr>
                     <th>Date</th>
-                    <th>Season</th>
+                    <th class="racer-recent-season">Season</th>
                     <th>Cup</th>
-                    <th>Character</th>
-                    <th>Finish</th>
-                    <th>Points</th>
+                    <th><span class="racer-recent-long">Character</span><span class="racer-recent-short">Char.</span></th>
+                    <th><span class="racer-recent-long">Finish</span><span class="racer-recent-short">Pos</span></th>
+                    <th><span class="racer-recent-long">Points</span><span class="racer-recent-short">Pts</span></th>
                     <?php if ($isTop12Unique): ?><th>Status</th><?php endif; ?>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($recentResults as $result): ?>
                 <tr>
-                    <td><?= date('M j, Y', strtotime($result['race_date'])) ?></td>
-                    <td><?= strtoupper($result['season']) ?></td>
+                    <td><span class="racer-recent-long"><?= date('M j, Y', strtotime($result['race_date'])) ?></span><span class="racer-recent-short"><?= date('j M y', strtotime($result['race_date'])) ?></span></td>
+                    <td class="racer-recent-season"><?= strtoupper($result['season']) ?></td>
                     <td><?= htmlspecialchars($result['cup_name'] ?? '') ?></td>
                     <td><?= htmlspecialchars($result['character_used']) ?></td>
                     <td>

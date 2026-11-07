@@ -38,9 +38,20 @@ $signPanel = in_array($scoringSystem, ['kart_bingo', 'price_is_right'], true) ? 
 // A team season's panel is the team table, once there are teams to show.
 $signTeams = isTeamSeason($pdo, $seasonId) ? getTeamStandings($pdo, $seasonId) : [];
 if ($signTeams) $signPanel = 'teams';
+// The league's birthday (anniversary.php) takes the slot every other minute when the
+// season has its own panel or map, and every minute when it has none. The sign
+// reloads each minute, so the room sees both. ?anniversary=1 shows it now.
+require_once __DIR__ . '/../private/includes/anniversary.php';
+$annPreview = isset($_GET['anniversary']);
+$annN = leagueAnniversaryToday($pdo, $annPreview);
+$anniv = $annN ? leagueAnniversaryFacts($pdo, $annN) : null;
+if ($anniv && ($annPreview || (!$signPanel && !$isTerritory) || (int)date('i') % 2 === 0)) {
+    $signPanel = 'anniversary';
+    $ttMap = null;
+}
 $leaderboard = array_slice($standings, 0, ($isTerritory || $signPanel) ? 5 : 10);
-// The team panel leaves room for four rows, or three while a banner is up.
-if ($signPanel === 'teams') $leaderboard = array_slice($standings, 0, scoringSystemBanner($pdo, $seasonId) ? 3 : 4);
+// The team and birthday panels leave room for four rows, or three while a banner is up.
+if (in_array($signPanel, ['teams', 'anniversary'], true)) $leaderboard = array_slice($standings, 0, scoringSystemBanner($pdo, $seasonId) ? 3 : 4);
 $racerColour = territoryRacerColors(array_column($standings, 'id'));
 $names = racerNamesMap($pdo);
 
@@ -100,7 +111,23 @@ while($row = $newsStmt->fetch()) {
         <script src="<?= assetUrl('/assets/js/territory_map.js') ?>"></script>
         <?php endif; ?>
 
-        <?php if ($signPanel === 'teams'):
+        <?php if ($signPanel === 'anniversary'): $ag = $anniv['gp']; ?>
+        <section class="sign-panel sign-panel--anniv">
+            <div class="sp-title"><h3>🎂 Year <?= (int)$anniv['number'] ?></h3><span>happy <?= htmlspecialchars(leagueAnniversaryLabel($anniv['number'])) ?></span></div>
+            <div class="sa-first">
+                <div class="sa-first-head"><small><?= date('j F Y', strtotime($anniv['first'])) ?> · the first Grand Prix</small><b><?= htmlspecialchars($ag['cup']) ?> Cup</b></div>
+                <?php foreach (array_slice($ag['rows'], 0, 4) as $i => [$an, $ap]): ?>
+                <div class="sa-row<?= $i === 0 ? ' sa-row--win' : '' ?>"><span><?= $i === 0 ? '👑 ' : '' ?><?= htmlspecialchars($an) ?></span><b><?= (int)$ap ?></b></div>
+                <?php endforeach; ?>
+            </div>
+            <div class="sa-nums">
+                <div><b><?= number_format($anniv['gps']) ?></b><span>Grand Prix</span></div>
+                <div><b><?= number_format($anniv['races']) ?></b><span>races</span></div>
+                <div><b><?= number_format($anniv['racers']) ?></b><span>racers</span></div>
+            </div>
+            <div class="sp-hint"><?= count($anniv['night']['racers']) ?> racers raced <?= (int)$anniv['night']['gps'] ?> GPs on night one<?= $anniv['busiest'] ? '. Busiest this year: ' . htmlspecialchars($anniv['busiest'][0]) . ', ' . (int)$anniv['busiest'][1] . ' GPs' : '' ?>.<?= $anniv['still'] ? ' Still racing from night one: ' . htmlspecialchars(implode(', ', $anniv['still'])) . '.' : '' ?></div>
+        </section>
+        <?php elseif ($signPanel === 'teams'):
             $rc = rollCallSeason($pdo, $seasonId, $rules);
             $thisWeek = rollCallWeekOf(date('Y-m-d'));
             $careerAvg = hauntedGhostBase($pdo, $seasonId)['per']; ?>
