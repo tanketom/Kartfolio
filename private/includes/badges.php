@@ -148,6 +148,19 @@ function badgeCareerContext($pdo) {
     $archivedSeasons  = $pdo->query("SELECT season_id FROM season_meta WHERE status = 'archived' ORDER BY season_id ASC")->fetchAll(PDO::FETCH_COLUMN);
     $careerPlacements = archivedSeasonPlacements($pdo);   // snapshot table: one query
 
+    // ── Lifer: raced in every finished season that had racing. Archived only, so
+    //    a new season cannot take it away from someone who simply has not raced yet. ──
+    $everySeason = [];
+    $racedSeasons = [];   // season_id => [racer_id => true]
+    foreach ($pdo->query("SELECT DISTINCT SUBSTR(gpid, 1, 3) AS s, racer_id FROM results WHERE gpid LIKE 's%'") as $r) {
+        $racedSeasons[$r['s']][(int)$r['racer_id']] = true;
+    }
+    $finished = array_values(array_filter($archivedSeasons, fn($s) => isset($racedSeasons[$s])));
+    if (count($finished) >= 3) {
+        $everySeason = $racedSeasons[$finished[0]];
+        foreach (array_slice($finished, 1) as $s) $everySeason = array_intersect_key($everySeason, $racedSeasons[$s]);
+    }
+
     // ── Constructor: members of the winning team in an archived teams season ──
     $constructorWinners = [];
     try {
@@ -257,7 +270,7 @@ function badgeCareerContext($pdo) {
     } catch (PDOException $e) { /* fantasy tables absent */ }
 
     return $cache = compact(
-        'omkFounders', 'omkBadges', 'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart',
+        'omkFounders', 'omkBadges', 'careerCups', 'careerPerfectCups', 'careerChars', 'prevSeasonCount', 'seasonsPlayed', 'racerNames', 'stickerHoldings', 'stickerSetTotals', 'stickerGrandTotal', 'packsOpened', 'tourneyWins', 'pickemOracleIds', 'elo2000', 'eloData', 'dynastyRun', 'careerPlacements', 'everySeason', 'constructorWinners', 'fantasyChampions', 'bracketBusters', 'snakeBitten', 'mikkoSeasons', 'mikkoColdStart',
         'careerWins', 'debutPodium', 'maxGpsInDay', 'lockedIn'
     );
 }
@@ -954,6 +967,8 @@ function getRacerBadges($pdo, $racer_id, $season_id) {
         if (($ctx['seasonsPlayed'][$racer_id] ?? 0) >= 3) {
             $badges[] = badgeDef('the_elder');
         }
+        // ♾️ Lifer — raced in every finished season (3+ of them)
+        if (isset($ctx['everySeason'][$racer_id])) $badges[] = badgeDef('lifer');
     }
 
     if ($totalRaces < badgeRacingGate($pdo, $season_id)) return $badges; // career badges already added

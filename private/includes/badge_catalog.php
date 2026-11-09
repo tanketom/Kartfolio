@@ -66,6 +66,7 @@ function badgeCatalog(): array {
         'hat_trick' => ['icon' => '🎩', 'title' => 'Hat Trick', 'desc' => 'Won 3 Grand Prix events in a row.', 'criteria' => 'Won 3 Grand Prix events in a row', 'category' => 'streaks'],
         'ascendant' => ['icon' => '↗️', 'title' => 'Ascendant', 'desc' => 'Improved finishing rank in 5 consecutive Grand Prix events.', 'criteria' => 'Improved finishing rank in 5 consecutive GPs', 'category' => 'streaks'],
         'the_elder' => ['icon' => '🕰️', 'title' => 'The Elder', 'desc' => 'Competed across 3 or more seasons.', 'criteria' => 'Competed across 3 or more seasons', 'category' => 'career'],
+        'lifer' => ['icon' => '♾️', 'title' => 'Lifer', 'desc' => 'Has raced in every season the league has finished.', 'criteria' => 'Raced in every finished season (3+ of them)', 'category' => 'career'],
         'elo_climber' => ['icon' => '🧗', 'title' => 'The Climber', 'desc' => 'Gained 100+ Elo points during this season.', 'criteria' => 'Gained 100+ Elo points during a single season', 'category' => 'elo'],
         'elo_fall' => ['icon' => '📉', 'title' => 'The Fall', 'desc' => 'Lost 100+ Elo points during this season.', 'criteria' => 'Lost 100+ Elo points during a single season', 'category' => 'elo'],
         'upset_king' => ['icon' => '⚡', 'title' => 'Upset King', 'desc' => 'Finished ahead of a racer with 200+ higher Elo in 3 or more GPs.', 'criteria' => 'Finished ahead of a racer with 200+ higher Elo in 3+ GPs', 'category' => 'elo'],

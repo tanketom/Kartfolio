@@ -1173,8 +1173,34 @@ Cross-reference if you find half-implemented work:
   to their fields with `for`/`id`, and the result-entry rows have `aria-label`s. A "Skip to
   content" link jumps to `#main-content`. Every nameplate colour is at least 3:1 on every
   card, checked in check.php: a new colour that is too light fails the build
+- **♾️ Lifer** — raced in every ARCHIVED season that had racing, once there are three
+  of them (`everySeason` in `badgeCareerContext()`). Archived only, so the start of a
+  new season does not strip it from someone who has not raced yet; skipping a season
+  loses it for good once that season is archived
 
 ## Parked work — pick up from here
+
+### Push notifications for the home-screen app
+
+Decided 2026-11-09, not started. Web Push to the installed app (`/manifest.webmanifest`
+already exists; iPhone needs iOS 16.4+ and the app added to the home screen, Android
+works in Chrome too). **First triggers: a new GP saved, and a new broadcast published**
+(on publish in `/admin/news`, never on draft). More can follow later (badge earned,
+fantasy deadline, OMK events, a commissioner announcement), each a per-person toggle.
+
+Shape agreed:
+- A push-only service worker: no fetch handler, no caching. The "no offline copy, it
+  would show last week's table on race night" decision stands.
+- Opt-in by a tap (browsers only prompt after one), on the racer profile behind the
+  profile code like the Exchange, so a GP notification can be about that racer.
+  Anonymous league-wide subscriptions are fine for broadcasts.
+- `push_subscriptions` table (endpoint, keys, racer_id nullable, topics, created,
+  last_ok); delete on a 404/410 from the push service.
+- Sending in plain PHP, no Composer: aes128gcm payload encryption (RFC 8291) plus a
+  VAPID JWT (ES256) with openssl. About 200 lines; test against FCM and Apple's push
+  service. Send after the response is flushed so saving a GP never waits on it.
+- VAPID key pair in the gitignored `config.php`, set via `bin/set_api_key.php`. The
+  push services' hosts are outbound only, so the CSP does not change.
 
 ### Results-screen scanner (photo → add-result form)
 
